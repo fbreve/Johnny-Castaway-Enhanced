@@ -1,5 +1,8 @@
 package main
 
+// These inversion functions below are basically refactored so that I can advance the game one frame at a time
+// and allow Ebiten to control the event loop.
+
 func inverAdsPlaySingleTtmStart(ttmName string) {
 	adsInit()
 	ttmLoadTTM(&ttmSlots[0], ttmName)

@@ -281,10 +281,23 @@ func grDrawSprite(sur *ebiten.Image, ttmSlot *TTtmSlot, x, y int16, spriteNo, im
 }
 
 func grDrawSpriteFlip(sur *ebiten.Image, ttmSlot *TTtmSlot, x, y int16, spriteNo, imageNo uint16) {
-	// NOTE: need to figure out how to draw a surface flipped in Ebiten
-	// However, for now, I'm just going to call the regular one
-	grDrawSprite(sur, ttmSlot, x, y, spriteNo, imageNo)
-	fmt.Println("grDrawSpriteFlip (not correctly implemented - r.c.)")
+	if int(spriteNo) >= ttmSlot.numSprites[imageNo] {
+		fmt.Printf("Warning : grDrawSprite(): less than %d sprites loaded in slot %d\n", imageNo, spriteNo)
+		return
+	}
+
+	x += int16(grDx)
+	y += int16(grDy)
+
+	srcSurface := ttmSlot.sprites[imageNo][spriteNo]
+	x += int16(srcSurface.Bounds().Dx()) - 1
+
+	opts := &ebiten.DrawImageOptions{}
+	// Color scale of red, shows those frames which are playing "flipped" - for troubleshooting.
+	//opts.ColorScale.Scale(1.0, 0, 0, 1.0)
+	opts.GeoM.Scale(-1, 1)
+	opts.GeoM.Translate(float64(x), float64(y))
+	sur.DrawImage(srcSurface, opts)
 }
 
 func grClearScreen(sur *ebiten.Image) {

@@ -118,18 +118,23 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	//	}
 	//}
 
+	const (
+		xLoc = 10
+		yLoc = 20
+	)
+
 	if g.mode == None {
-		ebitenutil.DebugPrintAt(screen, "State => None", 10, 400)
+		ebitenutil.DebugPrintAt(screen, "State => None", xLoc, yLoc)
 	} else if g.mode == TTMSingleModeStart {
-		ebitenutil.DebugPrintAt(screen, "State => TTMSingleModeStart", 10, 400)
+		ebitenutil.DebugPrintAt(screen, "State => TTMSingleModeStart", xLoc, yLoc)
 	} else if g.mode == TTMSingleModePoll {
-		ebitenutil.DebugPrintAt(screen, "State => TTMSingleModePoll", 10, 400)
+		ebitenutil.DebugPrintAt(screen, "State => TTMSingleModePoll", xLoc, yLoc)
 	} else if g.mode == TTMSingleModeEnd {
-		ebitenutil.DebugPrintAt(screen, "State => TTMSingleModeEnd", 10, 400)
+		ebitenutil.DebugPrintAt(screen, "State => TTMSingleModeEnd", xLoc, yLoc)
 	} else if g.mode == Delay {
-		ebitenutil.DebugPrintAt(screen, "State => DELAY", 10, 400)
+		ebitenutil.DebugPrintAt(screen, "State => DELAY", xLoc, yLoc)
 	} else {
-		ebitenutil.DebugPrintAt(screen, "State => ???", 10, 400)
+		ebitenutil.DebugPrintAt(screen, "State => ???", xLoc, yLoc)
 	}
 }
 
@@ -147,6 +152,7 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 func main() {
 	ebiten.SetWindowSize(screenWidth, screenHeight)
 	//ebiten.SetFullscreen(true)
+	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	ebiten.SetWindowTitle("Johnny Castaway - 34th Anniversary Edition")
 
 	start := time.Now()
