@@ -89,7 +89,7 @@ func (g *Game) Update() error {
 		inverAdsPlaySingleTtmEnd()
 	case Delay:
 		if g.delayTicks > 0 {
-			g.delayTicks -= 2
+			g.delayTicks -= 1
 		} else {
 			g.mode = g.delayReturnMode
 		}
@@ -136,6 +136,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	} else {
 		ebitenutil.DebugPrintAt(screen, "State => ???", xLoc, yLoc)
 	}
+
+	// special case troubleshooting
+	ebitenutil.DebugPrint(screen, fmt.Sprintf("ip:%d, dataSize:%d", ttmThreads[0].ip, ttmSlots[0].dataSize))
 }
 
 func (g *Game) IsKeyJustPressed() bool {

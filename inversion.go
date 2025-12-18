@@ -18,8 +18,9 @@ func inverAdsPlaySingleTtmPoll() {
 	grUpdateDisplay(nil, ttmThreads[:], nil)
 	grUpdateDelay = int(ttmThreads[0].delay)
 
-	// it crashes...not sure why.
-	if ttmThreads[0].ip == (ttmSlots[0].dataSize - 1) {
+	if ttmThreads[0].ip == ttmSlots[0].dataSize {
+		// r.c. I'm manually clearing out grUpdateDelay to guarantee we truly transition to End.
+		grUpdateDelay = 0
 		gGame.ChangeState(TTMSingleModeEnd)
 	}
 }
