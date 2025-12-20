@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/vector"
 	"image"
 	"image/color"
 )
@@ -27,6 +28,11 @@ var (
 	//int grWindowed    = 0
 	grUpdateDelay   int = 0
 	grBackgroundSur *ebiten.Image
+
+	grSavedZonesLayer *ebiten.Image
+	// Note: original C code doesn't have this field, but I think this needed to be added
+	// in order to make the Ebiten code equivalent - r.c.
+	grClippedImage *ebiten.Image
 )
 
 type TAdsScene struct {
@@ -70,6 +76,11 @@ func grReleaseScreen() {
 	// Note: Deallocate is an ebiten specific thing, not sure if it's entirely necessary to invoke it.
 	grBackgroundSur.Deallocate()
 	grBackgroundSur = nil
+}
+
+func grReleaseSavedLayer() {
+	grSavedZonesLayer.Deallocate()
+	grSavedZonesLayer = nil
 }
 
 func grPutPixel(sur *ebiten.Image, x, y uint16, c uint8) {
@@ -156,7 +167,9 @@ func grUpdateDisplay(ttmBGThread *TTtmThread, ttmThreads []TTtmThread, ttmHolida
 		gScreen.DrawImage(grBackgroundSur, &ebiten.DrawImageOptions{})
 	}
 
-	// TODO: do saved zones layer
+	if grSavedZonesLayer != nil {
+		gScreen.DrawImage(grSavedZonesLayer, &ebiten.DrawImageOptions{})
+	}
 
 	// Blit each threads layer
 	for i := 0; i < MaxTTMThreads; i++ {
@@ -190,12 +203,62 @@ func grFreeLayer(sur *ebiten.Image) {
 	sur.Deallocate()
 }
 
-func grSetClipZone() {
+func grSetClipZone(sur *ebiten.Image, x1, y1, x2, y2 int16) {
+	x1 += int16(grDx)
+	y1 += int16(grDy)
+	x2 += int16(grDx)
+	y2 += int16(grDy)
 
+	// SDL2 code
+	//SDL_Rect rect = { x1, y1, x2-x1, y2-y1 };
+	//SDL_SetClipRect(sur, &rect);
+
+	// Equivalent Ebiten code?? Not sure, I need to prove this out.
+	// NOTE: according to docs, SubImage returns the image.Image interface but it's always
+	// a *ebiten.Image so I should be able to cast and save it.
+	rect := image.Rect(int(x1), int(y1), int(x2), int(y2))
+	grClippedImage = sur.SubImage(rect).(*ebiten.Image)
 }
 
-func grCopyZoneToBg() {
+func grCopyZoneToBg(sur *ebiten.Image, x, y, width, height uint16) {
+	x += uint16(grDx)
+	y += uint16(grDy)
 
+	//SDL_Rect rect = { (short) x, (short) y, width + 2, height };
+	adjustedWidth := width + 2
+
+	if grSavedZonesLayer == nil {
+		grSavedZonesLayer = grNewLayer()
+	}
+
+	// r.c. NOTE: this block is just to document SDL2 which is the source vs dst surface.
+	// int SDL_BlitSurface(SDL_Surface *src,
+	//                    const SDL_Rect *srcrect,
+	//                    SDL_Surface *dst,
+	//                    SDL_Rect *dstrect);
+
+	// original SDL code
+	//SDL_BlitSurface(sfc, &rect, grSavedZonesLayer, &rect);
+
+	// Note : without the +2 in width+2 above, there would be a graphical
+	// glitch (2 unfilled pixels) on the hull of the cargo, caused by an
+	// error in coordinates in GJIVS6.TTM
+	// Obviously, the original soft rounds the SAVE_IMAGE boundaries on
+	// one way or another.
+
+	// ported Ebiten code
+	// Define source rectangle
+	srcRect := image.Rect(int(int16(x)), int(int16(y)), int(x+adjustedWidth), int(y+height))
+
+	// Extract the sub-image from source
+	subImg := sur.SubImage(srcRect).(*ebiten.Image)
+
+	// Set up draw options to position at the same coordinates in destination
+	opts := &ebiten.DrawImageOptions{}
+	opts.GeoM.Translate(float64(x), float64(y))
+
+	// Draw to saved zones layer
+	grSavedZonesLayer.DrawImage(subImg, opts)
 }
 
 // zone stuff
@@ -210,8 +273,30 @@ func grDrawLine() {
 	fmt.Println("grDrawLine(...)")
 }
 
-func grDrawRect(sur *image.RGBA, x1, y1 int16, width, height uint16, fgColor, bgColor uint8) {
+func grDrawRect(sur *ebiten.Image, x, y int16, width, height uint16, colorIdx uint8) {
+	x += int16(grDx)
+	y += int16(grDy)
 
+	// r.c. testing this out, not ready yet.
+
+	clr := ttmPalette[colorIdx]
+	c := color.RGBA{
+		// Note color order -> this matches what's in the C implementation.
+		R: clr[2],
+		G: clr[1],
+		B: clr[0],
+		A: 0xff,
+	}
+
+	vector.FillRect(
+		sur,
+		float32(x),
+		float32(y),
+		float32(width),
+		float32(height),
+		c,
+		false,
+	)
 }
 
 func grDrawCircle() {
@@ -312,8 +397,9 @@ func grLoadScreen(screenName string) {
 		grReleaseScreen()
 	}
 
-	//if (grSavedZonesLayer != NULL) //todo
-	//	grReleaseSavedLayer();
+	if grSavedZonesLayer != nil {
+		grReleaseSavedLayer()
+	}
 
 	scrResource := findSCRResource(screenName)
 
@@ -363,8 +449,9 @@ func grInitEmptyBackground() {
 		grReleaseScreen()
 	}
 
-	//if (grSavedZonesLayer != NULL)
-	//	grReleaseSavedLayer();
+	if grSavedZonesLayer != nil {
+		grReleaseSavedLayer()
+	}
 
 	grBackgroundSur = ebiten.NewImage(640, 480)
 	grBackgroundSur.Fill(color.Black)

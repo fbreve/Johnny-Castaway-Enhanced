@@ -208,11 +208,11 @@ func ttmPlay(ttmThread *TTtmThread) {
 			ttmThread.delay = val
 			ttmThread.timer = val
 		case 0x4004:
-			fmt.Printf("\tSET_CLIP_ZONE %d %d %d %d\n", args[0], args[1], args[2], args[3])
-			//grSetClipZone(ttmThread->ttmLayer, args[0], args[1], args[2], args[3]);
+			fmt.Printf("\tSET_CLIP_ZONE: %d %d %d %d\n", args[0], args[1], args[2], args[3])
+			grSetClipZone(ttmThread.ttmLayer, int16(args[0]), int16(args[1]), int16(args[2]), int16(args[3]))
 		case 0x4204:
-			fmt.Printf("\tCOPY_ZONE_TO_BG %d %d %d %d\n", args[0], args[1], args[2], args[3])
-			//grCopyZoneToBg(ttmThread->ttmLayer, args[0], args[1], args[2], args[3]);
+			fmt.Printf("\tCOPY_ZONE_TO_BG: x:%d, y:%d, w:%d, h:%d\n", args[0], args[1], args[2], args[3])
+			grCopyZoneToBg(ttmThread.ttmLayer, args[0], args[1], args[2], args[3])
 		case 0x4214:
 			// defines the zone to be redrawn at each update ?
 			// but seems not used in the original
@@ -234,7 +234,7 @@ func ttmPlay(ttmThread *TTtmThread) {
 			//grDrawLine(ttmThread.ttmLayer, args[0], args[1], args[2], args[3], ttmThread.fgColor);
 		case 0xA104:
 			fmt.Printf("\tDRAW_RECT %d %d %d %d\n", args[0], args[1], args[2], args[3])
-			//grDrawRect(ttmThread->ttmLayer, args[0], args[1], args[2], args[3], ttmThread->fgColor);
+			grDrawRect(ttmThread.ttmLayer, int16(args[0]), int16(args[1]), args[2], args[3], ttmThread.fgColor)
 		case 0xA404:
 			fmt.Printf("\tDRAW_CIRCLE %d %d %d %d\n", args[0], args[1], args[2], args[3])
 			//grDrawCircle(ttmThread->ttmLayer, args[0], args[1], args[2], args[3], ttmThread->fgColor, ttmThread->bgColor);
@@ -250,7 +250,7 @@ func ttmPlay(ttmThread *TTtmThread) {
 		case 0xB606:
 			fmt.Printf("\tDRAW SCREEN: (NOT IMPLEMENTED)\n")
 		case 0xC051:
-			fmt.Printf("\tPLAY SAMPLE: sampleId:%d(NOT IMPLEMENTED)\n", args[0])
+			fmt.Printf("\tPLAY SAMPLE: sampleId:%d (NOT IMPLEMENTED)\n", args[0])
 			//soundPlay(args[0]);
 		case 0xF01F:
 			fmt.Printf("\tLOAD_SCREEN: %q\n", finalStr)

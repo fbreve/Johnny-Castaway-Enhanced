@@ -77,7 +77,10 @@ func (g *Game) Update() error {
 	switch g.mode {
 	case None:
 	case TTMSingleModeStart:
-		inverAdsPlaySingleTtmStart("MJFIRE.TTM")
+		//inverAdsPlaySingleTtmStart("MJFIRE.TTM")
+		// This one shows the big red ship pulling up, and the copy zone logic needs to paint a sliver
+		// of the red ship over the screen to obscure everything (at the end of the segment)
+		inverAdsPlaySingleTtmStart("GJVIS6.TTM") // scene 55 (in itch.io wasm version)
 	case TTMSingleModePoll:
 		inverAdsPlaySingleTtmPoll()
 		if grUpdateDelay != 0 {
@@ -89,7 +92,7 @@ func (g *Game) Update() error {
 		inverAdsPlaySingleTtmEnd()
 	case Delay:
 		if g.delayTicks > 0 {
-			g.delayTicks -= 1
+			g.delayTicks -= 2
 		} else {
 			g.mode = g.delayReturnMode
 		}
