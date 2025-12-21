@@ -1,7 +1,9 @@
 package main
 
+import "C"
 import (
 	"fmt"
+	rl "github.com/gen2brain/raylib-go/raylib"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	"image"
@@ -26,13 +28,13 @@ var (
 	grDx = 0
 	grDy = 0
 	//int grWindowed    = 0
-	grUpdateDelay   int = 0
-	grBackgroundSur *ebiten.Image
+	grUpdateDelay int = 0
+	//grBackgroundSur *ebiten.Image
 
-	grSavedZonesLayer *ebiten.Image
+	//grSavedZonesLayer *ebiten.Image
 	// Note: original C code doesn't have this field, but I think this needed to be added
 	// in order to make the Ebiten code equivalent - r.c.
-	grClippedImage *ebiten.Image
+	//grClippedImage *ebiten.Image
 )
 
 type TAdsScene struct {
@@ -47,7 +49,7 @@ type TTtmSlot struct {
 	tags       []TTtmTag
 	numTags    int
 	numSprites [MaxBMPSlots]int
-	sprites    [MaxBMPSlots][MaxSpritesPerBMP]*ebiten.Image
+	sprites    [MaxBMPSlots][MaxSpritesPerBMP]*rl.Texture2D
 }
 
 type TTtmTag struct { // TODO : rename, used for ADS too
@@ -74,16 +76,16 @@ type TTtmThread struct {
 
 func grReleaseScreen() {
 	// Note: Deallocate is an ebiten specific thing, not sure if it's entirely necessary to invoke it.
-	grBackgroundSur.Deallocate()
-	grBackgroundSur = nil
+
+	//grBackgroundSur = nil
 }
 
 func grReleaseSavedLayer() {
-	grSavedZonesLayer.Deallocate()
-	grSavedZonesLayer = nil
+
+	//grSavedZonesLayer = nil
 }
 
-func grPutPixel(sur *ebiten.Image, x, y uint16, c uint8) {
+func grPutPixel(sur rl.Texture2D, x, y uint16, c uint8) {
 	// TODO: Implement Cohen-Sutherland clipping algorithm or such for
 	// grDrawLine(), and another ad hoc algorithm for grDrawCircle()
 
@@ -101,7 +103,8 @@ func grPutPixel(sur *ebiten.Image, x, y uint16, c uint8) {
 			B: ttmPalette[c][2],
 			A: 0,
 		}
-		sur.Set(int(x), int(y), clr)
+		_ = clr
+		//sur.Set(int(x), int(y), clr)
 		//uint8 *pixel = (uint8*) sfc->pixels;
 		//
 		//pixel += (y * sfc->pitch) + (x * sfc->format->BytesPerPixel);
@@ -113,7 +116,7 @@ func grPutPixel(sur *ebiten.Image, x, y uint16, c uint8) {
 	}
 }
 
-func grDrawHorizontalLine(sur *ebiten.Image, x1, x2, y int16, color uint8) {
+func grDrawHorizontalLine(sur rl.RenderTexture2D, x1, x2, y int16, color uint8) {
 	if y < 0 || y > 479 {
 		return
 	}
@@ -163,25 +166,25 @@ func grUpdateDisplay(ttmBGThread *TTtmThread, ttmThreads []TTtmThread, ttmHolida
 	// clear the screen.
 
 	// Blit the background
-	if grBackgroundSur != nil {
-		gScreen.DrawImage(grBackgroundSur, &ebiten.DrawImageOptions{})
-	}
+	//if grBackgroundSur != nil {
+	//gScreen.DrawImage(grBackgroundSur, &ebiten.DrawImageOptions{})
+	//}
 
-	if grSavedZonesLayer != nil {
-		gScreen.DrawImage(grSavedZonesLayer, &ebiten.DrawImageOptions{})
-	}
+	//if grSavedZonesLayer != nil {
+	//gScreen.DrawImage(grSavedZonesLayer, &ebiten.DrawImageOptions{})
+	//}
 
 	// Blit each threads layer
 	for i := 0; i < MaxTTMThreads; i++ {
 		if ttmThreads[i].isRunning != 0 {
-			gScreen.DrawImage(ttmThreads[i].ttmLayer, &ebiten.DrawImageOptions{})
+			//gScreen.DrawImage(ttmThreads[i].ttmLayer, &ebiten.DrawImageOptions{})
 		}
 	}
 
 	// TODO: Finally, blit the holiday layer
 	if ttmHolidayThread != nil {
 		if ttmHolidayThread.isRunning != 0 {
-			gScreen.DrawImage(ttmHolidayThread.ttmLayer, &ebiten.DrawImageOptions{})
+			//gScreen.DrawImage(ttmHolidayThread.ttmLayer, &ebiten.DrawImageOptions{})
 		}
 	}
 
@@ -192,15 +195,16 @@ func grUpdateDisplay(ttmBGThread *TTtmThread, ttmThreads []TTtmThread, ttmHolida
 	// SDL_UpdateWindowSurface(sdl_window)
 }
 
-func grNewLayer() *ebiten.Image {
-	img := ebiten.NewImage(screenWidth, screenHeight)
-	return img
+func grNewLayer() rl.Texture2D {
+	//img := ebiten.NewImage(screenWidth, screenHeight)
+	//return rl.NewImage()
+	//return img
 }
 
 func grFreeLayer(sur *ebiten.Image) {
 	// r.c. in ebiten, I think Deallocate is just helper for tighter memory control.
 	// but not truly necessary.
-	sur.Deallocate()
+	//sur.Deallocate()
 }
 
 func grSetClipZone(sur *ebiten.Image, x1, y1, x2, y2 int16) {
@@ -261,7 +265,12 @@ func grCopyZoneToBg(sur *ebiten.Image, x, y, width, height uint16) {
 	grSavedZonesLayer.DrawImage(subImg, opts)
 }
 
-// zone stuff
+func grRestoreZone(sur *ebiten.Image, x, y, width, height uint16) {
+	// In Johnny's TTMs, we never have RESTORE_ZONE called
+	// while several zones are saved. So we simply free the
+	// whole saved zones layer
+	grReleaseSavedLayer()
+}
 
 func grDrawPixel(sur *ebiten.Image, x, y int16, clr uint8) {
 	x += int16(grDx)
@@ -458,14 +467,14 @@ func grInitEmptyBackground() {
 }
 
 // used for temporary visualizing and testing of sprite data.
-var tmpSprites []*ebiten.Image
+var tmpSprites []*rl.Texture2D
 
 func grLoadBmp(ttmSlot *TTtmSlot, slotNo uint16, name string) {
 	if ttmSlot.numSprites[slotNo] != 0 {
 		//grReleaseBmp(ttmSlot, slotNo)
 	}
 
-	var sprites []*ebiten.Image
+	var sprites []*rl.Texture2D
 	// loads bitmaps (which become sprite references)
 	// eventually they get stored as ttmSlot-> sprite list
 
@@ -484,10 +493,10 @@ func grLoadBmp(ttmSlot *TTtmSlot, slotNo uint16, name string) {
 		height := int(bmpResource.Heights[img])
 		bytesPerRow := int(width) / 2
 
-		spriteImg := ebiten.NewImage(width, height)
+		pixelData := make([]byte, 4*width*height)
 
-		for y := 0; y < int(height); y++ {
-			for x := 0; x < int(width); x++ {
+		for y := 0; y < height; y++ {
+			for x := 0; x < width; x++ {
 				byteIdx := y*bytesPerRow + (x / 2)
 
 				// NOTE: This is a 4bit/per pixel color index
@@ -519,15 +528,25 @@ func grLoadBmp(ttmSlot *TTtmSlot, slotNo uint16, name string) {
 					}
 				}
 
-				spriteImg.Set(x, y, c)
+				//spriteImg.Set(x, y, c)
+
+				// TODO: validate this crap!
+				idx := y + (x * width)
+				pixelData[idx] = c.R
+				pixelData[idx+1] = c.G
+				pixelData[idx+2] = c.B
+				pixelData[idx+3] = c.A
+
 				dataOffset = byteIdx
 			}
 		}
 		// segments the data to be the next cel of the sprite.
 		data = data[dataOffset+1:]
-		sprites = append(sprites, spriteImg)
+		spriteImg := rl.NewImage(pixelData, int32(width), int32(height), 1, rl.UncompressedR8g8b8a8)
+		spriteTexture := rl.LoadTextureFromImage(spriteImg)
+		sprites = append(sprites, &spriteTexture)
 
-		ttmSlot.sprites[slotNo][img] = spriteImg
+		ttmSlot.sprites[slotNo][img] = &spriteTexture
 	}
 	tmpSprites = sprites
 }
