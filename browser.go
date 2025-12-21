@@ -11,6 +11,12 @@ var ttmPalette = [16][4]uint8{}
 var bmpIdx int
 var spriteIdx float32 = 0
 
+func unloadSprites(sprites []*rl.Texture2D) {
+	for _, spr := range sprites {
+		rl.UnloadTexture(*spr)
+	}
+}
+
 func assetBrowser() {
 	rl.SetConfigFlags(rl.FlagWindowTransparent)
 
@@ -44,6 +50,7 @@ func assetBrowser() {
 			fmt.Println("right")
 			spriteIdx = 0
 			bmpIdx++
+			unloadSprites(tmpSprites)
 			tmpSprites = loadBitmapImg(bmpIdx)
 			fmt.Println("bmpIdx =>", bmpIdx)
 
@@ -51,6 +58,7 @@ func assetBrowser() {
 			fmt.Println("left")
 			spriteIdx = 0
 			bmpIdx--
+			unloadSprites(tmpSprites)
 			tmpSprites = loadBitmapImg(bmpIdx)
 			fmt.Println("bmpIdx =>", bmpIdx)
 		}
@@ -66,9 +74,11 @@ func assetBrowser() {
 
 		txt := tmpSprites[int(spriteIdx)]
 		src := rl.NewRectangle(0, 0, float32(txt.Width), float32(txt.Height))
-		dst := rl.NewRectangle(20, 100, float32(txt.Width)*4, float32(txt.Height)*4)
+
+		const scaleFactor = 4
+		dst := rl.NewRectangle(20, 100, float32(txt.Width)*scaleFactor, float32(txt.Height)*scaleFactor)
 		rl.DrawTexturePro(*txt, src, dst, rl.Vector2{X: 0, Y: 0}, 0, rl.White)
-		spriteIdx += 0.3
+		spriteIdx += 0.2
 		if int(spriteIdx) > len(tmpSprites)-1 {
 			spriteIdx = 0
 		}
