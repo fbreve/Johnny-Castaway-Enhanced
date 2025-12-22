@@ -237,7 +237,7 @@ func ttmPlay(ttmThread *TTtmThread) {
 			grDrawRect(ttmThread.ttmLayer, int16(args[0]), int16(args[1]), args[2], args[3], ttmThread.fgColor)
 		case 0xA404:
 			fmt.Printf("\tDRAW_CIRCLE %d %d %d %d\n", args[0], args[1], args[2], args[3])
-			//grDrawCircle(ttmThread->ttmLayer, args[0], args[1], args[2], args[3], ttmThread->fgColor, ttmThread->bgColor);
+			grDrawCircle(ttmThread.ttmLayer, int16(args[0]), int16(args[1]), args[2], args[3], ttmThread.fgColor, ttmThread.bgColor)
 		case 0xA504:
 			fmt.Printf("\tDRAW_SPRITE x:%d y:%d sprtNo:%d imgNo:%d\n", args[0], args[1], args[2], args[3])
 			grDrawSprite(ttmThread.ttmLayer, ttmThread.ttmSlot, int16(args[0]), int16(args[1]), args[2], args[3])

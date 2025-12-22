@@ -80,33 +80,18 @@ func grReleaseSavedLayer() {
 }
 
 func grPutPixel(sur *rl.RenderTexture2D, x, y uint16, c uint8) {
-	// TODO: Implement Cohen-Sutherland clipping algorithm or such for
-	// grDrawLine(), and another ad hoc algorithm for grDrawCircle()
+	clr := color.RGBA{
+		R: ttmPalette[c][0],
+		G: ttmPalette[c][1],
+		B: ttmPalette[c][2],
+		A: 0,
+	}
+
+	rl.BeginTextureMode(*sur)
+	defer rl.EndTextureMode()
 
 	if x < 640 && y < 480 {
-		//pixelIdx := int(y) + (int(x) * sur.Rect.Dx())
-		//sur.Pix[4*pixelIdx] = ttmPalette[color][0]
-		//sur.Pix[4*pixelIdx+1] = ttmPalette[color][1]
-		//sur.Pix[4*pixelIdx+2] = ttmPalette[color][2]
-		//sur.Pix[4*pixelIdx+3] = 0
-
-		// first try naive way, using the built-in Set method.
-		clr := color.RGBA{
-			R: ttmPalette[c][0],
-			G: ttmPalette[c][1],
-			B: ttmPalette[c][2],
-			A: 0,
-		}
-		_ = clr
-		//sur.Set(int(x), int(y), clr)
-		//uint8 *pixel = (uint8*) sfc->pixels;
-		//
-		//pixel += (y * sfc->pitch) + (x * sfc->format->BytesPerPixel);
-		//
-		//pixel[0] = ttmPalette[color][0];
-		//pixel[1] = ttmPalette[color][1];
-		//pixel[2] = ttmPalette[color][2];
-		//pixel[3] = 0;
+		rl.DrawPixel(int32(x), int32(y), clr)
 	}
 }
 
@@ -175,6 +160,10 @@ func grUpdateDisplay(ttmBGThread *TTtmThread, ttmThreads []TTtmThread, ttmHolida
 	)
 
 	drawTexture := func(rt *rl.RenderTexture2D) {
+		if rt == nil {
+			return
+		}
+
 		w := float32(rt.Texture.Width)
 		h := float32(rt.Texture.Height)
 		// Note: This draws render textures back to right side up!
@@ -188,38 +177,31 @@ func grUpdateDisplay(ttmBGThread *TTtmThread, ttmThreads []TTtmThread, ttmHolida
 			h*scale)
 		rl.DrawTexturePro(rt.Texture, src, dst, rl.Vector2Zero(), 0, rl.White)
 	}
-	_ = drawTexture
 
 	// Blit the background
-	if grBackgroundSur != nil {
-		drawTexture(grBackgroundSur)
-	}
+	drawTexture(grBackgroundSur)
 
-	if grSavedZonesLayer != nil {
-		// NOTE: may have to draw upside down as well.
-		rl.DrawTexture(grSavedZonesLayer.Texture, 0, 0, rl.White)
-	}
+	// Blit the saved zones layer
+	drawTexture(grSavedZonesLayer)
 
 	// Blit each threads layer
 	for i := 0; i < MaxTTMThreads; i++ {
 		if ttmThreads[i].isRunning != 0 {
-			//rl.DrawTexture(ttmThreads[i].ttmLayer.Texture, 0, 0, rl.White)
 			txt := ttmThreads[i].ttmLayer
 			drawTexture(txt)
 		}
 	}
 
-	// TODO: Finally, blit the holiday layer
+	// Finally, blit the holiday layer
 	if ttmHolidayThread != nil {
 		if ttmHolidayThread.isRunning != 0 {
-			//drawTexture(ttmHolidayThread.ttmLayer)
-			rl.DrawTexture(ttmHolidayThread.ttmLayer.Texture, 0, 0, rl.White)
+			drawTexture(ttmHolidayThread.ttmLayer)
 		}
 	}
 
 	// TODO: Wait for the tick ...
 	// eventsWaitTick(grUpdateDelay)
-	time.Sleep(time.Millisecond * 100)
+	time.Sleep(time.Millisecond * 100) // r.c. sleep is my poor man's delay, not ideal
 
 	// ... and refresh the display
 	// SDL_UpdateWindowSurface(sdl_window)
@@ -330,52 +312,41 @@ func grDrawRect(sur *rl.RenderTexture2D, x, y int16, width, height uint16, color
 	rl.DrawRectangle(int32(x), int32(y), int32(width), int32(height), c)
 }
 
-func grDrawCircle() {
-	//x1 += int16(grDx)
-	//y1 += int16(grDy)
-	//
-	//// We can only draw regular circles
-	//if width != height {
-	//	fmt.Println("Warning : grDrawCircle() : unable to draw ellipse")
-	//	return
-	//}
-	//
-	//// In original data, every width is even
-	//if width%2 != 0 {
-	//	fmt.Println("Warning : grDrawCircle() : unable to process odd diameters")
-	//	return
-	//}
-	//
-	//// Bresenham's circle drawing algorithm
-	//// Note : the code below intends to be pixel-perfect
-	//
-	//r := (width >> 1) - 1
-	//xc := uint16(x1) + r
-	//yc := uint16(y1) + r
-	//x := int16(0)
-	//y := int16(r)
-	//var d int = 1 - int(r)
-	//
-	//for {
-	//
-	//	grDrawHorizontalLine(sur, xc-x, xc+x+1, yc+y+1, bgColor)
-	//	grDrawHorizontalLine(sur, xc-x, xc+x+1, yc-y, bgColor)
-	//
-	//	grDrawHorizontalLine(sur, xc-y, xc+y+1, yc+x+1, bgColor)
-	//	grDrawHorizontalLine(sur, xc-y, xc+y+1, yc-x, bgColor)
-	//
-	//	if y-x <= 1 {
-	//		break
-	//	}
-	//
-	//	if d < 0 {
-	//		d += (x << 1) + 3
-	//	} else {
-	//		d += ((x - y) << 1) + 5
-	//		y--
-	//	}
-	//	x++
-	//}
+func grDrawCircle(sur *rl.RenderTexture2D, x1, y1 int16, width, height uint16, fgColor, bgColor uint8) {
+	x1 += int16(grDx)
+	y1 += int16(grDy)
+
+	// We can only draw regular circles
+	if width != height {
+		fmt.Println("Warning : grDrawCircle() : unable to draw ellipse")
+		return
+	}
+
+	// In original data, every width is even
+	if width%2 != 0 {
+		fmt.Println("Warning : grDrawCircle() : unable to process odd diameters")
+		return
+	}
+
+	// Note: Original uses fully manual pixel drawing, we will just chat with Raylib's circle drawing facilities
+	// Bresenham's circle drawing algorithm
+	// Note : the code below intends to be pixel-perfect
+	rl.BeginTextureMode(*sur)
+	defer rl.EndTextureMode()
+
+	// Note, currently only using fgColor and bgColor is ignored!
+	colorIdx := fgColor
+	clr := ttmPalette[colorIdx]
+
+	c := color.RGBA{
+		// Note color order -> this matches what's in the C implementation.
+		R: clr[2],
+		G: clr[1],
+		B: clr[0],
+		A: 0xff,
+	}
+
+	rl.DrawCircle(int32(x1), int32(y1), float32(width), c)
 }
 
 func grDrawSprite(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, spriteNo, imageNo uint16) {
@@ -389,7 +360,6 @@ func grDrawSprite(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, sprite
 
 	srcSurface := ttmSlot.sprites[imageNo][spriteNo]
 
-	// NOTE: I think I have the source and dest surfaces correct!
 	rl.BeginTextureMode(*sur)
 	defer rl.EndTextureMode()
 
