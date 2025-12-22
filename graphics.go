@@ -27,9 +27,9 @@ var (
 	grDx = 0
 	grDy = 0
 	//int grWindowed    = 0
-	grUpdateDelay   int = 0
-	grBackgroundSur *rl.RenderTexture2D
 
+	grUpdateDelay     int = 0
+	grBackgroundSur   *rl.RenderTexture2D
 	grSavedZonesLayer *rl.RenderTexture2D
 )
 
@@ -143,65 +143,84 @@ func grUpdateDisplay(ttmBGThread *TTtmThread, ttmThreads []TTtmThread, ttmHolida
 	// NOTE: it seems in the C code, ttmBackgroundThread is not used in this func. - r.c.
 	// NOTE: Original has all args as *TTtmThread, but second arg is actually a multi-pointer, so I made it a slice. - r.c.
 	// clear the screen.
-	if rl.WindowShouldClose() {
-		fmt.Println("exiting...")
-		os.Exit(0)
-	}
+	draw := func() {
 
-	rl.BeginDrawing()
-	defer rl.EndDrawing()
-
-	rl.ClearBackground(rl.Blank)
-
-	// Scale and draw to actual window
-	scale := min(
-		float32(rl.GetScreenWidth())/float32(screenWidth),
-		float32(rl.GetScreenHeight())/float32(screenHeight),
-	)
-
-	drawTexture := func(rt *rl.RenderTexture2D) {
-		if rt == nil {
-			return
+		if rl.WindowShouldClose() {
+			fmt.Println("exiting...")
+			os.Exit(0)
 		}
 
-		w := float32(rt.Texture.Width)
-		h := float32(rt.Texture.Height)
-		// Note: This draws render textures back to right side up!
-		src := rl.NewRectangle(0, 0, w, -h)
-		dst := rl.NewRectangle(
-			// Centers the game screens when aspect ratio doesn't match
-			float32(rl.GetScreenWidth())/2-float32(screenWidth)*scale/2,
-			float32(rl.GetScreenHeight())/2-float32(screenHeight)*scale/2,
-			// Sets the scale of the screen for width and height
-			w*scale,
-			h*scale)
-		rl.DrawTexturePro(rt.Texture, src, dst, rl.Vector2Zero(), 0, rl.White)
-	}
+		rl.BeginDrawing()
+		defer rl.EndDrawing()
 
-	// Blit the background
-	drawTexture(grBackgroundSur)
+		rl.ClearBackground(rl.Blank)
 
-	// Blit the saved zones layer
-	drawTexture(grSavedZonesLayer)
+		// Scale and draw to actual window
+		scale := min(
+			float32(rl.GetScreenWidth())/float32(screenWidth),
+			float32(rl.GetScreenHeight())/float32(screenHeight),
+		)
 
-	// Blit each threads layer
-	for i := 0; i < MaxTTMThreads; i++ {
-		if ttmThreads[i].isRunning != 0 {
-			txt := ttmThreads[i].ttmLayer
-			drawTexture(txt)
+		drawTexture := func(rt *rl.RenderTexture2D) {
+			if rt == nil {
+				return
+			}
+
+			w := float32(rt.Texture.Width)
+			h := float32(rt.Texture.Height)
+			// Note: This draws render textures back to right side up!
+			src := rl.NewRectangle(0, 0, w, -h)
+			dst := rl.NewRectangle(
+				// Centers the game screens when aspect ratio doesn't match
+				float32(rl.GetScreenWidth())/2-float32(screenWidth)*scale/2,
+				float32(rl.GetScreenHeight())/2-float32(screenHeight)*scale/2,
+				// Sets the scale of the screen for width and height
+				w*scale,
+				h*scale)
+			rl.DrawTexturePro(rt.Texture, src, dst, rl.Vector2Zero(), 0, rl.White)
 		}
-	}
 
-	// Finally, blit the holiday layer
-	if ttmHolidayThread != nil {
-		if ttmHolidayThread.isRunning != 0 {
-			drawTexture(ttmHolidayThread.ttmLayer)
+		// Blit the background
+		drawTexture(grBackgroundSur)
+
+		// Blit the saved zones layer
+		drawTexture(grSavedZonesLayer)
+
+		// Blit each threads layer
+		for i := 0; i < MaxTTMThreads; i++ {
+			if ttmThreads[i].isRunning != 0 {
+				txt := ttmThreads[i].ttmLayer
+				drawTexture(txt)
+			}
+		}
+
+		// Finally, blit the holiday layer
+		if ttmHolidayThread != nil {
+			if ttmHolidayThread.isRunning != 0 {
+				drawTexture(ttmHolidayThread.ttmLayer)
+			}
 		}
 	}
 
 	// TODO: Wait for the tick ...
+	// r.c. (this is not like original C code which uses SDL, Raylib still requires calls to Begin/End draw
+	// in addition to checking for WindowClose
+	start := rl.GetTime()
+	for {
+		draw()
+		// 83 because 1000ms/12 == 83.3333 - and the animation to me looks like 12fps native cel animation.
+		const ms = 1000 / 30
+		time.Sleep(time.Millisecond * time.Duration(ms))
+
+		end := rl.GetTime()
+		if grUpdateDelay == 0 ||
+			(end-start <= float64(grUpdateDelay)) {
+			break
+		}
+	}
+
+	// Original C code is below.
 	// eventsWaitTick(grUpdateDelay)
-	time.Sleep(time.Millisecond * 100) // r.c. sleep is my poor man's delay, not ideal
 
 	// ... and refresh the display
 	// SDL_UpdateWindowSurface(sdl_window)

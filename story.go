@@ -98,7 +98,7 @@ func storyPlay() {
 	)
 
 	adsInit()
-	//adsPlayIntro() // todo: r.c.
+	adsPlayIntro() // todo: r.c.
 
 	for {
 		storyUpdateCurrentDay()
