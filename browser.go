@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-var ttmPalette = [16][4]uint8{}
+var ttmPaletteInternal = [16][4]uint8{}
 var bmpIdx int
 var spriteIdx float32 = 0
 
@@ -31,10 +31,10 @@ func assetBrowser() {
 
 	palResource := palResources[0]
 	for i := 0; i < 16; i++ {
-		ttmPalette[i][0] = palResource.Colors[i].B << 2
-		ttmPalette[i][1] = palResource.Colors[i].G << 2
-		ttmPalette[i][2] = palResource.Colors[i].R << 2
-		ttmPalette[i][3] = 0
+		ttmPaletteInternal[i][0] = palResource.Colors[i].B << 2
+		ttmPaletteInternal[i][1] = palResource.Colors[i].G << 2
+		ttmPaletteInternal[i][2] = palResource.Colors[i].R << 2
+		ttmPaletteInternal[i][3] = 0
 	}
 
 	scrTexture := loadScrImg("ISLETEMP.SCR") // JOFFICE.SCR, ISLETEMP.SCR, NIGHT.SCR, SUZBEACH.SCR, INTRO.SCR, OCEAN0{0,1,2}.SCR

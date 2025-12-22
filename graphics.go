@@ -4,10 +4,9 @@ import "C"
 import (
 	"fmt"
 	rl "github.com/gen2brain/raylib-go/raylib"
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/vector"
-	"image"
 	"image/color"
+	"os"
+	"time"
 )
 
 const (
@@ -28,13 +27,10 @@ var (
 	grDx = 0
 	grDy = 0
 	//int grWindowed    = 0
-	grUpdateDelay int = 0
-	//grBackgroundSur *ebiten.Image
+	grUpdateDelay   int = 0
+	grBackgroundSur *rl.RenderTexture2D
 
-	//grSavedZonesLayer *ebiten.Image
-	// Note: original C code doesn't have this field, but I think this needed to be added
-	// in order to make the Ebiten code equivalent - r.c.
-	//grClippedImage *ebiten.Image
+	grSavedZonesLayer *rl.RenderTexture2D
 )
 
 type TAdsScene struct {
@@ -71,21 +67,19 @@ type TTtmThread struct {
 	selectedBmpSlot uint8
 	fgColor         uint8
 	bgColor         uint8
-	ttmLayer        *ebiten.Image
+	ttmLayer        *rl.RenderTexture2D
 }
 
 func grReleaseScreen() {
 	// Note: Deallocate is an ebiten specific thing, not sure if it's entirely necessary to invoke it.
-
-	//grBackgroundSur = nil
+	grBackgroundSur = nil
 }
 
 func grReleaseSavedLayer() {
-
-	//grSavedZonesLayer = nil
+	grSavedZonesLayer = nil
 }
 
-func grPutPixel(sur rl.Texture2D, x, y uint16, c uint8) {
+func grPutPixel(sur *rl.RenderTexture2D, x, y uint16, c uint8) {
 	// TODO: Implement Cohen-Sutherland clipping algorithm or such for
 	// grDrawLine(), and another ad hoc algorithm for grDrawCircle()
 
@@ -116,7 +110,7 @@ func grPutPixel(sur rl.Texture2D, x, y uint16, c uint8) {
 	}
 }
 
-func grDrawHorizontalLine(sur rl.RenderTexture2D, x1, x2, y int16, color uint8) {
+func grDrawHorizontalLine(sur *rl.RenderTexture2D, x1, x2, y int16, color uint8) {
 	if y < 0 || y > 479 {
 		return
 	}
@@ -164,50 +158,83 @@ func grUpdateDisplay(ttmBGThread *TTtmThread, ttmThreads []TTtmThread, ttmHolida
 	// NOTE: it seems in the C code, ttmBackgroundThread is not used in this func. - r.c.
 	// NOTE: Original has all args as *TTtmThread, but second arg is actually a multi-pointer, so I made it a slice. - r.c.
 	// clear the screen.
+	if rl.WindowShouldClose() {
+		fmt.Println("exiting...")
+		os.Exit(0)
+	}
+
+	rl.BeginDrawing()
+	defer rl.EndDrawing()
+
+	rl.ClearBackground(rl.Blank)
+
+	// Scale and draw to actual window
+	scale := min(
+		float32(rl.GetScreenWidth())/float32(screenWidth),
+		float32(rl.GetScreenHeight())/float32(screenHeight),
+	)
+
+	drawTexture := func(rt *rl.RenderTexture2D) {
+		w := float32(rt.Texture.Width)
+		h := float32(rt.Texture.Height)
+		// Note: This draws render textures back to right side up!
+		src := rl.NewRectangle(0, 0, w, -h)
+		dst := rl.NewRectangle(
+			// Centers the game screens when aspect ratio doesn't match
+			float32(rl.GetScreenWidth())/2-float32(screenWidth)*scale/2,
+			float32(rl.GetScreenHeight())/2-float32(screenHeight)*scale/2,
+			// Sets the scale of the screen for width and height
+			w*scale,
+			h*scale)
+		rl.DrawTexturePro(rt.Texture, src, dst, rl.Vector2Zero(), 0, rl.White)
+	}
+	_ = drawTexture
 
 	// Blit the background
-	//if grBackgroundSur != nil {
-	//gScreen.DrawImage(grBackgroundSur, &ebiten.DrawImageOptions{})
-	//}
+	if grBackgroundSur != nil {
+		drawTexture(grBackgroundSur)
+	}
 
-	//if grSavedZonesLayer != nil {
-	//gScreen.DrawImage(grSavedZonesLayer, &ebiten.DrawImageOptions{})
-	//}
+	if grSavedZonesLayer != nil {
+		// NOTE: may have to draw upside down as well.
+		rl.DrawTexture(grSavedZonesLayer.Texture, 0, 0, rl.White)
+	}
 
 	// Blit each threads layer
 	for i := 0; i < MaxTTMThreads; i++ {
 		if ttmThreads[i].isRunning != 0 {
-			//gScreen.DrawImage(ttmThreads[i].ttmLayer, &ebiten.DrawImageOptions{})
+			//rl.DrawTexture(ttmThreads[i].ttmLayer.Texture, 0, 0, rl.White)
+			txt := ttmThreads[i].ttmLayer
+			drawTexture(txt)
 		}
 	}
 
 	// TODO: Finally, blit the holiday layer
 	if ttmHolidayThread != nil {
 		if ttmHolidayThread.isRunning != 0 {
-			//gScreen.DrawImage(ttmHolidayThread.ttmLayer, &ebiten.DrawImageOptions{})
+			//drawTexture(ttmHolidayThread.ttmLayer)
+			rl.DrawTexture(ttmHolidayThread.ttmLayer.Texture, 0, 0, rl.White)
 		}
 	}
 
 	// TODO: Wait for the tick ...
 	// eventsWaitTick(grUpdateDelay)
+	time.Sleep(time.Millisecond * 100)
 
 	// ... and refresh the display
 	// SDL_UpdateWindowSurface(sdl_window)
 }
 
-func grNewLayer() rl.Texture2D {
-	//img := ebiten.NewImage(screenWidth, screenHeight)
-	//return rl.NewImage()
-	//return img
+func grNewLayer() *rl.RenderTexture2D {
+	rt := rl.LoadRenderTexture(screenWidth, screenHeight)
+	return &rt
 }
 
-func grFreeLayer(sur *ebiten.Image) {
-	// r.c. in ebiten, I think Deallocate is just helper for tighter memory control.
-	// but not truly necessary.
-	//sur.Deallocate()
+func grFreeLayer(sur *rl.RenderTexture2D) {
+	rl.UnloadRenderTexture(*sur)
 }
 
-func grSetClipZone(sur *ebiten.Image, x1, y1, x2, y2 int16) {
+func grSetClipZone(sur *rl.RenderTexture2D, x1, y1, x2, y2 int16) {
 	x1 += int16(grDx)
 	y1 += int16(grDy)
 	x2 += int16(grDx)
@@ -220,20 +247,20 @@ func grSetClipZone(sur *ebiten.Image, x1, y1, x2, y2 int16) {
 	// Equivalent Ebiten code?? Not sure, I need to prove this out.
 	// NOTE: according to docs, SubImage returns the image.Image interface but it's always
 	// a *ebiten.Image so I should be able to cast and save it.
-	rect := image.Rect(int(x1), int(y1), int(x2), int(y2))
-	grClippedImage = sur.SubImage(rect).(*ebiten.Image)
+	//rect := image.Rect(int(x1), int(y1), int(x2), int(y2))
+	//grClippedImage = sur.SubImage(rect).(*ebiten.Image)
 }
 
-func grCopyZoneToBg(sur *ebiten.Image, x, y, width, height uint16) {
+func grCopyZoneToBg(sur *rl.RenderTexture2D, x, y, width, height uint16) {
 	x += uint16(grDx)
 	y += uint16(grDy)
 
 	//SDL_Rect rect = { (short) x, (short) y, width + 2, height };
-	adjustedWidth := width + 2
-
-	if grSavedZonesLayer == nil {
-		grSavedZonesLayer = grNewLayer()
-	}
+	//adjustedWidth := width + 2
+	//
+	//if grSavedZonesLayer == nil {
+	//	grSavedZonesLayer = grNewLayer()
+	//}
 
 	// r.c. NOTE: this block is just to document SDL2 which is the source vs dst surface.
 	// int SDL_BlitSurface(SDL_Surface *src,
@@ -252,27 +279,27 @@ func grCopyZoneToBg(sur *ebiten.Image, x, y, width, height uint16) {
 
 	// ported Ebiten code
 	// Define source rectangle
-	srcRect := image.Rect(int(int16(x)), int(int16(y)), int(x+adjustedWidth), int(y+height))
+	//srcRect := image.Rect(int(int16(x)), int(int16(y)), int(x+adjustedWidth), int(y+height))
 
 	// Extract the sub-image from source
-	subImg := sur.SubImage(srcRect).(*ebiten.Image)
-
-	// Set up draw options to position at the same coordinates in destination
-	opts := &ebiten.DrawImageOptions{}
-	opts.GeoM.Translate(float64(x), float64(y))
-
-	// Draw to saved zones layer
-	grSavedZonesLayer.DrawImage(subImg, opts)
+	//subImg := sur.SubImage(srcRect).(*ebiten.Image)
+	//
+	//// Set up draw options to position at the same coordinates in destination
+	//opts := &ebiten.DrawImageOptions{}
+	//opts.GeoM.Translate(float64(x), float64(y))
+	//
+	//// Draw to saved zones layer
+	//grSavedZonesLayer.DrawImage(subImg, opts)
 }
 
-func grRestoreZone(sur *ebiten.Image, x, y, width, height uint16) {
+func grRestoreZone(sur *rl.RenderTexture2D, x, y, width, height uint16) {
 	// In Johnny's TTMs, we never have RESTORE_ZONE called
 	// while several zones are saved. So we simply free the
 	// whole saved zones layer
 	grReleaseSavedLayer()
 }
 
-func grDrawPixel(sur *ebiten.Image, x, y int16, clr uint8) {
+func grDrawPixel(sur *rl.RenderTexture2D, x, y int16, clr uint8) {
 	x += int16(grDx)
 	y += int16(grDy)
 	grPutPixel(sur, uint16(x), uint16(y), clr)
@@ -282,7 +309,7 @@ func grDrawLine() {
 	fmt.Println("grDrawLine(...)")
 }
 
-func grDrawRect(sur *ebiten.Image, x, y int16, width, height uint16, colorIdx uint8) {
+func grDrawRect(sur *rl.RenderTexture2D, x, y int16, width, height uint16, colorIdx uint8) {
 	x += int16(grDx)
 	y += int16(grDy)
 
@@ -297,15 +324,10 @@ func grDrawRect(sur *ebiten.Image, x, y int16, width, height uint16, colorIdx ui
 		A: 0xff,
 	}
 
-	vector.FillRect(
-		sur,
-		float32(x),
-		float32(y),
-		float32(width),
-		float32(height),
-		c,
-		false,
-	)
+	rl.BeginTextureMode(*sur)
+	defer rl.EndTextureMode()
+
+	rl.DrawRectangle(int32(x), int32(y), int32(width), int32(height), c)
 }
 
 func grDrawCircle() {
@@ -356,7 +378,7 @@ func grDrawCircle() {
 	//}
 }
 
-func grDrawSprite(sur *ebiten.Image, ttmSlot *TTtmSlot, x, y int16, spriteNo, imageNo uint16) {
+func grDrawSprite(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, spriteNo, imageNo uint16) {
 	if int(spriteNo) >= ttmSlot.numSprites[imageNo] {
 		fmt.Printf("Warning : grDrawSprite(): less than %d sprites loaded in slot %d\n", imageNo, spriteNo)
 		return
@@ -368,13 +390,29 @@ func grDrawSprite(sur *ebiten.Image, ttmSlot *TTtmSlot, x, y int16, spriteNo, im
 	srcSurface := ttmSlot.sprites[imageNo][spriteNo]
 
 	// NOTE: I think I have the source and dest surfaces correct!
+	rl.BeginTextureMode(*sur)
+	defer rl.EndTextureMode()
 
-	opts := &ebiten.DrawImageOptions{}
-	opts.GeoM.Translate(float64(x), float64(y))
-	sur.DrawImage(srcSurface, opts)
+	// NOTE: this clears the layer, and only the instruction-set should clear it when it deems necessary.
+	//rl.ClearBackground(rl.Blank)
+
+	// Use rl.Red for troubleshooting to render Red colored flipped sprites.
+	xx := float32(x)
+	yy := float32(y)
+	w := float32(srcSurface.Width)
+	h := float32(srcSurface.Height)
+
+	// debugging bounding box.
+	if rl.IsKeyDown(rl.KeyLeftShift) {
+		rl.DrawRectangleLines(int32(xx), int32(yy), int32(w), int32(h), rl.Red)
+	}
+
+	src := rl.NewRectangle(0, 0, w, h)
+	dst := rl.NewRectangle(xx, yy, w, h)
+	rl.DrawTexturePro(*srcSurface, src, dst, rl.Vector2Zero(), 0.0, rl.White)
 }
 
-func grDrawSpriteFlip(sur *ebiten.Image, ttmSlot *TTtmSlot, x, y int16, spriteNo, imageNo uint16) {
+func grDrawSpriteFlip(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, spriteNo, imageNo uint16) {
 	if int(spriteNo) >= ttmSlot.numSprites[imageNo] {
 		fmt.Printf("Warning : grDrawSprite(): less than %d sprites loaded in slot %d\n", imageNo, spriteNo)
 		return
@@ -384,21 +422,38 @@ func grDrawSpriteFlip(sur *ebiten.Image, ttmSlot *TTtmSlot, x, y int16, spriteNo
 	y += int16(grDy)
 
 	srcSurface := ttmSlot.sprites[imageNo][spriteNo]
-	x += int16(srcSurface.Bounds().Dx()) - 1
+	//x += int16(srcSurface.Width) - 1 // In original C, but NOT NEEDED, in Raylib.
 
-	opts := &ebiten.DrawImageOptions{}
-	// Color scale of red, shows those frames which are playing "flipped" - for troubleshooting.
-	//opts.ColorScale.Scale(1.0, 0, 0, 1.0)
-	opts.GeoM.Scale(-1, 1)
-	opts.GeoM.Translate(float64(x), float64(y))
-	sur.DrawImage(srcSurface, opts)
+	rl.BeginTextureMode(*sur)
+	defer rl.EndTextureMode()
+
+	// NOTE: this clears the layer, and only the instruction-set should clear it when it deems necessary.
+	//rl.ClearBackground(rl.Blank)
+
+	// Use rl.Red for troubleshooting to render Red colored flipped sprites.
+	xx := float32(x)
+	yy := float32(y)
+	w := float32(srcSurface.Width)
+	h := float32(srcSurface.Height)
+
+	// For debugging purposes.
+	if rl.IsKeyDown(rl.KeyLeftShift) {
+		rl.DrawRectangleLines(int32(xx), int32(yy), int32(w), int32(h), rl.Red)
+	}
+
+	src := rl.NewRectangle(0, 0, -w, h)
+	dst := rl.NewRectangle(xx, yy, w, h)
+	rl.DrawTexturePro(*srcSurface, src, dst, rl.Vector2Zero(), 0.0, rl.White) //rl.Red)
 }
 
-func grClearScreen(sur *ebiten.Image) {
+func grClearScreen(sur *rl.RenderTexture2D) {
 	// NOTE: original game colors the key color, but when it renders does it show up? I doubt it.
 	//keyKnockoutColor := color.RGBA{R: 0xa8, G: 0x00, B: 0xa8, A: 0xff}
-	keyKnockoutColor := color.RGBA{R: 0x00, G: 0x00, B: 0x00, A: 0x00}
-	sur.Fill(keyKnockoutColor)
+	//keyKnockoutColor := color.RGBA{R: 0x00, G: 0x00, B: 0x00, A: 0x00}
+	rl.BeginTextureMode(*sur)
+	defer rl.EndTextureMode()
+
+	rl.ClearBackground(rl.Blank)
 }
 
 func grLoadScreen(screenName string) {
@@ -420,17 +475,15 @@ func grLoadScreen(screenName string) {
 		panic("grLoadScreen(): can't manage more than 640x480 resolutions")
 	}
 
-	// NOTE: code below is working, even if not performant yet!
-
-	width := scrResource.Width
-	height := scrResource.Height
+	width := int(scrResource.Width)
+	height := int(scrResource.Height)
 	bytesPerRow := int(width) / 2
 
-	grBackgroundSur = ebiten.NewImage(int(width), int(height))
 	data := scrResource.UncompressedData
+	pixelData := make([]byte, 4*width*height)
 
-	for y := 0; y < int(height); y++ {
-		for x := 0; x < int(width); x++ {
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
 			byteIdx := y*bytesPerRow + (x / 2)
 
 			// NOTE: This is a 4bit/per pixel color index
@@ -448,9 +501,33 @@ func grLoadScreen(screenName string) {
 				B: clr[0],
 				A: 0xff,
 			}
-			grBackgroundSur.Set(x, y, c)
+
+			idx := (y*width + x) * 4
+			pixelData[idx] = c.R
+			pixelData[idx+1] = c.G
+			pixelData[idx+2] = c.B
+			pixelData[idx+3] = c.A
 		}
 	}
+
+	spriteImg := rl.NewImage(pixelData, int32(width), int32(height), 1, rl.UncompressedR8g8b8a8)
+	spriteTexture := rl.LoadTextureFromImage(spriteImg)
+
+	rt := rl.LoadRenderTexture(int32(width), int32(height))
+	grBackgroundSur = &rt
+
+	rl.BeginTextureMode(rt)
+	defer rl.EndTextureMode()
+
+	// Draw flipped (-height)
+	src := rl.NewRectangle(
+		0,
+		0,
+		float32(spriteTexture.Width),
+		float32(spriteTexture.Height), //float32(-spriteTexture.Height), // Always negative
+	)
+	dst := rl.NewRectangle(0, 0, float32(spriteTexture.Width), float32(spriteTexture.Height))
+	rl.DrawTexturePro(spriteTexture, src, dst, rl.Vector2Zero(), 0.0, rl.White)
 }
 
 func grInitEmptyBackground() {
@@ -462,27 +539,23 @@ func grInitEmptyBackground() {
 		grReleaseSavedLayer()
 	}
 
-	grBackgroundSur = ebiten.NewImage(640, 480)
-	grBackgroundSur.Fill(color.Black)
-}
+	rt := rl.LoadRenderTexture(640, 480)
+	grBackgroundSur = &rt
 
-// used for temporary visualizing and testing of sprite data.
-var tmpSprites []*rl.Texture2D
+	rl.BeginTextureMode(*grBackgroundSur)
+	rl.ClearBackground(rl.Black)
+	rl.EndTextureMode()
+}
 
 func grLoadBmp(ttmSlot *TTtmSlot, slotNo uint16, name string) {
 	if ttmSlot.numSprites[slotNo] != 0 {
-		//grReleaseBmp(ttmSlot, slotNo)
+		grReleaseBmp(ttmSlot, slotNo)
 	}
-
-	var sprites []*rl.Texture2D
-	// loads bitmaps (which become sprite references)
-	// eventually they get stored as ttmSlot-> sprite list
 
 	bmpResource := findBMPResource(name)
 	ttmSlot.numSprites[slotNo] = int(bmpResource.NumImages)
 	data := bmpResource.UncompressedData
-	// dataOffset is where each bmp sprites data begins
-	dataOffset := 0
+	dataOffset := 0 // dataOffset is where each bmp sprites data begins
 
 	for img := 0; img < int(bmpResource.NumImages); img++ {
 		if (bmpResource.Widths[img] % 2) == 1 {
@@ -528,10 +601,7 @@ func grLoadBmp(ttmSlot *TTtmSlot, slotNo uint16, name string) {
 					}
 				}
 
-				//spriteImg.Set(x, y, c)
-
-				// TODO: validate this crap!
-				idx := y + (x * width)
+				idx := (y*width + x) * 4
 				pixelData[idx] = c.R
 				pixelData[idx+1] = c.G
 				pixelData[idx+2] = c.B
@@ -544,15 +614,17 @@ func grLoadBmp(ttmSlot *TTtmSlot, slotNo uint16, name string) {
 		data = data[dataOffset+1:]
 		spriteImg := rl.NewImage(pixelData, int32(width), int32(height), 1, rl.UncompressedR8g8b8a8)
 		spriteTexture := rl.LoadTextureFromImage(spriteImg)
-		sprites = append(sprites, &spriteTexture)
-
 		ttmSlot.sprites[slotNo][img] = &spriteTexture
 	}
-	tmpSprites = sprites
 }
 
-func grReleaseBmp() {
+func grReleaseBmp(ttmSlot *TTtmSlot, bmpSlotNo uint16) {
+	for i := 0; i < ttmSlot.numSprites[bmpSlotNo]; i++ {
+		spr := ttmSlot.sprites[bmpSlotNo][i]
+		rl.UnloadTexture(*spr)
+	}
 
+	ttmSlot.numSprites[bmpSlotNo] = 0
 }
 
 func grFadeOut() {
