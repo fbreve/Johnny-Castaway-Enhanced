@@ -9,6 +9,15 @@ var (
 	// In c, these are static, so I hoisted them to be global vars.
 	counter1 int = 0
 	counter2 int = 0
+
+	islandState = TIslandState{
+		lowTide: 0,
+		night:   0,
+		raft:    0,
+		holiday: 0,
+		xPos:    0,
+		yPos:    0,
+	}
 )
 
 type TCloudState struct {
@@ -29,17 +38,6 @@ type TIslandState struct {
 	yPos    int
 	clouds  TCloudState
 }
-
-var (
-	islandState = TIslandState{
-		lowTide: 0,
-		night:   0,
-		raft:    0,
-		holiday: 0,
-		xPos:    0,
-		yPos:    0,
-	}
-)
 
 func islandInit(ttmThread *TTtmThread) {
 	ttmSlot := ttmThread.ttmSlot

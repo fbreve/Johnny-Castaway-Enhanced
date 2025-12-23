@@ -209,7 +209,7 @@ func grUpdateDisplay(
 
 		end := rl.GetTime()
 		if grUpdateDelay == 0 ||
-			(end-start <= float64(grUpdateDelay)) {
+			(end-start <= float64(grUpdateDelay*20)) {
 			break
 		}
 	}
