@@ -38,6 +38,8 @@ func setupApp() {
 		int32(float32(screenHeight)*baseWindowScaleFactor),
 		"Johnny Castaway - 34th Anniversary Edition",
 	)
+	rl.InitAudioDevice()
+	loadSfx()
 
 	rl.SetWindowState(rl.FlagWindowResizable)
 	rl.SetTargetFPS(30)
@@ -52,7 +54,9 @@ func setupApp() {
 func runStory() {
 	setupApp()
 	defer rl.CloseWindow()
+	defer rl.CloseAudioDevice()
 	defer graphicsEnd()
+	defer unloadSfx()
 
 	storyPlay()
 }

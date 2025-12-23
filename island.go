@@ -75,25 +75,24 @@ func islandInit(ttmThread *TTtmThread) {
 
 	switch islandState.raft {
 	case 1:
-		grDrawSprite(grBackgroundSur, ttmSlot, int16(xRaft), int16(yRaft), 0, 0)
 		// raft-1
+		grDrawSprite(grBackgroundSur, ttmSlot, int16(xRaft), int16(yRaft), 0, 0)
 	case 2:
-		grDrawSprite(grBackgroundSur, ttmSlot, int16(xRaft), int16(yRaft), 1, 0)
 		// raft-2
+		grDrawSprite(grBackgroundSur, ttmSlot, int16(xRaft), int16(yRaft), 1, 0)
 	case 3:
-		grDrawSprite(grBackgroundSur, ttmSlot, int16(xRaft), int16(yRaft), 2, 0)
 		// raft-3
+		grDrawSprite(grBackgroundSur, ttmSlot, int16(xRaft), int16(yRaft), 2, 0)
 	case 4:
-		grDrawSprite(grBackgroundSur, ttmSlot, int16(xRaft), int16(yRaft), 3, 0)
 		// raft-4
+		grDrawSprite(grBackgroundSur, ttmSlot, int16(xRaft), int16(yRaft), 3, 0)
 	case 5:
-		grDrawSprite(grBackgroundSur, ttmSlot, int16(xRaft), int16(yRaft), 4, 0)
 		// raft-5
+		grDrawSprite(grBackgroundSur, ttmSlot, int16(xRaft), int16(yRaft), 4, 0)
 	}
 
-	grLoadBmp(ttmSlot, 0, "BACKGRND.BMP")
-
 	// Clouds
+	grLoadBmp(ttmSlot, 0, "BACKGRND.BMP")
 
 	grDx = 0
 	grDy = 0

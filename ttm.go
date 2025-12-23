@@ -250,8 +250,8 @@ func ttmPlay(ttmThread *TTtmThread) {
 		case 0xB606:
 			fmt.Printf("\tDRAW SCREEN: (NOT IMPLEMENTED)\n")
 		case 0xC051:
-			fmt.Printf("\tPLAY SAMPLE: sampleId:%d (NOT IMPLEMENTED)\n", args[0])
-			//soundPlay(args[0]);
+			fmt.Printf("\tPLAY SAMPLE: sampleId:%d\n", args[0])
+			soundPlay(args[0])
 		case 0xF01F:
 			fmt.Printf("\tLOAD_SCREEN: %q\n", finalStr)
 			grLoadScreen(finalStr)
