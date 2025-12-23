@@ -19,14 +19,19 @@ const (
 	MaxTTMThreads    = 10
 )
 
-var (
-	ttmPalette = [16][4]uint8{}
+const (
+	MaxFadeOutRadius = 600
 )
 
 var (
+	ttmPalette = [16][4]uint8{}
+
 	grDx = 0
 	grDy = 0
 	//int grWindowed    = 0
+
+	isFadingOut   = false
+	fadeOutRadius = 0
 
 	grUpdateDelay     int = 0
 	grBackgroundSur   *rl.RenderTexture2D
@@ -204,6 +209,12 @@ func grUpdateDisplay(
 			}
 		}
 
+		if isFadingOut {
+			xPos := float32(rl.GetScreenWidth()) / 2  // - float32(screenWidth)*scale/2
+			yPos := float32(rl.GetScreenHeight()) / 2 //- float32(screenHeight)*scale/2
+			rl.DrawCircle(int32(xPos), int32(yPos), float32(fadeOutRadius), rl.Black)
+		}
+
 		// Debug stuff added by me, r.c.
 		fontSize := int32(35)
 		yPos := int32(rl.GetScreenHeight()) - (fontSize * 2)
@@ -221,6 +232,18 @@ func grUpdateDisplay(
 		const fps = 30
 		const frameDelayMS = 1000 / fps
 		time.Sleep(time.Millisecond * time.Duration(frameDelayMS))
+
+		// r.c. - This is my own logic, trying to KISS
+		if isFadingOut {
+			if fadeOutRadius > MaxFadeOutRadius {
+				isFadingOut = false
+				fadeOutRadius = 0
+				break
+			} else {
+				fadeOutRadius += 20
+				continue // <-- important to not advance the story while this is happening.
+			}
+		}
 
 		end := rl.GetTime()
 		if grUpdateDelay == 0 ||
@@ -678,4 +701,5 @@ func grFadeOut() {
 	// Does screen transitions like iris, rect sliding
 	// Don't necessarily need this day 1
 	// May be able to fake it with just simple assets
+	isFadingOut = true
 }
