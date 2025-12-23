@@ -5,6 +5,10 @@ import (
 )
 
 var (
+	hackCurrentDay = 1
+)
+
+var (
 	storyCurrentDay int = 1
 )
 
@@ -106,6 +110,12 @@ func storyPlay() {
 		unwantedFlags = 0
 
 		finalScene := storyPickScene(FINAL, unwantedFlags)
+
+		TEMPHACK := true
+		if TEMPHACK {
+			finalScene = &storyScenes[hackCurrentDay]
+			hackCurrentDay++
+		}
 
 		if finalScene.flags&ISLAND == ISLAND {
 			storyCalculateIslandFromScene(finalScene)

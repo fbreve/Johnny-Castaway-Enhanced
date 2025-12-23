@@ -147,15 +147,25 @@ func grUpdateDisplay(
 			float32(rl.GetScreenHeight())/float32(screenHeight),
 		)
 
-		drawTexture := func(rt *rl.RenderTexture2D) {
+		type OrientationMode int
+		const (
+			ModeNormal  OrientationMode = 0
+			ModeFlipped OrientationMode = 1
+		)
+		drawTexture := func(rt *rl.RenderTexture2D, orientation OrientationMode) {
 			if rt == nil {
 				return
 			}
 
 			w := float32(rt.Texture.Width)
 			h := float32(rt.Texture.Height)
-			// Note: This draws render textures back to right side up!
-			src := rl.NewRectangle(0, 0, w, -h)
+
+			// Note: This draws render textures back to right side up, when mode is flipped!
+			if orientation == ModeFlipped {
+				h = -h
+			}
+
+			src := rl.NewRectangle(0, 0, w, h)
 			dst := rl.NewRectangle(
 				// Centers the game screens when aspect ratio doesn't match
 				float32(rl.GetScreenWidth())/2-float32(screenWidth)*scale/2,
@@ -167,32 +177,39 @@ func grUpdateDisplay(
 		}
 
 		// Blit the background
-		drawTexture(grBackgroundSur)
+		drawTexture(grBackgroundSur, ModeFlipped)
 
 		// Blit the clouds
 		if ttmCloudsThread != nil {
 			if ttmCloudsThread.isRunning != 0 {
-				drawTexture(ttmCloudsThread.ttmLayer)
+				drawTexture(ttmCloudsThread.ttmLayer, ModeFlipped)
 			}
 		}
 
 		// Blit the saved zones layer
-		drawTexture(grSavedZonesLayer)
+		drawTexture(grSavedZonesLayer, ModeNormal) //r.c. This one should not be drawn upside down perhaps???
 
 		// Blit each threads layer
 		for i := 0; i < MaxTTMThreads; i++ {
 			if ttmThreads[i].isRunning != 0 {
 				txt := ttmThreads[i].ttmLayer
-				drawTexture(txt)
+				drawTexture(txt, ModeFlipped)
 			}
 		}
 
 		// Finally, blit the holiday layer
 		if ttmHolidayThread != nil {
 			if ttmHolidayThread.isRunning != 0 {
-				drawTexture(ttmHolidayThread.ttmLayer)
+				drawTexture(ttmHolidayThread.ttmLayer, ModeFlipped)
 			}
 		}
+
+		// Debug stuff added by me, r.c.
+		fontSize := int32(35)
+		yPos := int32(rl.GetScreenHeight()) - (fontSize * 2)
+		offset := int32(3)
+		rl.DrawText(fmt.Sprintf("Story: %d", hackCurrentDay-1), fontSize, yPos, fontSize, rl.Black)
+		rl.DrawText(fmt.Sprintf("Story: %d", hackCurrentDay-1), fontSize-offset, yPos-offset, fontSize, rl.White)
 	}
 
 	// TODO: Wait for the tick ...
@@ -313,7 +330,7 @@ func grDrawLine(sur *rl.RenderTexture2D, x1, y1, x2, y2 int16, colorIdx uint8) {
 	x2 += int16(grDx)
 	y2 += int16(grDy)
 
-	clr := ttmPalette[colorIdx]
+	clr := ttmPalette[colorIdx&0x0f]
 	c := color.RGBA{
 		// Note color order -> this matches what's in the C implementation.
 		R: clr[2],
@@ -351,7 +368,7 @@ func grDrawRect(sur *rl.RenderTexture2D, x, y int16, width, height uint16, color
 
 	// r.c. testing this out, not ready yet.
 
-	clr := ttmPalette[colorIdx]
+	clr := ttmPalette[colorIdx&0x0f]
 	c := color.RGBA{
 		// Note color order -> this matches what's in the C implementation.
 		R: clr[2],
@@ -383,24 +400,30 @@ func grDrawCircle(sur *rl.RenderTexture2D, x1, y1 int16, width, height uint16, f
 	}
 
 	// Note: Original uses fully manual pixel drawing, we will just chat with Raylib's circle drawing facilities
+	// Comments from the original C code below.
 	// Bresenham's circle drawing algorithm
 	// Note : the code below intends to be pixel-perfect
 	rl.BeginTextureMode(*sur)
 	defer rl.EndTextureMode()
 
-	// Note, currently only using fgColor and bgColor is ignored!
-	colorIdx := fgColor
-	clr := ttmPalette[colorIdx]
-
-	c := color.RGBA{
-		// Note color order -> this matches what's in the C implementation.
-		R: clr[2],
-		G: clr[1],
-		B: clr[0],
-		A: 0xff,
+	grabColor := func(idx uint8) color.RGBA {
+		clr := ttmPalette[idx&0x0f]
+		return color.RGBA{
+			// Note color order -> this matches what's in the C implementation.
+			R: clr[2],
+			G: clr[1],
+			B: clr[0],
+			A: 0xff,
+		}
 	}
 
-	rl.DrawCircle(int32(x1), int32(y1), float32(width), c)
+	fgClr := grabColor(fgColor)
+	rl.DrawCircle(int32(x1), int32(y1), float32(width), fgClr)
+
+	if fgColor != bgColor {
+		bgClr := grabColor(bgColor)
+		rl.DrawCircle(int32(x1)+1, int32(y1)+1, float32(width), bgClr)
+	}
 }
 
 func grDrawSprite(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, spriteNo, imageNo uint16) {

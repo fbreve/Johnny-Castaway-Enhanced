@@ -224,11 +224,12 @@ func ttmPlay(ttmThread *TTtmThread) {
 		case 0xA054:
 			// only once, in GJGULIVR.TTM.txt
 			fmt.Printf("\tSAVE_ZONE %d %d %d %d\n", args[0], args[1], args[2], args[3])
-			//grSaveZone(ttmThread->ttmLayer, args[0], args[1], args[2], args[3]);
+			grSaveZone(ttmThread.ttmLayer, args[0], args[1], args[2], args[3])
 		case 0xA064:
 			// only once, in GJGULIVR.TTM.txt
 			fmt.Printf("\tRESTORE_ZONE %d %d %d %d\n", args[0], args[1], args[2], args[3])
-			//grRestoreZone(ttmThread->ttmLayer, args[0], args[1], args[2], args[3]);
+			// r.c. if I enable this, the stupid copied zone, disappears too soon!!
+			//grRestoreZone(ttmThread.ttmLayer, args[0], args[1], args[2], args[3])
 		case 0xA0A4:
 			fmt.Printf("\tDRAW_LINE %d %d %d %d\n", args[0], args[1], args[2], args[3])
 			grDrawLine(ttmThread.ttmLayer, int16(args[0]), int16(args[1]), int16(args[2]), int16(args[3]), ttmThread.fgColor)
