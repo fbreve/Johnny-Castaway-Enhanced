@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	rl "github.com/gen2brain/raylib-go/raylib"
+	"math/rand"
 )
 
 // r.c. This lame "sound engine" was fundamentally different and way simpler than the C original.
@@ -67,5 +68,8 @@ func soundPlay(id uint16) {
 		return
 	}
 	snd := soundSfx[id]
+
+	f := float32(rand.Float64()*0.5 - 0.25)
+	rl.SetSoundPitch(snd, 1.0+f)
 	rl.PlaySound(snd)
 }

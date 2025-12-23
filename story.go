@@ -112,6 +112,7 @@ func storyPlay() {
 
 		finalScene := storyPickScene(FINAL, unwantedFlags)
 
+		// When ready, remove this entire block of code.
 		TEMPHACK := true
 		if TEMPHACK {
 			finalScene = &storyScenes[hackCurrentDay]
