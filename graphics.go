@@ -221,6 +221,8 @@ func grUpdateDisplay(
 		offset := int32(3)
 		rl.DrawText(fmt.Sprintf("Story: %d", hackCurrentDay-1), fontSize, yPos, fontSize, rl.Black)
 		rl.DrawText(fmt.Sprintf("Story: %d", hackCurrentDay-1), fontSize-offset, yPos-offset, fontSize, rl.White)
+
+		rl.DrawFPS(10, 10)
 	}
 
 	// TODO: Wait for the tick ...

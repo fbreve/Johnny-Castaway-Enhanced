@@ -5,7 +5,8 @@ import (
 )
 
 var (
-	hackCurrentDay = 1
+	// Picks the starting scene when hack is enabled.
+	hackCurrentDay = 16
 )
 
 var (
