@@ -231,7 +231,7 @@ func ttmPlay(ttmThread *TTtmThread) {
 			//grRestoreZone(ttmThread->ttmLayer, args[0], args[1], args[2], args[3]);
 		case 0xA0A4:
 			fmt.Printf("\tDRAW_LINE %d %d %d %d\n", args[0], args[1], args[2], args[3])
-			//grDrawLine(ttmThread.ttmLayer, args[0], args[1], args[2], args[3], ttmThread.fgColor);
+			grDrawLine(ttmThread.ttmLayer, int16(args[0]), int16(args[1]), int16(args[2]), int16(args[3]), ttmThread.fgColor)
 		case 0xA104:
 			fmt.Printf("\tDRAW_RECT %d %d %d %d\n", args[0], args[1], args[2], args[3])
 			grDrawRect(ttmThread.ttmLayer, int16(args[0]), int16(args[1]), args[2], args[3], ttmThread.fgColor)

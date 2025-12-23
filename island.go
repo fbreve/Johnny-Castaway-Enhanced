@@ -11,6 +11,15 @@ var (
 	counter2 int = 0
 )
 
+type TCloudState struct {
+	numClouds     int32
+	windDirection int32
+	windSpeed     [5]int32
+	cloudNo       [5]int32
+	xPos          [5]int32
+	yPos          [5]int32
+}
+
 type TIslandState struct {
 	lowTide int
 	night   int
@@ -18,6 +27,7 @@ type TIslandState struct {
 	holiday int
 	xPos    int
 	yPos    int
+	clouds  TCloudState
 }
 
 var (
@@ -84,48 +94,41 @@ func islandInit(ttmThread *TTtmThread) {
 	grLoadBmp(ttmSlot, 0, "BACKGRND.BMP")
 
 	// Clouds
-	var windDirection = rand.Int() % 2
-	var numClouds = 0
-	cloudX := uint16(0)
-	cloudY := uint16(0)
 
 	grDx = 0
 	grDy = 0
 
-	if rand.Int()%2 != 0 {
-		numClouds = 1
-	} else if rand.Int()%2 != 0 {
-		numClouds = 0
-	} else if rand.Int()%4 != 0 {
-		numClouds = 2
-	} else if rand.Int()%4 != 0 {
-		numClouds = 3
-	} else if rand.Int()%4 != 0 {
-		numClouds = 4
-	} else {
-		numClouds = 5
-	}
+	cloudX := uint16(0)
+	cloudY := uint16(0)
 
-	for i := 0; i < numClouds; i++ {
-		var cloudNo = rand.Int() % 3
+	numClouds := int32(rand.Int() % 6)
+	windDirection := int32(rand.Int() % 2)
 
+	islandState.clouds.numClouds = numClouds
+	islandState.clouds.windDirection = windDirection
+
+	for i := int32(0); i < numClouds; i++ {
+		cloudNo := rand.Int() % 3
 		switch cloudNo {
 		case 0:
 			cloudX = uint16(rand.Int() % (640 - 129))
-			cloudY = uint16(rand.Int() % (135 - 36))
+			cloudY = uint16(rand.Int()%(100-36) + 25)
+			break
+
 		case 1:
 			cloudX = uint16(rand.Int() % (640 - 192))
-			cloudY = uint16(rand.Int() % (135 - 57))
+			cloudY = uint16(rand.Int()%(100-57) + 25)
+			break
+
 		case 2:
 			cloudX = uint16(rand.Int() % (640 - 264))
-			cloudY = uint16(rand.Int() % (135 - 76))
+			cloudY = uint16(rand.Int()%(100-76) + 25)
+			break
 		}
-
-		if windDirection != 0 {
-			grDrawSprite(grBackgroundSur, ttmSlot, int16(cloudX), int16(cloudY), uint16(15+cloudNo), 0)
-		} else {
-			grDrawSpriteFlip(grBackgroundSur, ttmSlot, int16(cloudX), int16(cloudY), uint16(15+cloudNo), 0)
-		}
+		islandState.clouds.windSpeed[i] = int32(rand.Int()%2 + 1)
+		islandState.clouds.cloudNo[i] = int32(cloudNo)
+		islandState.clouds.xPos[i] = int32(cloudX)
+		islandState.clouds.yPos[i] = int32(cloudY)
 	}
 
 	grDx = islandState.xPos
@@ -201,5 +204,76 @@ func islandAnimate(ttmThread *TTtmThread) {
 }
 
 func islandInitHoliday(ttmThread *TTtmThread) {
-	// TODO: r.c.
+	ttmSlot := ttmThread.ttmSlot
+
+	if islandState.holiday > 0 {
+		ttmThread.ttmLayer = grNewLayer()
+		ttmThread.isRunning = 3
+
+		grDx = islandState.xPos
+		grDy = islandState.yPos
+
+		grLoadBmp(ttmSlot, 0, "HOLIDAY.BMP")
+
+		switch islandState.holiday {
+		case 1:
+			grDrawSprite(ttmThread.ttmLayer, ttmSlot, 410, 298, 0, 0) // Halloween
+		case 2:
+			grDrawSprite(ttmThread.ttmLayer, ttmSlot, 333, 286, 1, 0) // St Patrick
+		case 3:
+			grDrawSprite(ttmThread.ttmLayer, ttmSlot, 404, 267, 2, 0) // Christmas
+		case 4:
+			grDrawSprite(ttmThread.ttmLayer, ttmSlot, 361, 155, 3, 0) // New year
+		}
+
+		grReleaseBmp(ttmSlot, 0)
+	} else {
+		ttmThread.isRunning = 0
+	}
+}
+
+func islandAnimateClouds(ttmThread *TTtmThread) {
+	// r.c. big observation, this cloud logic keeps excessively loading the BACKGROUND.BMP
+	// it's super taxing, and this came from the github.com/xesf/jc_reborn branch
+	if true {
+		return
+	}
+
+	ttmSlot := ttmThread.ttmSlot
+	grClearScreen(ttmThread.ttmLayer)
+	if islandState.clouds.numClouds > 0 {
+		ttmThread.isRunning = 3
+		grLoadBmp(ttmSlot, 0, "BACKGRND.BMP")
+
+		// animate clouds x position
+		for i := int32(0); i < islandState.clouds.numClouds; i++ {
+			cloudNo := islandState.clouds.cloudNo[i]
+			cloudX := islandState.clouds.xPos[i]
+			cloudY := islandState.clouds.yPos[i]
+
+			if cloudX > 640+264 {
+				cloudX = -264
+			} else if cloudX < -264 {
+				cloudX = 640 + 264
+			} else {
+				if islandState.clouds.windDirection > 0 {
+					cloudX -= islandState.clouds.windSpeed[i]
+				} else {
+					cloudX += islandState.clouds.windSpeed[i]
+				}
+			}
+
+			fmt.Printf("Clouds Pos: %d, %d\n", cloudX, cloudY)
+			if islandState.clouds.windDirection > 0 {
+				grDrawSprite(ttmThread.ttmLayer, ttmSlot, int16(cloudX), int16(cloudY), uint16(15+cloudNo), 0)
+			} else {
+				grDrawSpriteFlip(ttmThread.ttmLayer, ttmSlot, int16(cloudX), int16(cloudY), uint16(15+cloudNo), 0)
+			}
+
+			islandState.clouds.xPos[i] = cloudX
+			islandState.clouds.yPos[i] = cloudY
+		}
+	} else {
+		ttmThread.isRunning = 0
+	}
 }

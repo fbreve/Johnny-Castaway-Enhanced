@@ -26,8 +26,10 @@ var (
 
 	ttmBackgroundSlot TTtmSlot
 	ttmHolidaySlot    TTtmSlot
+	ttmCloudsSlot     TTtmSlot
 	ttmSlots          [MaxTTMSlots]TTtmSlot
 
+	ttmCloudsThread     TTtmThread
 	ttmBackgroundThread TTtmThread
 	ttmHolidayThread    TTtmThread
 	ttmThreads          [MaxTTMThreads]TTtmThread
@@ -337,6 +339,7 @@ func adsInit() {
 	grUpdateDelay = 0
 	ttmBackgroundThread.isRunning = 0
 	ttmHolidayThread.isRunning = 0
+	ttmCloudsThread.isRunning = 0
 	numThreads = 0
 	adsStopRequested = 0
 }
@@ -350,7 +353,7 @@ func adsPlaySingleTtm(ttmName string) {
 	for ttmThreads[0].ip < ttmSlots[0].dataSize {
 		ttmPlay(&ttmThreads[0])
 		ttmThreads[0].isRunning = 1
-		grUpdateDisplay(nil, ttmThreads[:], nil)
+		grUpdateDisplay(nil, ttmThreads[:], nil, nil)
 		grUpdateDelay = int(ttmThreads[0].delay)
 	}
 
@@ -507,7 +510,7 @@ func adsPlayChunk(data []byte, dataSize, offset uint32) {
 
 func adsPlayTriggeredChunks(data []byte, dataSize uint32, ttmSlotNo, ttmTag uint16) {
 	// First we deal with the case where a local trigger was declared
-	// (only one occurence of this, in ACTIVITY.ADS tag #7)
+	// (only one occurrence of this, in ACTIVITY.ADS tag #7)
 
 	if numAdsChunksLocal != 0 {
 		for i := 0; i < numAdsChunksLocal; i++ {
@@ -560,6 +563,12 @@ func adsPlay(adsName string, adsTag uint16) {
 			islandAnimate(&ttmBackgroundThread)
 		}
 
+		if ttmCloudsThread.isRunning > 0 && ttmCloudsThread.timer == 0 {
+			fmt.Println("    ------> Animate clouds")
+			ttmCloudsThread.timer = ttmCloudsThread.delay
+			islandAnimateClouds(&ttmCloudsThread)
+		}
+
 		for i := 0; i < MaxTTMThreads; i++ {
 			// Call ttmPlay() for each thread which timer reaches 0
 			if ttmThreads[i].isRunning > 0 && ttmThreads[i].timer == 0 {
@@ -575,13 +584,19 @@ func adsPlay(adsName string, adsTag uint16) {
 		//}
 
 		// Refresh display
-		grUpdateDisplay(&ttmBackgroundThread, ttmThreads[:], &ttmHolidayThread)
+		grUpdateDisplay(&ttmBackgroundThread, ttmThreads[:], &ttmHolidayThread, &ttmCloudsThread)
 
 		// Determine min timer through all threads
 		mini := uint16(300)
 
 		if ttmBackgroundThread.isRunning > 0 {
 			mini = ttmBackgroundThread.timer
+		}
+
+		if ttmCloudsThread.isRunning > 0 {
+			if ttmCloudsThread.timer < mini {
+				mini = ttmCloudsThread.timer
+			}
 		}
 
 		for i := 0; i < MaxTTMThreads; i++ {
@@ -598,6 +613,7 @@ func adsPlay(adsName string, adsTag uint16) {
 
 		// Decrease all timers by the shortest one, and wait that amount of time
 		ttmBackgroundThread.timer -= mini
+		ttmCloudsThread.timer -= mini
 
 		for i := 0; i < MaxTTMThreads; i++ {
 			if ttmThreads[i].isRunning > 0 {
@@ -660,7 +676,7 @@ func adsPlayBench() {
 func adsPlayIntro() {
 	grLoadScreen("INTRO.SCR")
 	grUpdateDelay = 100
-	grUpdateDisplay(nil, ttmThreads[:], nil)
+	grUpdateDisplay(nil, ttmThreads[:], nil, nil)
 	grFadeOut()
 	ttmResetSlot(&ttmSlots[0])
 }
@@ -688,6 +704,20 @@ func adsInitIsland() {
 	ttmHolidayThread.timer = 0
 
 	islandInitHoliday(&ttmHolidayThread)
+
+	// Clouds
+	ttmInitSlot(&ttmCloudsSlot)
+	ttmCloudsThread.ttmSlot = &ttmCloudsSlot
+	ttmCloudsThread.isRunning = 3
+	ttmCloudsThread.delay = 8
+	ttmCloudsThread.timer = 0
+	if ttmCloudsThread.ttmLayer != nil {
+		grFreeLayer(ttmCloudsThread.ttmLayer)
+		ttmCloudsThread.ttmLayer = nil
+	}
+	ttmCloudsThread.ttmLayer = grNewLayer()
+
+	islandAnimateClouds(&ttmCloudsThread)
 }
 
 func adsReleaseIsland() {
@@ -735,7 +765,7 @@ func adsPlayWalk(fromSpot, fromHdg, toSpot, toHdg int) {
 		}
 
 		// Refresh display
-		grUpdateDisplay(&ttmBackgroundThread, ttmThreads[:], &ttmHolidayThread)
+		grUpdateDisplay(&ttmBackgroundThread, ttmThreads[:], &ttmHolidayThread, &ttmCloudsThread)
 
 		// Determine min timer from the two threads
 		mini := uint16(300)

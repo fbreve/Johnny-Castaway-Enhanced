@@ -95,23 +95,6 @@ func grPutPixel(sur *rl.RenderTexture2D, x, y uint16, c uint8) {
 	}
 }
 
-func grDrawHorizontalLine(sur *rl.RenderTexture2D, x1, x2, y int16, color uint8) {
-	if y < 0 || y > 479 {
-		return
-	}
-
-	if x1 < 0 {
-		x1 = 0
-	}
-	if x2 > 639 {
-		x2 = 639
-	}
-
-	for x := x1; x < x2; x++ {
-		grPutPixel(sur, uint16(x), uint16(y), color)
-	}
-}
-
 func grLoadPalette(palResource *TPALResource) {
 	if palResource == nil {
 		panic("nil palette")
@@ -139,7 +122,12 @@ func grToggleFullscreen() {
 
 }
 
-func grUpdateDisplay(ttmBGThread *TTtmThread, ttmThreads []TTtmThread, ttmHolidayThread *TTtmThread) {
+func grUpdateDisplay(
+	ttmBGThread *TTtmThread,
+	ttmThreads []TTtmThread,
+	ttmHolidayThread *TTtmThread,
+	ttmCloudsThread *TTtmThread,
+) {
 	// NOTE: it seems in the C code, ttmBackgroundThread is not used in this func. - r.c.
 	// NOTE: Original has all args as *TTtmThread, but second arg is actually a multi-pointer, so I made it a slice. - r.c.
 	// clear the screen.
@@ -183,6 +171,13 @@ func grUpdateDisplay(ttmBGThread *TTtmThread, ttmThreads []TTtmThread, ttmHolida
 		// Blit the background
 		drawTexture(grBackgroundSur)
 
+		// Blit the clouds
+		if ttmCloudsThread != nil {
+			if ttmCloudsThread.isRunning != 0 {
+				drawTexture(ttmCloudsThread.ttmLayer)
+			}
+		}
+
 		// Blit the saved zones layer
 		drawTexture(grSavedZonesLayer)
 
@@ -208,9 +203,9 @@ func grUpdateDisplay(ttmBGThread *TTtmThread, ttmThreads []TTtmThread, ttmHolida
 	start := rl.GetTime()
 	for {
 		draw()
-		// 83 because 1000ms/12 == 83.3333 - and the animation to me looks like 12fps native cel animation.
-		const ms = 1000 / 30
-		time.Sleep(time.Millisecond * time.Duration(ms))
+		const fps = 30
+		const frameDelayMS = 1000 / fps
+		time.Sleep(time.Millisecond * time.Duration(frameDelayMS))
 
 		end := rl.GetTime()
 		if grUpdateDelay == 0 ||
@@ -306,8 +301,42 @@ func grDrawPixel(sur *rl.RenderTexture2D, x, y int16, clr uint8) {
 	grPutPixel(sur, uint16(x), uint16(y), clr)
 }
 
-func grDrawLine() {
-	fmt.Println("grDrawLine(...)")
+func grDrawLine(sur *rl.RenderTexture2D, x1, y1, x2, y2 int16, colorIdx uint8) {
+	x1 += int16(grDx)
+	y1 += int16(grDy)
+	x2 += int16(grDx)
+	y2 += int16(grDy)
+
+	clr := ttmPalette[colorIdx]
+	c := color.RGBA{
+		// Note color order -> this matches what's in the C implementation.
+		R: clr[2],
+		G: clr[1],
+		B: clr[0],
+		A: 0xff,
+	}
+
+	rl.BeginTextureMode(*sur)
+	defer rl.EndTextureMode()
+
+	rl.DrawLine(int32(x1), int32(y1), int32(x2), int32(y2), c)
+}
+
+func grDrawHorizontalLine(sur *rl.RenderTexture2D, x1, x2, y int16, color uint8) {
+	if y < 0 || y > 479 {
+		return
+	}
+
+	if x1 < 0 {
+		x1 = 0
+	}
+	if x2 > 639 {
+		x2 = 639
+	}
+
+	for x := x1; x < x2; x++ {
+		grPutPixel(sur, uint16(x), uint16(y), color)
+	}
 }
 
 func grDrawRect(sur *rl.RenderTexture2D, x, y int16, width, height uint16, colorIdx uint8) {

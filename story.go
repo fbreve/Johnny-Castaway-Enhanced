@@ -34,7 +34,7 @@ func storyCalculateIslandFromDateAndTime() {
 	// determines holidays and whether it's nighttime.
 	// just hacking for now - r.c.
 	islandState.night = 0
-	islandState.holiday = 0
+	islandState.holiday = 3
 }
 
 func storyCalculateIslandFromScene(scene *TStoryScene) {
