@@ -47,11 +47,11 @@ func calcPathRecurse(prevNode, curNode int) {
 	}
 }
 
-func calcPath(fromNode, toNode int) int {
+func calcPath(fromNode, toNode int) *int {
 	// Note: this is certainly not the exact algorithm used in the original,
 	// but so far it is the best I could imagine to fit the need.
 
-	var res int = -1
+	var res *int = nil
 
 	for i := 0; i < NumOfNodes; i++ {
 		nodeStates[i].isMarked = 0
@@ -81,12 +81,10 @@ func calcPath(fromNode, toNode int) int {
 	//	putchar('\n');
 	//}
 
-	// 1. Instead of returning pointer to row
-	//res = paths[rand.Int()%numPaths]
-
-	// 2. We return index of row
-	res = rand.Int() % numPaths
-
+	// NOTE: original C code, took a pointer to the 0th int
+	// in the subarray since in C arrays decay into pointers
+	// This should be equivalent.
+	res = &paths[rand.Int()%numPaths][0]
 	//if (debugMode) {
 	//
 	//	printf(" |  . chosen path: ");

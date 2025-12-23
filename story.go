@@ -112,12 +112,12 @@ func storyPlay() {
 
 		finalScene := storyPickScene(FINAL, unwantedFlags)
 
-		// When ready, remove this entire block of code.
-		TEMPHACK := true
-		if TEMPHACK {
-			finalScene = &storyScenes[hackCurrentDay]
-			hackCurrentDay++
-		}
+		// r.c. - When ready, remove this entire block of code, used to play scenes in order!
+		//TEMPHACK := true
+		//if TEMPHACK {
+		//	finalScene = &storyScenes[hackCurrentDay]
+		//	hackCurrentDay++
+		//}
 
 		if finalScene.flags&ISLAND == ISLAND {
 			storyCalculateIslandFromScene(finalScene)
@@ -128,7 +128,7 @@ func storyPlay() {
 
 		prevSpot := -1
 		prevHdg := -1
-		_ = prevHdg // because I don't have adsWalk enabled just yet.
+		//_ = prevHdg // r.c. because I don't have adsWalk enabled just yet.
 
 		if !(finalScene.flags&FIRST == FIRST) {
 			wantedFlags = 0
@@ -144,11 +144,11 @@ func storyPlay() {
 
 			// r.c. I think this logic is simply to pick the next scene's starting spot so that the walk animation
 			// will flow together (from one scene to the next...)
-			for i := 0; i < 6+rand.Int()%14; i++ {
+			for i := 0; i < 6+(rand.Int()%14); i++ {
 				scene := storyPickScene(wantedFlags, unwantedFlags)
 
 				if prevSpot != -1 {
-					//adsPlayWalk(prevSpot, prevHdg, scene.spotStart, scene.hdgStart)
+					adsPlayWalk(prevSpot, prevHdg, scene.spotStart, scene.hdgStart)
 				}
 
 				var xOffset = 0
@@ -159,7 +159,7 @@ func storyPlay() {
 				ttmDy = islandState.yPos
 
 				if scene.dayNo != 0 {
-					//soundPlay(0) //r.c. todo
+					soundPlay(0)
 				}
 
 				unwantedFlags |= FIRST
@@ -169,7 +169,7 @@ func storyPlay() {
 		}
 
 		if prevSpot != -1 {
-			//adsPlayWalk(prevSpot, prevHdg, finalScene.spotStart, finalScene.hdgStart)
+			adsPlayWalk(prevSpot, prevHdg, finalScene.spotStart, finalScene.hdgStart)
 		}
 
 		if finalScene.flags&ISLAND == ISLAND {
@@ -185,7 +185,7 @@ func storyPlay() {
 		}
 
 		if finalScene.dayNo != 0 {
-			//soundPlay(0) //todo: r.c.
+			soundPlay(0)
 		}
 
 		adsPlay(finalScene.adsName, uint16(finalScene.adsTagNo))

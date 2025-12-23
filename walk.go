@@ -1,9 +1,12 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"unsafe"
+)
 
 var (
-	walkPath     int = -1
+	walkPath     *int = nil
 	currentSpot  int
 	currentHdg   int
 	nextSpot     int
@@ -21,7 +24,7 @@ var (
 	// In the C code this is a pointer to a row of 4 uint16, and it references walkData
 	// I will just make it be an index to walkData.
 	// In the original it's also a static field, so we make it global.
-	data = int(-1)
+	data *[4]uint16 = nil
 )
 
 func walkInit(fromSpot, fromHdg, toSpot, toHdg int) {
@@ -42,8 +45,8 @@ func walkInit(fromSpot, fromHdg, toSpot, toHdg int) {
 		// Instead of this:
 		//nextSpot = *(++walkPath);
 		// We do this:
-		walkPath++
-		nextSpot = paths[walkPath][0]
+		walkPath = (*int)(unsafe.Add(unsafe.Pointer(walkPath), unsafe.Sizeof(int(0))))
+		nextSpot = *walkPath
 
 		nextHdg = walkDataStartHeadings[currentSpot][nextSpot]
 		lastTurn = 0
@@ -72,10 +75,12 @@ func walkAnimate(ttmThread *TTtmThread, ttmBgSlot *TTtmSlot) int {
 			// More than one iteration left? yes, so let's turn
 			if (((nextHdg - currentHdg) & 0x07) % 7) > 1 {
 				currentHdg = (currentHdg + increment) & 7
-				//data = &walkData[walkDataBookmarksTurns[currentSpot]+currentHdg]
-				data = walkDataBookmarksTurns[currentSpot] + currentHdg
+				data = &walkData[walkDataBookmarksTurns[currentSpot]+currentHdg]
 				if lastTurn != 0 {
-					data += 9
+					//data += 9
+					ptr := unsafe.Pointer(data)
+					ptr = unsafe.Add(ptr, 9*unsafe.Sizeof([4]uint16{}))
+					data = (*[4]uint16)(ptr)
 				}
 
 				// The turn is over
@@ -90,13 +95,13 @@ func walkAnimate(ttmThread *TTtmThread, ttmBgSlot *TTtmSlot) int {
 					} else {
 						isBehindTree = 0
 					}
-					//data = &walkData[walkDataBookmarks[currentSpot][nextSpot]]
-					data = walkDataBookmarks[currentSpot][nextSpot]
-
+					data = &walkData[walkDataBookmarks[currentSpot][nextSpot]]
 				} else { // Else, we arrived to destination
-					//data = &walkData[walkDataBookmarksTurns[finalSpot] + finalHdg];
-					data = walkDataBookmarksTurns[finalSpot] + finalHdg
-					data += 9 // hands in pockets
+					data = &walkData[walkDataBookmarksTurns[finalSpot]+finalHdg]
+					//data += 9 // hands in pockets
+					ptr := unsafe.Pointer(data)
+					ptr = unsafe.Add(ptr, 9*unsafe.Sizeof([4]uint16{}))
+					data = (*[4]uint16)(ptr)
 					hasArrived = 1
 				}
 			}
@@ -104,11 +109,13 @@ func walkAnimate(ttmThread *TTtmThread, ttmBgSlot *TTtmSlot) int {
 			// Walking forward
 		} else {
 
-			data++
+			// data++
+			ptr := unsafe.Pointer(data)
+			ptr = unsafe.Add(ptr, 1*unsafe.Sizeof([4]uint16{}))
+			data = (*[4]uint16)(ptr)
 
 			// Have we reached a spot ? So let's begin a turn...
-			//if (!(*data)[1]) {
-			if walkData[data][1] == 0 {
+			if (*data)[1] == 0 {
 				currentHdg = walkDataEndHeadings[currentSpot][nextSpot]
 				currentSpot = nextSpot
 
@@ -118,8 +125,8 @@ func walkAnimate(ttmThread *TTtmThread, ttmBgSlot *TTtmSlot) int {
 					// Instead of this:
 					//nextSpot = *(++walkPath);
 					// We do this:
-					walkPath++
-					nextSpot = paths[walkPath][0]
+					walkPath = (*int)(unsafe.Add(unsafe.Pointer(walkPath), unsafe.Sizeof(int(0))))
+					nextSpot = *walkPath
 
 					nextHdg = walkDataStartHeadings[currentSpot][nextSpot]
 				} else {
@@ -138,11 +145,13 @@ func walkAnimate(ttmThread *TTtmThread, ttmBgSlot *TTtmSlot) int {
 				}
 
 				currentHdg = (currentHdg + increment) & 7
-				//data = &walkData[walkDataBookmarksTurns[currentSpot] + currentHdg]
-				data = walkDataBookmarksTurns[currentSpot] + currentHdg
+				data = &walkData[walkDataBookmarksTurns[currentSpot]+currentHdg]
 
 				if lastTurn > 0 {
-					data += 9 // hands in pockets
+					// data += 9 // hands in pockets
+					ptr := unsafe.Pointer(data)
+					ptr = unsafe.Add(ptr, 9*unsafe.Sizeof([4]uint16{}))
+					data = (*[4]uint16)(ptr)
 					if currentHdg == finalHdg {
 						hasArrived = 1
 					}
@@ -152,17 +161,16 @@ func walkAnimate(ttmThread *TTtmThread, ttmBgSlot *TTtmSlot) int {
 
 		fmt.Printf("WALKING:  spot=%d hdg=%d next=%d - data %d %d %d %d\n",
 			currentSpot, currentHdg, nextHdg,
-			walkData[data][0], walkData[data][1], walkData[data][2], walkData[data][3])
+			(*data)[0], (*data)[1], (*data)[2], (*data)[3])
 
 		grClearScreen(sur)
 
-		//if ((*data)[0]){
-		if walkData[data][0] != 0 {
+		if (*data)[0] != 0 {
 			grDrawSpriteFlip(sur, ttmSlot,
-				int16(walkData[data][1])-1, int16(walkData[data][2]), walkData[data][3], 0)
+				int16((*data)[1]-1), int16((*data)[2]), (*data)[3], 0)
 		} else {
 			grDrawSprite(sur, ttmSlot,
-				int16(walkData[data][1])-1, int16(walkData[data][2]), walkData[data][3], 0)
+				int16((*data)[1]-1), int16((*data)[2]), (*data)[3], 0)
 		}
 
 		if isBehindTree != 0 {
