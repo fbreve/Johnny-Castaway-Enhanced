@@ -71,7 +71,6 @@ type TTtmThread struct {
 }
 
 func grReleaseScreen() {
-	// Note: Deallocate is an ebiten specific thing, not sure if it's entirely necessary to invoke it.
 	grBackgroundSur = nil
 }
 
@@ -132,7 +131,6 @@ func grUpdateDisplay(
 	// NOTE: Original has all args as *TTtmThread, but second arg is actually a multi-pointer, so I made it a slice. - r.c.
 	// clear the screen.
 	draw := func() {
-
 		if rl.WindowShouldClose() {
 			fmt.Println("exiting...")
 			os.Exit(0)
@@ -240,9 +238,8 @@ func grSetClipZone(sur *rl.RenderTexture2D, x1, y1, x2, y2 int16) {
 	//SDL_Rect rect = { x1, y1, x2-x1, y2-y1 };
 	//SDL_SetClipRect(sur, &rect);
 
-	// Equivalent Ebiten code?? Not sure, I need to prove this out.
-	// NOTE: according to docs, SubImage returns the image.Image interface but it's always
-	// a *ebiten.Image so I should be able to cast and save it.
+	// Equivalent Raylib code?? Not sure, I need to prove this out.
+
 	//rect := image.Rect(int(x1), int(y1), int(x2), int(y2))
 	//grClippedImage = sur.SubImage(rect).(*ebiten.Image)
 }
@@ -252,11 +249,18 @@ func grCopyZoneToBg(sur *rl.RenderTexture2D, x, y, width, height uint16) {
 	y += uint16(grDy)
 
 	//SDL_Rect rect = { (short) x, (short) y, width + 2, height };
-	//adjustedWidth := width + 2
-	//
-	//if grSavedZonesLayer == nil {
-	//	grSavedZonesLayer = grNewLayer()
-	//}
+	srcRect := rl.NewRectangle(float32(x), float32(y), float32(width+2), float32(height))
+
+	if grSavedZonesLayer == nil {
+		grSavedZonesLayer = grNewLayer()
+	}
+
+	rl.BeginTextureMode(*grSavedZonesLayer)
+	defer rl.EndTextureMode()
+
+	rl.DrawTexturePro(sur.Texture, srcRect, srcRect, rl.Vector2Zero(), 0.0, rl.White)
+
+	// BELOW IS ORIGINAL C Code
 
 	// r.c. NOTE: this block is just to document SDL2 which is the source vs dst surface.
 	// int SDL_BlitSurface(SDL_Surface *src,
@@ -272,20 +276,22 @@ func grCopyZoneToBg(sur *rl.RenderTexture2D, x, y, width, height uint16) {
 	// error in coordinates in GJIVS6.TTM
 	// Obviously, the original soft rounds the SAVE_IMAGE boundaries on
 	// one way or another.
+}
 
-	// ported Ebiten code
-	// Define source rectangle
-	//srcRect := image.Rect(int(int16(x)), int(int16(y)), int(x+adjustedWidth), int(y+height))
+func grSaveImage1(sur *rl.RenderTexture2D, arg0, arg1, arg2, arg3 uint16) { // // TODO : rename ?
+	// r.c. in the original C code, these are NOT implemented!
 
-	// Extract the sub-image from source
-	//subImg := sur.SubImage(srcRect).(*ebiten.Image)
-	//
-	//// Set up draw options to position at the same coordinates in destination
-	//opts := &ebiten.DrawImageOptions{}
-	//opts.GeoM.Translate(float64(x), float64(y))
-	//
-	//// Draw to saved zones layer
-	//grSavedZonesLayer.DrawImage(subImg, opts)
+	//    ttmSetColors(4,4);
+	//    ttmDrawRect(arg0,arg1,arg2,arg3);
+	//    ttmSaveImage0(arg0,arg1,arg2,arg3);
+	//    ttmUpdate();
+}
+
+func grSaveZone(sur *rl.RenderTexture2D, x, y, width, height uint16) {
+	// r.c. in the original C code, these are NOT implemented!
+
+	// Minimalistic implementation: we don't really save the zone,
+	// and let grRestoreZone() simply erase the 'saved zones' layer
 }
 
 func grRestoreZone(sur *rl.RenderTexture2D, x, y, width, height uint16) {
@@ -537,15 +543,15 @@ func grLoadScreen(screenName string) {
 	rl.BeginTextureMode(rt)
 	defer rl.EndTextureMode()
 
-	// Draw flipped (-height)
-	src := rl.NewRectangle(
-		0,
-		0,
-		float32(spriteTexture.Width),
-		float32(spriteTexture.Height), //float32(-spriteTexture.Height), // Always negative
-	)
-	dst := rl.NewRectangle(0, 0, float32(spriteTexture.Width), float32(spriteTexture.Height))
-	rl.DrawTexturePro(spriteTexture, src, dst, rl.Vector2Zero(), 0.0, rl.White)
+	rl.DrawTexture(spriteTexture, 0, 0, rl.White)
+	//src := rl.NewRectangle(
+	//	0,
+	//	0,
+	//	float32(spriteTexture.Width),
+	//	float32(spriteTexture.Height),
+	//)
+	//dst := rl.NewRectangle(0, 0, float32(spriteTexture.Width), float32(spriteTexture.Height))
+	//rl.DrawTexturePro(spriteTexture, src, dst, rl.Vector2Zero(), 0.0, rl.White)
 }
 
 func grInitEmptyBackground() {

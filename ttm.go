@@ -217,7 +217,7 @@ func ttmPlay(ttmThread *TTtmThread) {
 			// defines the zone to be redrawn at each update ?
 			// but seems not used in the original
 			fmt.Printf("\tSAVE_IMAGE1 %d %d %d %d\n", args[0], args[1], args[2], args[3])
-			//grSaveImage1(ttmThread->ttmLayer, args[0], args[1], args[2], args[3]);
+			grSaveImage1(ttmThread.ttmLayer, args[0], args[1], args[2], args[3])
 		case 0xA002:
 			fmt.Printf("\tDRAW_PIXEL %d %d\n", args[0], args[1])
 			grDrawPixel(ttmThread.ttmLayer, int16(args[0]), int16(args[1]), ttmThread.fgColor)

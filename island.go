@@ -233,6 +233,7 @@ func islandAnimateClouds(ttmThread *TTtmThread) {
 	// r.c. big observation, this cloud logic keeps excessively loading the BACKGROUND.BMP
 	// it's super taxing, and this came from the github.com/xesf/jc_reborn branch
 	if true {
+		fmt.Println("CLOUDS DISABLED FOR NOW - r.c.!!!")
 		return
 	}
 
