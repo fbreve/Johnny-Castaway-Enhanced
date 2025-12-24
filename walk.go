@@ -141,7 +141,7 @@ func walkAnimate(ttmThread *TTtmThread, ttmBgSlot *TTtmSlot) int {
 				currentHdg = (currentHdg + increment) & 7
 				data = &walkData[walkDataBookmarksTurns[currentSpot]+currentHdg]
 
-				if lastTurn > 0 {
+				if lastTurn != 0 {
 					// data += 9 // hands in pockets
 					dataPtrPlus(9)
 					if currentHdg == finalHdg {

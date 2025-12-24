@@ -103,7 +103,7 @@ func storyPlay() {
 	)
 
 	adsInit()
-	adsPlayIntro() // todo: r.c.
+	adsPlayIntro()
 
 	for {
 		storyUpdateCurrentDay()
@@ -128,9 +128,8 @@ func storyPlay() {
 
 		prevSpot := -1
 		prevHdg := -1
-		//_ = prevHdg // r.c. because I don't have adsWalk enabled just yet.
 
-		if !(finalScene.flags&FIRST == FIRST) {
+		if finalScene.flags&FIRST == 0 {
 			wantedFlags = 0
 			unwantedFlags |= FINAL
 
@@ -144,7 +143,7 @@ func storyPlay() {
 
 			// r.c. I think this logic is simply to pick the next scene's starting spot so that the walk animation
 			// will flow together (from one scene to the next...)
-			for i := 0; i < 6+(rand.Int()%14); i++ {
+			for i := 0; i < 6+rand.Intn(14); i++ {
 				scene := storyPickScene(wantedFlags, unwantedFlags)
 
 				if prevSpot != -1 {
@@ -159,8 +158,14 @@ func storyPlay() {
 				ttmDy = islandState.yPos
 
 				if scene.dayNo != 0 {
-					soundPlay(0)
+					soundPlay(17)
 				}
+
+				// r.c. todo - this line should be enabled, but we get stuck in infinite loops.
+				// NOTE: some of this is for standing still animations, and it might be why he periodically jumps
+				// from spot to spot instead of correctly walking around like he should.
+				// I'M SO FUCKEN CLOSE!!!!! - this line is still causing the game to be stuck!!!
+				adsPlay(scene.adsName, uint16(scene.adsTagNo))
 
 				unwantedFlags |= FIRST
 				prevSpot = scene.spotEnd
@@ -185,7 +190,7 @@ func storyPlay() {
 		}
 
 		if finalScene.dayNo != 0 {
-			soundPlay(0)
+			soundPlay(17)
 		}
 
 		adsPlay(finalScene.adsName, uint16(finalScene.adsTagNo))

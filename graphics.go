@@ -10,9 +10,6 @@ import (
 )
 
 const (
-	ScreenWidth  = 640
-	ScreenHeight = 480
-
 	MaxBMPSlots      = 6
 	MaxSpritesPerBMP = 120
 	MaxTTMSlots      = 10

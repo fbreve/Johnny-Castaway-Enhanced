@@ -203,7 +203,7 @@ func islandAnimate(ttmThread *TTtmThread) {
 func islandInitHoliday(ttmThread *TTtmThread) {
 	ttmSlot := ttmThread.ttmSlot
 
-	if islandState.holiday > 0 {
+	if islandState.holiday != 0 {
 		ttmThread.ttmLayer = grNewLayer()
 		ttmThread.isRunning = 3
 
@@ -261,7 +261,7 @@ func islandAnimateClouds(ttmThread *TTtmThread) {
 				}
 			}
 
-			fmt.Printf("Clouds Pos: %d, %d\n", cloudX, cloudY)
+			//fmt.Printf("Clouds Pos: %d, %d\n", cloudX, cloudY)
 			if islandState.clouds.windDirection > 0 {
 				grDrawSprite(ttmThread.ttmLayer, ttmSlot, int16(cloudX), int16(cloudY), uint16(15+cloudNo), 0)
 			} else {

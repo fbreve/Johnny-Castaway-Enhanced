@@ -32,7 +32,7 @@ func main() {
 }
 
 func setupApp() {
-	baseWindowScaleFactor := float32(1.5)
+	baseWindowScaleFactor := float32(1.0)
 	rl.InitWindow(
 		int32(float32(screenWidth)*baseWindowScaleFactor),
 		int32(float32(screenHeight)*baseWindowScaleFactor),
