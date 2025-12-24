@@ -78,9 +78,7 @@ func walkAnimate(ttmThread *TTtmThread, ttmBgSlot *TTtmSlot) int {
 				data = &walkData[walkDataBookmarksTurns[currentSpot]+currentHdg]
 				if lastTurn != 0 {
 					//data += 9
-					ptr := unsafe.Pointer(data)
-					ptr = unsafe.Add(ptr, 9*unsafe.Sizeof([4]uint16{}))
-					data = (*[4]uint16)(ptr)
+					dataPtrPlus(9)
 				}
 
 				// The turn is over
@@ -99,9 +97,7 @@ func walkAnimate(ttmThread *TTtmThread, ttmBgSlot *TTtmSlot) int {
 				} else { // Else, we arrived to destination
 					data = &walkData[walkDataBookmarksTurns[finalSpot]+finalHdg]
 					//data += 9 // hands in pockets
-					ptr := unsafe.Pointer(data)
-					ptr = unsafe.Add(ptr, 9*unsafe.Sizeof([4]uint16{}))
-					data = (*[4]uint16)(ptr)
+					dataPtrPlus(9)
 					hasArrived = 1
 				}
 			}
@@ -110,9 +106,7 @@ func walkAnimate(ttmThread *TTtmThread, ttmBgSlot *TTtmSlot) int {
 		} else {
 
 			// data++
-			ptr := unsafe.Pointer(data)
-			ptr = unsafe.Add(ptr, 1*unsafe.Sizeof([4]uint16{}))
-			data = (*[4]uint16)(ptr)
+			dataPtrPlus(1)
 
 			// Have we reached a spot ? So let's begin a turn...
 			if (*data)[1] == 0 {
@@ -149,9 +143,7 @@ func walkAnimate(ttmThread *TTtmThread, ttmBgSlot *TTtmSlot) int {
 
 				if lastTurn > 0 {
 					// data += 9 // hands in pockets
-					ptr := unsafe.Pointer(data)
-					ptr = unsafe.Add(ptr, 9*unsafe.Sizeof([4]uint16{}))
-					data = (*[4]uint16)(ptr)
+					dataPtrPlus(9)
 					if currentHdg == finalHdg {
 						hasArrived = 1
 					}
@@ -178,7 +170,7 @@ func walkAnimate(ttmThread *TTtmThread, ttmBgSlot *TTtmSlot) int {
 			grDrawSprite(sur, ttmBgSlot, 365, 122, 12, 0) // leafs
 		}
 
-		if hasArrived > 0 {
+		if hasArrived != 0 {
 			delay = 80
 		} else {
 			delay = 6
@@ -189,4 +181,28 @@ func walkAnimate(ttmThread *TTtmThread, ttmBgSlot *TTtmSlot) int {
 	}
 
 	return delay
+}
+
+// dataPtrPlus does traditional C-style pointer arithmetic, yes it's unsafe and if you don't understand it
+// then go learn how a 'puter works. It's effectively: data += count where data is a pointer to
+// [4]uint16 array.
+// NOTE: what's unclear to me is why the code sometimes moves forward by 9 elements...
+func dataPtrPlus(count uintptr) {
+	// For troubleshooting
+	basePtr := unsafe.Pointer(&walkData[0])
+
+	ptr := unsafe.Pointer(data)
+
+	// troubleshooting
+	if count == 9 {
+		fmt.Println("data b4 index:", (uintptr(ptr)-uintptr(basePtr))/unsafe.Sizeof(walkData[0]))
+	}
+
+	ptr = unsafe.Add(ptr, count*unsafe.Sizeof([4]uint16{}))
+	data = (*[4]uint16)(ptr)
+
+	// troubleshooting
+	if count == 9 {
+		fmt.Println("data after index:", (uintptr(ptr)-uintptr(basePtr))/unsafe.Sizeof(walkData[0]))
+	}
 }
