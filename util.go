@@ -89,7 +89,7 @@ func peekUint16Block(data []byte, offset *uint32, dest []uint16, length int) {
 }
 
 func getDayOfYear() int {
-	return time.Now().Year()
+	return time.Now().YearDay() - 1
 }
 
 func getHour() int {

@@ -188,7 +188,7 @@ func adsAddScene(ttmSlotNo, ttmTag, arg3 uint16) {
 
 		if ttmThread.isRunning == 1 {
 			if ttmThread.sceneSlot == ttmSlotNo && ttmThread.sceneTag == ttmTag {
-				fmt.Printf("(%d,%d) thread is already running - didn't add extra one\n", ttmSlotNo, ttmTag)
+				fmt.Printf("WARN: (%d,%d) thread is already running - didn't add extra one\n", ttmSlotNo, ttmTag)
 				return
 			}
 		}
@@ -270,7 +270,7 @@ func adsRandomPickOp() *TAdsRandOp {
 
 	a := rand.Intn(totalWeight)
 
-	for res := 0; res < adsNumRandOps; res++ {
+	for res = 0; res < adsNumRandOps; res++ {
 		partialWeight += int(adsRandOps[res].weight)
 		if a < partialWeight {
 			break
@@ -315,16 +315,16 @@ func adsRandomEnd() {
 		op := adsRandomPickOp()
 		switch op.ttype {
 		case OP_ADD_SCENE:
-			fmt.Printf("RANDOM: chose ADD_SCENE %d %d...\n", op.slot, op.tag)
+			debugPrintf("RANDOM: chose ADD_SCENE %d %d...\n", op.slot, op.tag)
 			adsAddScene(op.slot, op.tag, op.numPlays)
 		case OP_STOP_SCENE:
-			fmt.Printf("RANDOM: chose STOP_SCENE %d %d...\n", op.slot, op.tag)
+			debugPrintf("RANDOM: chose STOP_SCENE %d %d...\n", op.slot, op.tag)
 			adsStopSceneByTtmTag(op.slot, op.tag)
 		default:
-			fmt.Println("RANDOM: chose NOP")
+			debugPrintln("RANDOM: chose NOP")
 		}
 	} else {
-		fmt.Println("RANDOM: no operation to choose from")
+		debugPrintln("RANDOM: no operation to choose from")
 	}
 }
 
@@ -383,7 +383,7 @@ func adsPlayChunk(data []byte, dataSize, offset uint32) {
 			// Inside an IF_LASTPLAYED chunk, local IF_LASTPLAYED
 			// which overrides the global IF_LASTPLAYEDs.
 			peekUint16Block(data, &offset, args[:], 2)
-			fmt.Println("IF_LASTPLAYED_LOCAL")
+			debugPrintln("IF_LASTPLAYED_LOCAL")
 			inIfLastplayedLocal = 1
 			adsChunksLocal[numAdsChunksLocal].scene.slot = args[0]
 			adsChunksLocal[numAdsChunksLocal].scene.tag = args[1]
@@ -396,10 +396,10 @@ func adsPlayChunk(data []byte, dataSize, offset uint32) {
 			//   - seems to be a synonym of "IF_NOT_RUNNING"
 			//   - if so, our implementation works fine anyway by ignoring this one...
 			peekUint16Block(data, &offset, args[:], 2)
-			fmt.Printf("IF_UNKNOWN_1 %d %d\n", args[0], args[1])
+			debugPrintf("IF_UNKNOWN_1 %d %d\n", args[0], args[1])
 		case 0x1350:
 			peekUint16Block(data, &offset, args[:], 2)
-			fmt.Printf("IF_LASTPLAYED %d %d\n", args[0], args[1])
+			debugPrintf("IF_LASTPLAYED %d %d\n", args[0], args[1])
 			if inOrBlock == 0 {
 				continueLoop = 0
 			}
@@ -407,13 +407,13 @@ func adsPlayChunk(data []byte, dataSize, offset uint32) {
 			inOrBlock = 0
 		case 0x1360:
 			peekUint16Block(data, &offset, args[:], 2)
-			fmt.Printf("IF_NOT_RUNNING %d %d\n", args[0], args[1])
+			debugPrintf("IF_NOT_RUNNING %d %d\n", args[0], args[1])
 			if isSceneRunning(args[0], args[1]) != 0 {
 				inSkipBlock = 1
 			}
 		case 0x1370:
 			peekUint16Block(data, &offset, args[:], 2)
-			fmt.Printf("IF_IS_RUNNING %d %d\n", args[0], args[1])
+			debugPrintf("IF_IS_RUNNING %d %d\n", args[0], args[1])
 			// r.c - possible bug fixed, the inSkipBlock = 0|1 were swapped originally
 			if isSceneRunning(args[0], args[1]) == 0 {
 				inSkipBlock = 1
@@ -421,16 +421,16 @@ func adsPlayChunk(data []byte, dataSize, offset uint32) {
 				inSkipBlock = 0
 			}
 		case 0x1420:
-			fmt.Println("AND")
+			debugPrintln("AND")
 		case 0x1430:
-			fmt.Println("OR")
+			debugPrintln("OR")
 			inOrBlock = 1
 		case 0x1510:
 			// PLAY_SCENE : in fact, sort of a 'closing brace' for a
 			// statement block (several types possible).
 			// TODO : implement that in a cleaner way.
 			// For now, works quite well like that though...
-			fmt.Println("PLAY_SCENE")
+			debugPrintln("PLAY_SCENE")
 			if inSkipBlock != 0 {
 				inSkipBlock = 0
 			} else {
@@ -439,7 +439,7 @@ func adsPlayChunk(data []byte, dataSize, offset uint32) {
 		case 0x1520:
 			// Only in ACTIVITY.ADS tag 7, after IF_LASTPLAYED_LOCAL
 			peekUint16Block(data, &offset, args[:], 5)
-			fmt.Println("ADD_SCENE_LOCAL")
+			debugPrintln("ADD_SCENE_LOCAL")
 			if inIfLastplayedLocal != 0 {
 				// First pass : the scene was queued by IF_LASTPLAYED_LOCAL,
 				// nothing more to do for now
@@ -451,7 +451,7 @@ func adsPlayChunk(data []byte, dataSize, offset uint32) {
 			}
 		case 0x2005:
 			peekUint16Block(data, &offset, args[:], 4)
-			fmt.Printf("ADD_SCENE %d %d %d %d\n", args[0], args[1], args[2], args[3])
+			debugPrintf("ADD_SCENE %d %d %d %d\n", args[0], args[1], args[2], args[3])
 			if inSkipBlock == 0 { // TODO - TEMPO
 				if inRandBlock != 0 {
 					adsRandomAddScene(args[0], args[1], args[2], args[3])
@@ -461,7 +461,7 @@ func adsPlayChunk(data []byte, dataSize, offset uint32) {
 			}
 		case 0x2010:
 			peekUint16Block(data, &offset, args[:], 3)
-			fmt.Printf("STOP_SCENE %d %d %d\n", args[0], args[1], args[2])
+			debugPrintf("STOP_SCENE %d %d %d\n", args[0], args[1], args[2])
 			if inSkipBlock == 0 { // TODO - TEMPO
 				if inRandBlock != 0 {
 					adsRandomStopSceneByTtmTag(args[0], args[1], args[2])
@@ -470,33 +470,33 @@ func adsPlayChunk(data []byte, dataSize, offset uint32) {
 				}
 			}
 		case 0x3010:
-			fmt.Println("RANDOM_START")
+			debugPrintln("RANDOM_START")
 			adsRandomStart()
 			inRandBlock = 1
 		case 0x3020:
 			peekUint16Block(data, &offset, args[:], 1)
-			fmt.Println("NOP")
+			debugPrintln("NOP")
 			if inRandBlock != 0 {
 				adsRandomNop(args[0])
 			}
 		case 0x30ff:
-			fmt.Println("RANDOM_END")
+			debugPrintln("RANDOM_END")
 			adsRandomEnd()
 			inRandBlock = 0
 		case 0x4000:
 			peekUint16Block(data, &offset, args[:], 3)
-			fmt.Println("UNKNOWN_6") // only in BUILDING.ADS tag 7
+			debugPrintln("UNKNOWN_6") // only in BUILDING.ADS tag 7
 		case 0xf010:
-			fmt.Println("FADE_OUT")
+			debugPrintln("FADE_OUT")
 		case 0xf200:
 			peekUint16Block(data, &offset, args[:], 1)
-			fmt.Printf("GOSUB_TAG %d\n", args[0]) // ex UNKNOWN_8
+			debugPrintf("GOSUB_TAG %d\n", args[0]) // ex UNKNOWN_8
 			// "quick and dirty" implementation, sufficient for
 			// JCastaway : only encountered in STAND.ADS to tag 14
 			// which only contains 1 scene
 			adsPlayChunk(data, dataSize, adsFindTag(args[0]))
 		case 0xffff:
-			fmt.Println("END")
+			debugPrintln("END")
 			if inSkipBlock != 0 {
 				// TODO - no doubt this is q&d
 				inSkipBlock = 0
@@ -504,9 +504,9 @@ func adsPlayChunk(data []byte, dataSize, offset uint32) {
 				adsStopRequested = 1
 			}
 		case 0xfff0:
-			fmt.Println("END_IF")
+			debugPrintln("END_IF")
 		default:
-			fmt.Printf(":TAG %d\n", opcode)
+			debugPrintf(":TAG %d\n", opcode)
 		}
 	}
 }
@@ -541,7 +541,7 @@ func adsPlay(adsName string, adsTag uint16) {
 	)
 
 	adsResource := findAdsResource(adsName)
-	fmt.Printf("\n\n========== Playing ADS: %s:%d ==========\n", adsResource.ResName, adsTag)
+	debugPrintf("\n\n========== Playing ADS: %s:%d ==========\n", adsResource.ResName, adsTag)
 
 	data = adsResource.UncompressedData
 	dataSize = adsResource.UncompressedSize
@@ -561,13 +561,13 @@ func adsPlay(adsName string, adsTag uint16) {
 	// Main ADS loop
 	for numThreads != 0 {
 		if ttmBackgroundThread.isRunning != 0 && ttmBackgroundThread.timer == 0 {
-			fmt.Println("    ------> Animate bg")
+			debugPrintln("    ------> Animate bg")
 			ttmBackgroundThread.timer = ttmBackgroundThread.delay
 			islandAnimate(&ttmBackgroundThread)
 		}
 
 		if ttmCloudsThread.isRunning != 0 && ttmCloudsThread.timer == 0 {
-			fmt.Println("    ------> Animate clouds")
+			debugPrintln("    ------> Animate clouds")
 			ttmCloudsThread.timer = ttmCloudsThread.delay
 			islandAnimateClouds(&ttmCloudsThread)
 		}
@@ -575,7 +575,7 @@ func adsPlay(adsName string, adsTag uint16) {
 		for i := 0; i < MaxTTMThreads; i++ {
 			// Call ttmPlay() for each thread which timer reaches 0
 			if ttmThreads[i].isRunning != 0 && ttmThreads[i].timer == 0 {
-				fmt.Printf("    ------> Thread #%d\n", i)
+				debugPrintf("    ------> Thread #%d\n", i)
 				ttmThreads[i].timer = ttmThreads[i].delay
 				ttmPlay(&ttmThreads[i])
 			}
@@ -624,7 +624,7 @@ func adsPlay(adsName string, adsTag uint16) {
 			}
 		}
 
-		fmt.Printf(" ******* WAIT: %d ticks *******\n", mini)
+		debugPrintf(" ******* WAIT: %d ticks *******\n", mini)
 		grUpdateDelay = int(mini)
 
 		// Various threads processes
@@ -757,19 +757,19 @@ func adsPlayWalk(fromSpot, fromHdg, toSpot, toHdg int) {
 	for ttmThreads[0].delay != 0 {
 		// Call each thread which timer reaches 0
 		if ttmBackgroundThread.timer == 0 {
-			fmt.Println("    ------> Animate bg")
+			debugPrintln("    ------> Animate bg")
 			ttmBackgroundThread.timer = ttmBackgroundThread.delay
 			islandAnimate(&ttmBackgroundThread)
 		}
 
 		if ttmCloudsThread.timer == 0 {
-			fmt.Println("    ------> Animate clouds")
+			debugPrintln("    ------> Animate clouds")
 			ttmCloudsThread.timer = ttmCloudsThread.delay
 			islandAnimateClouds(&ttmCloudsThread)
 		}
 
 		if ttmThreads[0].timer == 0 {
-			fmt.Println("    ------> Animate walking")
+			debugPrintln("    ------> Animate walking")
 			walkResult := uint16(walkAnimate(&ttmThreads[0], ttmBackgroundThread.ttmSlot))
 			ttmThreads[0].timer = walkResult
 			ttmThreads[0].delay = walkResult
@@ -793,7 +793,7 @@ func adsPlayWalk(fromSpot, fromHdg, toSpot, toHdg int) {
 		ttmCloudsThread.timer -= mini
 		ttmThreads[0].timer -= mini
 
-		fmt.Printf(" ******* WAIT: %d ticks *******\n", mini)
+		debugPrintf(" ******* WAIT: %d ticks *******\n", mini)
 		grUpdateDelay = int(mini)
 	}
 

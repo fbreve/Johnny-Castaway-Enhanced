@@ -1,12 +1,8 @@
 package main
 
 import (
+	"fmt"
 	"math/rand"
-)
-
-var (
-	// Picks the starting scene when hack is enabled.
-	hackCurrentDay = 16
 )
 
 var (
@@ -28,18 +24,63 @@ func storyPickScene(wantedFlags uint16, unwantedFlags uint16) *TStoryScene {
 		}
 	}
 
-	return &storyScenes[scenes[rand.Int()%numScenes]]
+	return &storyScenes[scenes[rand.Intn(numScenes)]]
 }
 
 func storyUpdateCurrentDay() {
-	// TODO: writes to some local config so it tracks over the long term.
+	var (
+		config     TConfig
+		today      int
+		hasChanged bool
+	)
+
+	cfgFileRead(&config)
+	today = getDayOfYear()
+
+	if today != config.CurrentDate {
+		fmt.Println("System date has changed since last sequence -> next day of the story")
+		config.CurrentDate = today
+		config.CurrentDay += 1
+		hasChanged = true
+	}
+
+	if config.CurrentDay < 1 || config.CurrentDay > 11 {
+		config.CurrentDay = 1
+		hasChanged = true
+	}
+
+	if hasChanged {
+		cfgFileWrite(&config)
+	}
+
+	storyCurrentDay = config.CurrentDay
+	fmt.Printf("The day of the story is: %d\n", storyCurrentDay)
 }
 
 func storyCalculateIslandFromDateAndTime() {
-	// determines holidays and whether it's nighttime.
-	// just hacking for now - r.c.
-	islandState.night = 0
-	islandState.holiday = 3
+	// Night ?
+	hour := getHour()
+	if hour < 6 || hour >= 18 {
+		islandState.night = 1
+	}
+
+	// Holidays ?
+	islandState.holiday = 0
+	month, day := getMonthAndDay()
+
+	if month == 10 && (day >= 29 && day <= 31) {
+		// Halloween : 29/10 to 31/10
+		islandState.holiday = 1
+	} else if month == 3 && (day >= 15 && day <= 17) {
+		// St Patrick: 15/03 to 17/03
+		islandState.holiday = 2
+	} else if month == 12 && (day >= 23 && day <= 25) {
+		// Christmas : 23/12 to 25/12
+		islandState.holiday = 3
+	} else if (month == 12 && day >= 29) || (month == 1 && day == 1) {
+		// New year  : 29/12 to 01/01
+		islandState.holiday = 4
+	}
 }
 
 func storyCalculateIslandFromScene(scene *TStoryScene) {
@@ -112,13 +153,6 @@ func storyPlay() {
 
 		finalScene := storyPickScene(FINAL, unwantedFlags)
 
-		// r.c. - When ready, remove this entire block of code, used to play scenes in order!
-		//TEMPHACK := true
-		//if TEMPHACK {
-		//	finalScene = &storyScenes[hackCurrentDay]
-		//	hackCurrentDay++
-		//}
-
 		if finalScene.flags&ISLAND == ISLAND {
 			storyCalculateIslandFromScene(finalScene)
 			adsInitIsland()
@@ -161,10 +195,6 @@ func storyPlay() {
 					soundPlay(17)
 				}
 
-				// r.c. todo - this line should be enabled, but we get stuck in infinite loops.
-				// NOTE: some of this is for standing still animations, and it might be why he periodically jumps
-				// from spot to spot instead of correctly walking around like he should.
-				// I'M SO FUCKEN CLOSE!!!!! - this line is still causing the game to be stuck!!!
 				adsPlay(scene.adsName, uint16(scene.adsTagNo))
 
 				unwantedFlags |= FIRST

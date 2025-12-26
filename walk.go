@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"unsafe"
 )
 
@@ -151,7 +150,7 @@ func walkAnimate(ttmThread *TTtmThread, ttmBgSlot *TTtmSlot) int {
 			}
 		}
 
-		fmt.Printf("WALKING:  spot=%d hdg=%d next=%d - data %d %d %d %d\n",
+		debugPrintf("WALKING:  spot=%d hdg=%d next=%d - data %d %d %d %d\n",
 			currentSpot, currentHdg, nextHdg,
 			(*data)[0], (*data)[1], (*data)[2], (*data)[3])
 
@@ -176,7 +175,7 @@ func walkAnimate(ttmThread *TTtmThread, ttmBgSlot *TTtmSlot) int {
 			delay = 6
 		}
 	} else {
-		fmt.Println("WALKING: end walk")
+		debugPrintln("WALKING: end walk")
 		delay = 0
 	}
 
@@ -188,21 +187,8 @@ func walkAnimate(ttmThread *TTtmThread, ttmBgSlot *TTtmSlot) int {
 // [4]uint16 array.
 // NOTE: what's unclear to me is why the code sometimes moves forward by 9 elements...
 func dataPtrPlus(count uintptr) {
-	// For troubleshooting
-	basePtr := unsafe.Pointer(&walkData[0])
-
 	ptr := unsafe.Pointer(data)
-
-	// troubleshooting
-	if count == 9 {
-		fmt.Println("data b4 index:", (uintptr(ptr)-uintptr(basePtr))/unsafe.Sizeof(walkData[0]))
-	}
 
 	ptr = unsafe.Add(ptr, count*unsafe.Sizeof([4]uint16{}))
 	data = (*[4]uint16)(ptr)
-
-	// troubleshooting
-	if count == 9 {
-		fmt.Println("data after index:", (uintptr(ptr)-uintptr(basePtr))/unsafe.Sizeof(walkData[0]))
-	}
 }
