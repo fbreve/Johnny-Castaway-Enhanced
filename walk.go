@@ -16,9 +16,6 @@ var (
 	lastTurn     int
 	hasArrived   int
 	isBehindTree int
-)
-
-var (
 
 	// In the C code this is a pointer to a row of 4 uint16, and it references walkData
 	// I will just make it be an index to walkData.
@@ -185,7 +182,7 @@ func walkAnimate(ttmThread *TTtmThread, ttmBgSlot *TTtmSlot) int {
 // dataPtrPlus does traditional C-style pointer arithmetic, yes it's unsafe and if you don't understand it
 // then go learn how a 'puter works. It's effectively: data += count where data is a pointer to
 // [4]uint16 array.
-// NOTE: what's unclear to me is why the code sometimes moves forward by 9 elements...
+// NOTE: what's unclear to me is why the code above sometimes moves forward by 9 elements...
 func dataPtrPlus(count uintptr) {
 	ptr := unsafe.Pointer(data)
 

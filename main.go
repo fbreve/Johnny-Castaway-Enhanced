@@ -13,7 +13,6 @@ const (
 )
 
 func main() {
-
 	args := os.Args
 	if len(args) > 1 {
 		arg := args[1]
