@@ -2,11 +2,12 @@ package main
 
 import (
 	"fmt"
-	rl "github.com/gen2brain/raylib-go/raylib"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
 const (
@@ -109,7 +110,7 @@ func setupApp() {
 
 	start := time.Now()
 	parseResourceFiles("assets/RESOURCE.MAP")
-	fmt.Println("elapsed => ", time.Now().Sub(start))
+	fmt.Println("elapsed => ", time.Since(start))
 
 	doFadeIn()
 	graphicsInit()

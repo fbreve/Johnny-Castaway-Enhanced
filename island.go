@@ -104,23 +104,19 @@ func islandInit(ttmThread *TTtmThread) {
 	islandState.clouds.numClouds = numClouds
 	islandState.clouds.windDirection = windDirection
 
-	for i := int32(0); i < numClouds; i++ {
+	for i := range numClouds {
 		cloudNo := rand.Int() % 3
 		switch cloudNo {
 		case 0:
 			cloudX = uint16(rand.Int() % (640 - 129))
 			cloudY = uint16(rand.Int()%(100-36) + 25)
-			break
 
 		case 1:
 			cloudX = uint16(rand.Int() % (640 - 192))
 			cloudY = uint16(rand.Int()%(100-57) + 25)
-			break
-
 		case 2:
 			cloudX = uint16(rand.Int() % (640 - 264))
 			cloudY = uint16(rand.Int()%(100-76) + 25)
-			break
 		}
 		islandState.clouds.windSpeed[i] = int32(rand.Int()%2 + 1)
 		islandState.clouds.cloudNo[i] = int32(cloudNo)

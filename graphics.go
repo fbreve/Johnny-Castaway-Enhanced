@@ -3,10 +3,11 @@ package main
 import "C"
 import (
 	"fmt"
-	rl "github.com/gen2brain/raylib-go/raylib"
 	"image/color"
 	"os"
 	"time"
+
+	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
 const (
@@ -17,7 +18,7 @@ const (
 )
 
 const (
-	MaxFadeOutRadius = 600
+	MaxFadeOutRadius = 800
 )
 
 var (
@@ -269,7 +270,7 @@ func grUpdateDisplay(
 
 		end := rl.GetTime()
 		if grUpdateDelay == 0 ||
-			(end-start <= float64(grUpdateDelay*20)) {
+			(end-start) >= (float64(grUpdateDelay)*0.01) { //*0.02) {
 			break
 		}
 	}

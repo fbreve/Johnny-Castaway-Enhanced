@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	rl "github.com/gen2brain/raylib-go/raylib"
 	"image/color"
 	"time"
+
+	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
 var ttmPaletteInternal = [16][4]uint8{}
@@ -27,7 +28,7 @@ func assetBrowser() {
 
 	start := time.Now()
 	parseResourceFiles("assets/RESOURCE.MAP")
-	fmt.Println("elapsed => ", time.Now().Sub(start))
+	fmt.Println("elapsed => ", time.Since(start))
 
 	palResource := palResources[0]
 	for i := 0; i < 16; i++ {
