@@ -21,6 +21,11 @@ const (
 )
 
 var (
+	// added by r.c. to mimic screen saver behavior.
+	screenSaverPos rl.Vector2 = rl.Vector2Zero()
+)
+
+var (
 	ttmPalette = [16][4]uint8{}
 
 	grDx = 0
@@ -112,6 +117,9 @@ func grLoadPalette(palResource *TPALResource) {
 func graphicsInit() {
 	// todo more stuff
 	grLoadPalette(&palResources[0])
+
+	// r.c. added by me, to mimic screen saver behavior, captures initial mouse position.
+	screenSaverPos = rl.GetMousePosition()
 }
 
 func graphicsEnd() {
@@ -147,10 +155,13 @@ func grUpdateDisplay(
 
 		rl.ClearBackground(rl.Blank)
 
+		sw := screenWidth
+		sh := screenHeight
+
 		// Scale and draw to actual window
 		scale := min(
-			float32(rl.GetScreenWidth())/float32(screenWidth),
-			float32(rl.GetScreenHeight())/float32(screenHeight),
+			float32(rl.GetScreenWidth())/float32(sw),
+			float32(rl.GetScreenHeight())/float32(sh),
 		)
 
 		type OrientationMode int
@@ -174,8 +185,8 @@ func grUpdateDisplay(
 			src := rl.NewRectangle(0, 0, w, h)
 			dst := rl.NewRectangle(
 				// Centers the game screens when aspect ratio doesn't match
-				float32(rl.GetScreenWidth())/2-float32(screenWidth)*scale/2,
-				float32(rl.GetScreenHeight())/2-float32(screenHeight)*scale/2,
+				float32(rl.GetScreenWidth())/2-float32(sw)*scale/2,
+				float32(rl.GetScreenHeight())/2-float32(sh)*scale/2,
 				// Sets the scale of the screen for width and height
 				w*scale,
 				h*scale)
@@ -225,6 +236,12 @@ func grUpdateDisplay(
 			rl.DrawText(fmt.Sprintf("Story: %d", storyCurrentDay), fontSize-offset, yPos-offset, fontSize, rl.White)
 
 			rl.DrawFPS(10, 10)
+		}
+
+		// TODO: use a startup flag to enable "screensaver mode" which means if the mouse moves, kill self.
+		if screenSaverPos != rl.GetMousePosition() {
+			rl.SetMasterVolume(0)
+			os.Exit(0)
 		}
 	}
 

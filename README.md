@@ -1,5 +1,15 @@
 # Johnny Castaway - 2026 Edition
 
+Plan of action
+* I've tried to make ScreenSaverView work in the past, i'm not going down that rabbit hole
+* Instead, I will create a menu bar application, always running, native to MacOS, and offers controls to customize
+  functionality as needed such as IDLE_TIMEOUT
+* Since that will always be running, after determining idle timeout, it will pop open an app either fullscreen or not
+  Additionally we can detect the mouse motion and kill the app (just like a screensaver)
+* Only downside is, a user's own screensaver could interfere, so they need to turn off that and other power management
+  crap that they might have enabled.
+* See DarwinKit examples on menu bar app
+
 How it's built
 * Written in 100% Go - easy to cross-compile to different platforms
 * Uses Raylib game framework - can run on consoles even
