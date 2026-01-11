@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"unsafe"
 )
 
@@ -17,9 +16,6 @@ var (
 	lastTurn     int
 	hasArrived   int
 	isBehindTree int
-)
-
-var (
 
 	// In the C code this is a pointer to a row of 4 uint16, and it references walkData
 	// I will just make it be an index to walkData.
@@ -141,7 +137,7 @@ func walkAnimate(ttmThread *TTtmThread, ttmBgSlot *TTtmSlot) int {
 				currentHdg = (currentHdg + increment) & 7
 				data = &walkData[walkDataBookmarksTurns[currentSpot]+currentHdg]
 
-				if lastTurn > 0 {
+				if lastTurn != 0 {
 					// data += 9 // hands in pockets
 					dataPtrPlus(9)
 					if currentHdg == finalHdg {
@@ -151,7 +147,7 @@ func walkAnimate(ttmThread *TTtmThread, ttmBgSlot *TTtmSlot) int {
 			}
 		}
 
-		fmt.Printf("WALKING:  spot=%d hdg=%d next=%d - data %d %d %d %d\n",
+		debugPrintf("WALKING:  spot=%d hdg=%d next=%d - data %d %d %d %d\n",
 			currentSpot, currentHdg, nextHdg,
 			(*data)[0], (*data)[1], (*data)[2], (*data)[3])
 
@@ -176,7 +172,7 @@ func walkAnimate(ttmThread *TTtmThread, ttmBgSlot *TTtmSlot) int {
 			delay = 6
 		}
 	} else {
-		fmt.Println("WALKING: end walk")
+		debugPrintln("WALKING: end walk")
 		delay = 0
 	}
 
@@ -186,23 +182,10 @@ func walkAnimate(ttmThread *TTtmThread, ttmBgSlot *TTtmSlot) int {
 // dataPtrPlus does traditional C-style pointer arithmetic, yes it's unsafe and if you don't understand it
 // then go learn how a 'puter works. It's effectively: data += count where data is a pointer to
 // [4]uint16 array.
-// NOTE: what's unclear to me is why the code sometimes moves forward by 9 elements...
+// NOTE: what's unclear to me is why the code above sometimes moves forward by 9 elements...
 func dataPtrPlus(count uintptr) {
-	// For troubleshooting
-	basePtr := unsafe.Pointer(&walkData[0])
-
 	ptr := unsafe.Pointer(data)
-
-	// troubleshooting
-	if count == 9 {
-		fmt.Println("data b4 index:", (uintptr(ptr)-uintptr(basePtr))/unsafe.Sizeof(walkData[0]))
-	}
 
 	ptr = unsafe.Add(ptr, count*unsafe.Sizeof([4]uint16{}))
 	data = (*[4]uint16)(ptr)
-
-	// troubleshooting
-	if count == 9 {
-		fmt.Println("data after index:", (uintptr(ptr)-uintptr(basePtr))/unsafe.Sizeof(walkData[0]))
-	}
 }

@@ -3,16 +3,14 @@ package main
 import "C"
 import (
 	"fmt"
-	rl "github.com/gen2brain/raylib-go/raylib"
 	"image/color"
 	"os"
 	"time"
+
+	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
 const (
-	ScreenWidth  = 640
-	ScreenHeight = 480
-
 	MaxBMPSlots      = 6
 	MaxSpritesPerBMP = 120
 	MaxTTMSlots      = 10
@@ -20,7 +18,12 @@ const (
 )
 
 const (
-	MaxFadeOutRadius = 600
+	MaxFadeOutRadius = 800
+)
+
+var (
+	// added by r.c. to mimic screen saver behavior.
+	screenSaverPos rl.Vector2 = rl.Vector2Zero()
 )
 
 var (
@@ -115,6 +118,9 @@ func grLoadPalette(palResource *TPALResource) {
 func graphicsInit() {
 	// todo more stuff
 	grLoadPalette(&palResources[0])
+
+	// r.c. added by me, to mimic screen saver behavior, captures initial mouse position.
+	screenSaverPos = rl.GetMousePosition()
 }
 
 func graphicsEnd() {
@@ -136,6 +142,10 @@ func grUpdateDisplay(
 	// NOTE: Original has all args as *TTtmThread, but second arg is actually a multi-pointer, so I made it a slice. - r.c.
 	// clear the screen.
 	draw := func() {
+		if rl.IsKeyReleased(rl.KeyLeftShift) {
+			debugEnabled = !debugEnabled
+		}
+
 		if rl.WindowShouldClose() {
 			fmt.Println("exiting...")
 			os.Exit(0)
@@ -146,10 +156,13 @@ func grUpdateDisplay(
 
 		rl.ClearBackground(rl.Blank)
 
+		sw := screenWidth
+		sh := screenHeight
+
 		// Scale and draw to actual window
 		scale := min(
-			float32(rl.GetScreenWidth())/float32(screenWidth),
-			float32(rl.GetScreenHeight())/float32(screenHeight),
+			float32(rl.GetScreenWidth())/float32(sw),
+			float32(rl.GetScreenHeight())/float32(sh),
 		)
 
 		type OrientationMode int
@@ -173,8 +186,8 @@ func grUpdateDisplay(
 			src := rl.NewRectangle(0, 0, w, h)
 			dst := rl.NewRectangle(
 				// Centers the game screens when aspect ratio doesn't match
-				float32(rl.GetScreenWidth())/2-float32(screenWidth)*scale/2,
-				float32(rl.GetScreenHeight())/2-float32(screenHeight)*scale/2,
+				float32(rl.GetScreenWidth())/2-float32(sw)*scale/2,
+				float32(rl.GetScreenHeight())/2-float32(sh)*scale/2,
 				// Sets the scale of the screen for width and height
 				w*scale,
 				h*scale)
@@ -210,19 +223,27 @@ func grUpdateDisplay(
 		}
 
 		if isFadingOut {
-			xPos := float32(rl.GetScreenWidth()) / 2  // - float32(screenWidth)*scale/2
-			yPos := float32(rl.GetScreenHeight()) / 2 //- float32(screenHeight)*scale/2
+			xPos := float32(rl.GetScreenWidth()) / 2
+			yPos := float32(rl.GetScreenHeight()) / 2
 			rl.DrawCircle(int32(xPos), int32(yPos), float32(fadeOutRadius), rl.Black)
 		}
 
 		// Debug stuff added by me, r.c.
-		fontSize := int32(35)
-		yPos := int32(rl.GetScreenHeight()) - (fontSize * 2)
-		offset := int32(3)
-		rl.DrawText(fmt.Sprintf("Story: %d", hackCurrentDay-1), fontSize, yPos, fontSize, rl.Black)
-		rl.DrawText(fmt.Sprintf("Story: %d", hackCurrentDay-1), fontSize-offset, yPos-offset, fontSize, rl.White)
+		if debugEnabled {
+			fontSize := int32(35)
+			yPos := int32(rl.GetScreenHeight()) - (fontSize * 2)
+			offset := int32(3)
+			rl.DrawText(fmt.Sprintf("Story: %d", storyCurrentDay), fontSize, yPos, fontSize, rl.Black)
+			rl.DrawText(fmt.Sprintf("Story: %d", storyCurrentDay), fontSize-offset, yPos-offset, fontSize, rl.White)
 
-		rl.DrawFPS(10, 10)
+			rl.DrawFPS(10, 10)
+		}
+
+		// TODO: use a startup flag to enable "screensaver mode" which means if the mouse moves, kill self.
+		if screenSaverPos != rl.GetMousePosition() {
+			rl.SetMasterVolume(0)
+			os.Exit(0)
+		}
 	}
 
 	// TODO: Wait for the tick ...
@@ -249,7 +270,7 @@ func grUpdateDisplay(
 
 		end := rl.GetTime()
 		if grUpdateDelay == 0 ||
-			(end-start <= float64(grUpdateDelay*20)) {
+			(end-start) >= (float64(grUpdateDelay)*0.01) { //*0.02) {
 			break
 		}
 	}
@@ -475,9 +496,9 @@ func grDrawSprite(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, sprite
 	h := float32(srcSurface.Height)
 
 	// debugging bounding box.
-	if rl.IsKeyDown(rl.KeyLeftShift) {
-		rl.DrawRectangleLines(int32(xx), int32(yy), int32(w), int32(h), rl.Red)
-	}
+	//if debugEnabled {
+	//	rl.DrawRectangleLines(int32(xx), int32(yy), int32(w), int32(h), rl.Red)
+	//}
 
 	src := rl.NewRectangle(0, 0, w, h)
 	dst := rl.NewRectangle(xx, yy, w, h)
@@ -509,9 +530,9 @@ func grDrawSpriteFlip(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, sp
 	h := float32(srcSurface.Height)
 
 	// For debugging purposes.
-	if rl.IsKeyDown(rl.KeyLeftShift) {
-		rl.DrawRectangleLines(int32(xx), int32(yy), int32(w), int32(h), rl.Red)
-	}
+	//if debugEnabled {
+	//	rl.DrawRectangleLines(int32(xx), int32(yy), int32(w), int32(h), rl.Red)
+	//}
 
 	src := rl.NewRectangle(0, 0, -w, h)
 	dst := rl.NewRectangle(xx, yy, w, h)
@@ -592,14 +613,6 @@ func grLoadScreen(screenName string) {
 	defer rl.EndTextureMode()
 
 	rl.DrawTexture(spriteTexture, 0, 0, rl.White)
-	//src := rl.NewRectangle(
-	//	0,
-	//	0,
-	//	float32(spriteTexture.Width),
-	//	float32(spriteTexture.Height),
-	//)
-	//dst := rl.NewRectangle(0, 0, float32(spriteTexture.Width), float32(spriteTexture.Height))
-	//rl.DrawTexturePro(spriteTexture, src, dst, rl.Vector2Zero(), 0.0, rl.White)
 }
 
 func grInitEmptyBackground() {
@@ -611,7 +624,7 @@ func grInitEmptyBackground() {
 		grReleaseSavedLayer()
 	}
 
-	rt := rl.LoadRenderTexture(640, 480)
+	rt := rl.LoadRenderTexture(screenWidth, screenHeight)
 	grBackgroundSur = &rt
 
 	rl.BeginTextureMode(*grBackgroundSur)
@@ -625,7 +638,9 @@ func grLoadBmp(ttmSlot *TTtmSlot, slotNo uint16, name string) {
 	}
 
 	bmpResource := findBMPResource(name)
+
 	ttmSlot.numSprites[slotNo] = int(bmpResource.NumImages)
+
 	data := bmpResource.UncompressedData
 	dataOffset := 0 // dataOffset is where each bmp sprites data begins
 

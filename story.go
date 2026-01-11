@@ -1,12 +1,8 @@
 package main
 
 import (
+	"fmt"
 	"math/rand"
-)
-
-var (
-	// Picks the starting scene when hack is enabled.
-	hackCurrentDay = 16
 )
 
 var (
@@ -28,18 +24,63 @@ func storyPickScene(wantedFlags uint16, unwantedFlags uint16) *TStoryScene {
 		}
 	}
 
-	return &storyScenes[scenes[rand.Int()%numScenes]]
+	return &storyScenes[scenes[rand.Intn(numScenes)]]
 }
 
 func storyUpdateCurrentDay() {
-	// TODO: writes to some local config so it tracks over the long term.
+	var (
+		config     TConfig
+		today      int
+		hasChanged bool
+	)
+
+	cfgFileRead(&config)
+	today = getDayOfYear()
+
+	if today != config.CurrentDate {
+		fmt.Println("System date has changed since last sequence -> next day of the story")
+		config.CurrentDate = today
+		config.CurrentDay += 1
+		hasChanged = true
+	}
+
+	if config.CurrentDay < 1 || config.CurrentDay > 11 {
+		config.CurrentDay = 1
+		hasChanged = true
+	}
+
+	if hasChanged {
+		cfgFileWrite(&config)
+	}
+
+	storyCurrentDay = config.CurrentDay
+	fmt.Printf("The day of the story is: %d\n", storyCurrentDay)
 }
 
 func storyCalculateIslandFromDateAndTime() {
-	// determines holidays and whether it's nighttime.
-	// just hacking for now - r.c.
-	islandState.night = 0
-	islandState.holiday = 3
+	// Night ?
+	hour := getHour()
+	if hour < 6 || hour >= 18 {
+		islandState.night = 1
+	}
+
+	// Holidays ?
+	islandState.holiday = 0
+	month, day := getMonthAndDay()
+
+	if month == 10 && (day >= 29 && day <= 31) {
+		// Halloween : 29/10 to 31/10
+		islandState.holiday = 1
+	} else if month == 3 && (day >= 15 && day <= 17) {
+		// St Patrick: 15/03 to 17/03
+		islandState.holiday = 2
+	} else if month == 12 && (day >= 23 && day <= 25) {
+		// Christmas : 23/12 to 25/12
+		islandState.holiday = 3
+	} else if (month == 12 && day >= 29) || (month == 1 && day == 1) {
+		// New year  : 29/12 to 01/01
+		islandState.holiday = 4
+	}
 }
 
 func storyCalculateIslandFromScene(scene *TStoryScene) {
@@ -103,7 +144,7 @@ func storyPlay() {
 	)
 
 	adsInit()
-	adsPlayIntro() // todo: r.c.
+	adsPlayIntro()
 
 	for {
 		storyUpdateCurrentDay()
@@ -111,13 +152,6 @@ func storyPlay() {
 		unwantedFlags = 0
 
 		finalScene := storyPickScene(FINAL, unwantedFlags)
-
-		// r.c. - When ready, remove this entire block of code, used to play scenes in order!
-		//TEMPHACK := true
-		//if TEMPHACK {
-		//	finalScene = &storyScenes[hackCurrentDay]
-		//	hackCurrentDay++
-		//}
 
 		if finalScene.flags&ISLAND == ISLAND {
 			storyCalculateIslandFromScene(finalScene)
@@ -128,9 +162,8 @@ func storyPlay() {
 
 		prevSpot := -1
 		prevHdg := -1
-		//_ = prevHdg // r.c. because I don't have adsWalk enabled just yet.
 
-		if !(finalScene.flags&FIRST == FIRST) {
+		if finalScene.flags&FIRST == 0 {
 			wantedFlags = 0
 			unwantedFlags |= FINAL
 
@@ -144,7 +177,7 @@ func storyPlay() {
 
 			// r.c. I think this logic is simply to pick the next scene's starting spot so that the walk animation
 			// will flow together (from one scene to the next...)
-			for i := 0; i < 6+(rand.Int()%14); i++ {
+			for i := 0; i < 6+rand.Intn(14); i++ {
 				scene := storyPickScene(wantedFlags, unwantedFlags)
 
 				if prevSpot != -1 {
@@ -159,8 +192,10 @@ func storyPlay() {
 				ttmDy = islandState.yPos
 
 				if scene.dayNo != 0 {
-					soundPlay(0)
+					soundPlay(17)
 				}
+
+				adsPlay(scene.adsName, uint16(scene.adsTagNo))
 
 				unwantedFlags |= FIRST
 				prevSpot = scene.spotEnd
@@ -185,7 +220,7 @@ func storyPlay() {
 		}
 
 		if finalScene.dayNo != 0 {
-			soundPlay(0)
+			soundPlay(17)
 		}
 
 		adsPlay(finalScene.adsName, uint16(finalScene.adsTagNo))
