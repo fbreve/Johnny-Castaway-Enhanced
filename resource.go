@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"os"
+	"strings"
 )
 
 const (
@@ -309,15 +309,12 @@ func parseScrResource(buf *bytes.Reader) TSCRResource {
 }
 
 func parseMapFile(filename string) *TMapFile {
-	b, err := os.ReadFile(filename)
-	if err != nil {
-		panic(err)
-	}
+	b := embeddedMap
 
 	mapFile := TMapFile{}
 
 	buf := bytes.NewReader(b)
-	err = binary.Read(buf, binary.LittleEndian, mapFile.unknown[:])
+	err := binary.Read(buf, binary.LittleEndian, mapFile.unknown[:])
 	if err != nil {
 		panic(fmt.Errorf("binary.Read: %w", err))
 	}
@@ -327,7 +324,7 @@ func parseMapFile(filename string) *TMapFile {
 	if err != nil {
 		panic(fmt.Errorf("binary.Read: %w", err))
 	}
-	mapFile.resFilename = string(tempFilename[0:12])
+	mapFile.resFilename = strings.TrimRight(string(tempFilename[0:12]), "\x00 ")
 
 	mapFile.numEntries = readUint16(buf)
 	mapFile.entries = make([]TMapFileEntry, int(mapFile.numEntries))
@@ -340,12 +337,13 @@ func parseMapFile(filename string) *TMapFile {
 }
 
 func parseResourceFile(filename string, mapFile *TMapFile) {
-	b, err := os.ReadFile("assets/" + filename)
-	if err != nil {
-		panic(err)
-	}
+	b := embeddedRes
 
 	for i := 0; i < len(mapFile.entries); i++ {
+		if int(mapFile.entries[i].offset)+17 > len(b) {
+			fmt.Printf("Skipping entry %d: offset %d out of range\n", i, mapFile.entries[i].offset)
+			continue
+		}
 		seekedBuffer := b[mapFile.entries[i].offset:]
 
 		tempFilename := make([]uint8, 13)
@@ -357,9 +355,14 @@ func parseResourceFile(filename string, mapFile *TMapFile) {
 
 		idx := bytes.Index(tempFilename, []byte("."))
 		if idx == -1 {
-			panic("filename is missing ext")
+			fmt.Printf("Skipping entry %d: no ext in name\n", i)
+			continue
 		}
-		mapFile.entries[i].resName = string(tempFilename[0 : idx+4])
+		endIdx := idx + 4
+		if endIdx > len(tempFilename) {
+			endIdx = len(tempFilename)
+		}
+		mapFile.entries[i].resName = strings.TrimRight(string(tempFilename[0:endIdx]), "\x00")
 		err = binary.Read(buf, binary.LittleEndian, &mapFile.entries[i].resSize)
 		if err != nil {
 			panic(fmt.Errorf("binary.Read: %w", err))
@@ -397,7 +400,8 @@ func parseResourceFile(filename string, mapFile *TMapFile) {
 
 func parseResourceFiles(filename string) {
 	mapFile := parseMapFile(filename)
-	parseResourceFile(mapFile.resFilename, mapFile)
+	resFile := strings.TrimRight(mapFile.resFilename, "\x00 ")
+	parseResourceFile(resFile, mapFile)
 }
 
 func findAdsResource(name string) *TAdsResource {
