@@ -2,8 +2,11 @@ package main
 
 import (
 	"fmt"
-	rl "github.com/gen2brain/raylib-go/raylib"
 	"math/rand"
+	"os"
+	"path/filepath"
+
+	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
 // r.c. This lame "sound engine" was fundamentally different and way simpler than the C original.
@@ -36,15 +39,27 @@ var (
 		"sound23.wav",
 		"sound24.wav",
 	}
-	soundSfx = make([]rl.Sound, len(sfx))
+	soundSfx    = make([]rl.Sound, len(sfx))
+	soundTmpDir string
 )
 
 func loadSfx() {
+	// Extract embedded sounds to temp directory
+	soundTmpDir = filepath.Join(os.TempDir(), "johnny_castaway_sounds")
+	os.MkdirAll(soundTmpDir, 0755)
+
 	for i, filename := range sfx {
 		if filename == "missing" {
 			continue
 		}
-		snd := rl.LoadSound("resources/" + filename)
+		data, err := embeddedSounds.ReadFile("resources/" + filename)
+		if err != nil {
+			fmt.Printf("Warning: embedded sound %s not found\n", filename)
+			continue
+		}
+		tmpPath := filepath.Join(soundTmpDir, filename)
+		os.WriteFile(tmpPath, data, 0644)
+		snd := rl.LoadSound(tmpPath)
 		soundSfx[i] = snd
 	}
 }
@@ -55,6 +70,10 @@ func unloadSfx() {
 			continue
 		}
 		rl.UnloadSound(snd)
+	}
+	// Clean up temp files
+	if soundTmpDir != "" {
+		os.RemoveAll(soundTmpDir)
 	}
 }
 

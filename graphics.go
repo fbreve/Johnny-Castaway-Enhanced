@@ -159,11 +159,9 @@ func grUpdateDisplay(
 		sw := screenWidth
 		sh := screenHeight
 
-		// Scale and draw to actual window
-		scale := min(
-			float32(rl.GetScreenWidth())/float32(sw),
-			float32(rl.GetScreenHeight())/float32(sh),
-		)
+		// Scale to fill entire screen (stretch to fit)
+		scaleX := float32(rl.GetScreenWidth()) / float32(sw)
+		scaleY := float32(rl.GetScreenHeight()) / float32(sh)
 
 		type OrientationMode int
 		const (
@@ -185,12 +183,9 @@ func grUpdateDisplay(
 
 			src := rl.NewRectangle(0, 0, w, h)
 			dst := rl.NewRectangle(
-				// Centers the game screens when aspect ratio doesn't match
-				float32(rl.GetScreenWidth())/2-float32(sw)*scale/2,
-				float32(rl.GetScreenHeight())/2-float32(sh)*scale/2,
-				// Sets the scale of the screen for width and height
-				w*scale,
-				h*scale)
+				0, 0,
+				float32(rt.Texture.Width)*scaleX,
+				float32(rt.Texture.Height)*scaleY)
 			rl.DrawTexturePro(rt.Texture, src, dst, rl.Vector2Zero(), 0, rl.White)
 		}
 
