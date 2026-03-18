@@ -7,7 +7,7 @@ echo.
 set PATH=C:\mingw64\bin;%PATH%
 
 echo [1/3] Building...
-go build -o JohnnyCastaway.exe .
+go build -ldflags "-H windowsgui" -o JohnnyCastaway.exe .
 if %ERRORLEVEL% NEQ 0 (
     echo BUILD FAILED
     pause
