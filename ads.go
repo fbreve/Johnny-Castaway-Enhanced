@@ -356,6 +356,9 @@ func adsPlaySingleTtm(ttmName string) {
 		ttmPlay(&ttmThreads[0])
 		ttmThreads[0].isRunning = 1
 		grUpdateDisplay(nil, ttmThreads[:], nil, nil)
+		if shouldExitApp {
+			return
+		}
 		grUpdateDelay = int(ttmThreads[0].delay)
 	}
 
@@ -588,6 +591,9 @@ func adsPlay(adsName string, adsTag uint16) {
 
 		// Refresh display
 		grUpdateDisplay(&ttmBackgroundThread, ttmThreads[:], &ttmHolidayThread, &ttmCloudsThread)
+		if shouldExitApp {
+			return
+		}
 
 		// Determine min timer through all threads
 		mini := uint16(300)
@@ -692,7 +698,11 @@ func adsInitIsland() {
 	ttmInitSlot(&ttmBackgroundSlot)
 
 	ttmBackgroundThread.ttmSlot = &ttmBackgroundSlot
-	ttmBackgroundThread.isRunning = 3
+	if activeConfig.Background {
+		ttmBackgroundThread.isRunning = 3
+	} else {
+		ttmBackgroundThread.isRunning = 0
+	}
 	ttmBackgroundThread.delay = 40 // TODO
 	ttmBackgroundThread.timer = 0
 
@@ -710,19 +720,23 @@ func adsInitIsland() {
 	islandInitHoliday(&ttmHolidayThread)
 
 	// Clouds
-	ttmInitSlot(&ttmCloudsSlot)
-	ttmCloudsThread.ttmSlot = &ttmCloudsSlot
-	ttmCloudsThread.isRunning = 3
-	ttmCloudsThread.delay = 8
-	ttmCloudsThread.timer = 0
-	if ttmCloudsThread.ttmLayer != nil {
-		// r.c. - original C has these lines swapped which is incorrect logic
-		grFreeLayer(ttmCloudsThread.ttmLayer)
-		ttmCloudsThread.ttmLayer = nil
-	}
-	ttmCloudsThread.ttmLayer = grNewLayer()
+	if activeConfig.Background {
+		ttmInitSlot(&ttmCloudsSlot)
+		ttmCloudsThread.ttmSlot = &ttmCloudsSlot
+		ttmCloudsThread.isRunning = 3
+		ttmCloudsThread.delay = 8
+		ttmCloudsThread.timer = 0
+		if ttmCloudsThread.ttmLayer != nil {
+			// r.c. - original C has these lines swapped which is incorrect logic
+			grFreeLayer(ttmCloudsThread.ttmLayer)
+			ttmCloudsThread.ttmLayer = nil
+		}
+		ttmCloudsThread.ttmLayer = grNewLayer()
 
-	islandAnimateClouds(&ttmCloudsThread)
+		islandAnimateClouds(&ttmCloudsThread)
+	} else {
+		ttmCloudsThread.isRunning = 0
+	}
 }
 
 func adsReleaseIsland() {
@@ -777,6 +791,9 @@ func adsPlayWalk(fromSpot, fromHdg, toSpot, toHdg int) {
 
 		// Refresh display
 		grUpdateDisplay(&ttmBackgroundThread, ttmThreads[:], &ttmHolidayThread, &ttmCloudsThread)
+		if shouldExitApp {
+			return
+		}
 
 		// Determine min timer from the two threads
 		mini := uint16(300)

@@ -14,18 +14,27 @@ import (
 // A second pass refactor can be done to fix this garbage.
 var (
 	// r.c. - added by me in case someone tries to run multiple instances of the screensaver.
-	cfgLock sync.Mutex
+	cfgLock      sync.Mutex
+	activeConfig TConfig
 )
 
 type TConfig struct {
 	CurrentDay  int
 	CurrentDate int
+	Background  bool
+	Sounds      bool
+	Password    bool
+	StartTime   int
 }
 
 const (
 	CfgFileName   = ".johnny_castaway_2026"
 	CurrentDayKey = "currentDay="
 	DateKey       = "date="
+	BackgroundKey = "background="
+	SoundsKey     = "sounds="
+	PasswordKey   = "password="
+	StartTimeKey  = "startTime="
 )
 
 func cfgFullPath() string {
@@ -45,25 +54,29 @@ func cfgFileWrite(cfg *TConfig) {
 	f, err := os.Create(cfgFullPath())
 	if err != nil {
 		fmt.Println("WARN: failed to create file with err: ", err.Error())
+		return
 	}
 	defer func() {
 		_ = f.Close()
 	}()
 
-	_, err = fmt.Fprintf(f, "%s%d\n", CurrentDayKey, cfg.CurrentDay)
-	if err != nil {
-		panic(fmt.Errorf("fprintln: %w", err))
-	}
-
-	_, err = fmt.Fprintf(f, "%s%d\n", DateKey, cfg.CurrentDate)
-	if err != nil {
-		panic(fmt.Errorf("fprintln: %w", err))
-	}
+	_, _ = fmt.Fprintf(f, "%s%d\n", CurrentDayKey, cfg.CurrentDay)
+	_, _ = fmt.Fprintf(f, "%s%d\n", DateKey, cfg.CurrentDate)
+	_, _ = fmt.Fprintf(f, "%s%t\n", BackgroundKey, cfg.Background)
+	_, _ = fmt.Fprintf(f, "%s%t\n", SoundsKey, cfg.Sounds)
+	_, _ = fmt.Fprintf(f, "%s%t\n", PasswordKey, cfg.Password)
+	_, _ = fmt.Fprintf(f, "%s%d\n", StartTimeKey, cfg.StartTime)
 }
 
 func cfgFileRead(cfg *TConfig) {
 	cfgLock.Lock()
 	defer cfgLock.Unlock()
+
+	// Default values
+	cfg.Background = true
+	cfg.Sounds = true
+	cfg.Password = false
+	cfg.StartTime = 900
 
 	f, err := os.Open(cfgFullPath())
 	if err != nil {
@@ -91,6 +104,17 @@ func cfgFileRead(cfg *TConfig) {
 				fmt.Fprintln(os.Stderr, "failed to parse date with err: ", err.Error())
 			}
 			cfg.CurrentDate = d
+		} else if strings.HasPrefix(line, BackgroundKey) {
+			cfg.Background = line[len(BackgroundKey):] == "true"
+		} else if strings.HasPrefix(line, SoundsKey) {
+			cfg.Sounds = line[len(SoundsKey):] == "true"
+		} else if strings.HasPrefix(line, PasswordKey) {
+			cfg.Password = line[len(PasswordKey):] == "true"
+		} else if strings.HasPrefix(line, StartTimeKey) {
+			st, err := strconv.Atoi(line[len(StartTimeKey):])
+			if err == nil {
+				cfg.StartTime = st
+			}
 		}
 	}
 

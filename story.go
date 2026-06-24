@@ -28,32 +28,26 @@ func storyPickScene(wantedFlags uint16, unwantedFlags uint16) *TStoryScene {
 }
 
 func storyUpdateCurrentDay() {
-	var (
-		config     TConfig
-		today      int
-		hasChanged bool
-	)
+	today := getDayOfYear()
+	hasChanged := false
 
-	cfgFileRead(&config)
-	today = getDayOfYear()
-
-	if today != config.CurrentDate {
+	if today != activeConfig.CurrentDate {
 		fmt.Println("System date has changed since last sequence -> next day of the story")
-		config.CurrentDate = today
-		config.CurrentDay += 1
+		activeConfig.CurrentDate = today
+		activeConfig.CurrentDay += 1
 		hasChanged = true
 	}
 
-	if config.CurrentDay < 1 || config.CurrentDay > 11 {
-		config.CurrentDay = 1
+	if activeConfig.CurrentDay < 1 || activeConfig.CurrentDay > 11 {
+		activeConfig.CurrentDay = 1
 		hasChanged = true
 	}
 
 	if hasChanged {
-		cfgFileWrite(&config)
+		cfgFileWrite(&activeConfig)
 	}
 
-	storyCurrentDay = config.CurrentDay
+	storyCurrentDay = activeConfig.CurrentDay
 	fmt.Printf("The day of the story is: %d\n", storyCurrentDay)
 }
 
@@ -144,20 +138,31 @@ func storyPlay() {
 	)
 
 	adsInit()
+	grFadeIn()
 	adsPlayIntro()
+	if shouldExitApp {
+		return
+	}
 
 	for {
+		if shouldExitApp {
+			return
+		}
 		storyUpdateCurrentDay()
 		storyCalculateIslandFromDateAndTime()
 		unwantedFlags = 0
 
 		finalScene := storyPickScene(FINAL, unwantedFlags)
 
-		if finalScene.flags&ISLAND == ISLAND {
+		if finalScene.flags&ISLAND == ISLAND && activeConfig.Background {
 			storyCalculateIslandFromScene(finalScene)
 			adsInitIsland()
 		} else {
 			adsNoIsland()
+		}
+		grFadeIn()
+		if shouldExitApp {
+			return
 		}
 
 		prevSpot := -1
@@ -175,13 +180,23 @@ func storyPlay() {
 				wantedFlags |= VARPOS_OK
 			}
 
+			if finalScene.flags&LEFT_ISLAND == 0 {
+				unwantedFlags |= LEFT_ISLAND
+			}
+
 			// r.c. I think this logic is simply to pick the next scene's starting spot so that the walk animation
 			// will flow together (from one scene to the next...)
 			for i := 0; i < 6+rand.Intn(14); i++ {
+				if shouldExitApp {
+					return
+				}
 				scene := storyPickScene(wantedFlags, unwantedFlags)
 
 				if prevSpot != -1 {
 					adsPlayWalk(prevSpot, prevHdg, scene.spotStart, scene.hdgStart)
+				}
+				if shouldExitApp {
+					return
 				}
 
 				var xOffset = 0
@@ -196,6 +211,9 @@ func storyPlay() {
 				}
 
 				adsPlay(scene.adsName, uint16(scene.adsTagNo))
+				if shouldExitApp {
+					return
+				}
 
 				unwantedFlags |= FIRST
 				prevSpot = scene.spotEnd
@@ -205,6 +223,9 @@ func storyPlay() {
 
 		if prevSpot != -1 {
 			adsPlayWalk(prevSpot, prevHdg, finalScene.spotStart, finalScene.hdgStart)
+		}
+		if shouldExitApp {
+			return
 		}
 
 		if finalScene.flags&ISLAND == ISLAND {
@@ -224,10 +245,16 @@ func storyPlay() {
 		}
 
 		adsPlay(finalScene.adsName, uint16(finalScene.adsTagNo))
+		if shouldExitApp {
+			return
+		}
 
 		grFadeOut()
+		if shouldExitApp {
+			return
+		}
 
-		if finalScene.flags&ISLAND == ISLAND {
+		if finalScene.flags&ISLAND == ISLAND && activeConfig.Background {
 			adsReleaseIsland()
 		}
 	}

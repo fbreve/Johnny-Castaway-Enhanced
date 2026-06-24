@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"math/rand"
 	"os"
 	"path/filepath"
 
@@ -78,6 +77,9 @@ func unloadSfx() {
 }
 
 func soundPlay(id uint16) {
+	if !activeConfig.Sounds {
+		return
+	}
 	if int(id) > len(soundSfx)-1 {
 		fmt.Printf("sound id index out of range:%d\n", id)
 		return
@@ -88,7 +90,6 @@ func soundPlay(id uint16) {
 	}
 	snd := soundSfx[id]
 
-	f := float32(rand.Float64()*0.5 - 0.25)
-	rl.SetSoundPitch(snd, 1.0+f)
+	rl.SetSoundPitch(snd, 1.0)
 	rl.PlaySound(snd)
 }
