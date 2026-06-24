@@ -6,3 +6,8 @@ original_c
 assets
 assets_old
 inspect
+dump
+cmd
+tools
+*.exe
+*.scr

@@ -4,7 +4,9 @@ echo  Johnny Castaway 2026 - Windows Build
 echo ============================================
 echo.
 
-set PATH=C:\mingw64\bin;%PATH%
+where go >nul 2>nul
+if %ERRORLEVEL% NEQ 0 set "PATH=C:\Program Files\Go\bin;%PATH%"
+set "PATH=D:\Tools\w64devkit-1.22.0\bin;%PATH%"
 
 echo [1/3] Building...
 go build -ldflags "-H windowsgui" -o JohnnyCastaway.exe .

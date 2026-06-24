@@ -4,7 +4,7 @@ import "C"
 import (
 	"fmt"
 	"image/color"
-	"os"
+	"math"
 	"time"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
@@ -23,7 +23,11 @@ const (
 
 var (
 	// added by r.c. to mimic screen saver behavior.
-	screenSaverPos rl.Vector2 = rl.Vector2Zero()
+	screenSaverPos           rl.Vector2 = rl.Vector2Zero()
+	isScreensaverMode                   = false
+	frameCount                          = 0
+	isScreenSaverPosCaptured            = false
+	shouldExitApp                       = false
 )
 
 var (
@@ -35,10 +39,13 @@ var (
 
 	isFadingOut   = false
 	fadeOutRadius = 0
+	isFadingIn    = false
+	fadeInRadius  = 0
 
 	grUpdateDelay     int = 0
 	grBackgroundSur   *rl.RenderTexture2D
 	grSavedZonesLayer *rl.RenderTexture2D
+	grFinalRenderSur  *rl.RenderTexture2D
 )
 
 type TAdsScene struct {
@@ -119,13 +126,18 @@ func graphicsInit() {
 	// todo more stuff
 	grLoadPalette(&palResources[0])
 
-	// r.c. added by me, to mimic screen saver behavior, captures initial mouse position.
-	screenSaverPos = rl.GetMousePosition()
+	// Mouse position is captured after a few frames in grUpdateDisplay to avoid startup fluctuations
+	screenSaverPos = rl.Vector2Zero()
+
+	rt := rl.LoadRenderTexture(640, 480)
+	grFinalRenderSur = &rt
 }
 
 func graphicsEnd() {
-	//SDL_DestroyWindow(sdl_window)
-	//SDL_Quit()
+	if grFinalRenderSur != nil {
+		rl.UnloadRenderTexture(*grFinalRenderSur)
+		grFinalRenderSur = nil
+	}
 }
 
 func grToggleFullscreen() {
@@ -138,37 +150,104 @@ func grUpdateDisplay(
 	ttmHolidayThread *TTtmThread,
 	ttmCloudsThread *TTtmThread,
 ) {
-	// NOTE: it seems in the C code, ttmBackgroundThread is not used in this func. - r.c.
-	// NOTE: Original has all args as *TTtmThread, but second arg is actually a multi-pointer, so I made it a slice. - r.c.
-	// clear the screen.
+	// Calculate the letterbox/pillarbox (4:3) centering bounds
+	screenWidthFloat := float32(rl.GetScreenWidth())
+	screenHeightFloat := float32(rl.GetScreenHeight())
+
+	targetAspect := float32(4.0) / 3.0
+	currentAspect := screenWidthFloat / screenHeightFloat
+
+	var renderW, renderH float32
+	var offsetX, offsetY float32
+
+	if currentAspect > targetAspect {
+		// Screen is wider than 4:3 (pillarbox)
+		renderH = screenHeightFloat
+		renderW = renderH * targetAspect
+		offsetX = (screenWidthFloat - renderW) / 2.0
+		offsetY = 0
+	} else {
+		// Screen is taller than 4:3 (letterbox)
+		renderW = screenWidthFloat
+		renderH = renderW / targetAspect
+		offsetX = 0
+		offsetY = (screenHeightFloat - renderH) / 2.0
+	}
+
 	draw := func() {
 		if rl.IsKeyReleased(rl.KeyLeftShift) {
 			debugEnabled = !debugEnabled
 		}
 
-		if rl.WindowShouldClose() {
+		if rl.WindowShouldClose() || shouldExitApp {
+			shouldExitApp = true
 			fmt.Println("exiting...")
-			os.Exit(0)
+			return
 		}
-
-		rl.BeginDrawing()
-		defer rl.EndDrawing()
-
-		rl.ClearBackground(rl.Blank)
-
-		sw := screenWidth
-		sh := screenHeight
-
-		// Scale to fill entire screen (stretch to fit)
-		scaleX := float32(rl.GetScreenWidth()) / float32(sw)
-		scaleY := float32(rl.GetScreenHeight()) / float32(sh)
 
 		type OrientationMode int
 		const (
 			ModeNormal  OrientationMode = 0
 			ModeFlipped OrientationMode = 1
 		)
-		drawTexture := func(rt *rl.RenderTexture2D, orientation OrientationMode) {
+
+		if !isFadingOut && grFinalRenderSur != nil {
+			rl.BeginTextureMode(*grFinalRenderSur)
+			rl.ClearBackground(rl.Blank)
+
+			drawTextureToFinal := func(rt *rl.RenderTexture2D, orientation OrientationMode) {
+				if rt == nil {
+					return
+				}
+
+				w := float32(rt.Texture.Width)
+				h := float32(rt.Texture.Height)
+
+				if orientation == ModeFlipped {
+					h = -h
+				}
+
+				src := rl.NewRectangle(0, 0, w, h)
+				dst := rl.NewRectangle(0, 0, float32(rt.Texture.Width), float32(rt.Texture.Height))
+				rl.DrawTexturePro(rt.Texture, src, dst, rl.Vector2Zero(), 0, rl.White)
+			}
+
+			// Blit the background
+			drawTextureToFinal(grBackgroundSur, ModeFlipped)
+
+			// Blit the clouds
+			if ttmCloudsThread != nil {
+				if ttmCloudsThread.isRunning != 0 {
+					drawTextureToFinal(ttmCloudsThread.ttmLayer, ModeFlipped)
+				}
+			}
+
+			// Blit the saved zones layer
+			drawTextureToFinal(grSavedZonesLayer, ModeFlipped)
+
+			// Blit each threads layer
+			for i := 0; i < MaxTTMThreads; i++ {
+				if ttmThreads[i].isRunning != 0 {
+					txt := ttmThreads[i].ttmLayer
+					drawTextureToFinal(txt, ModeFlipped)
+				}
+			}
+
+			// Finally, blit the holiday layer
+			if ttmHolidayThread != nil {
+				if ttmHolidayThread.isRunning != 0 {
+					drawTextureToFinal(ttmHolidayThread.ttmLayer, ModeFlipped)
+				}
+			}
+			rl.EndTextureMode()
+		}
+
+		rl.BeginDrawing()
+		defer rl.EndDrawing()
+
+		rl.ClearBackground(rl.Black)
+
+		drawTextureToScreen := func(rt *rl.RenderTexture2D, orientation OrientationMode) {
 			if rt == nil {
 				return
 			}
@@ -176,54 +255,26 @@ func grUpdateDisplay(
 			w := float32(rt.Texture.Width)
 			h := float32(rt.Texture.Height)
 
-			// Note: This draws render textures back to right side up, when mode is flipped!
 			if orientation == ModeFlipped {
 				h = -h
 			}
 
 			src := rl.NewRectangle(0, 0, w, h)
-			dst := rl.NewRectangle(
-				0, 0,
-				float32(rt.Texture.Width)*scaleX,
-				float32(rt.Texture.Height)*scaleY)
+			dst := rl.NewRectangle(offsetX, offsetY, renderW, renderH)
 			rl.DrawTexturePro(rt.Texture, src, dst, rl.Vector2Zero(), 0, rl.White)
 		}
 
-		// Blit the background
-		drawTexture(grBackgroundSur, ModeFlipped)
-
-		// Blit the clouds
-		if ttmCloudsThread != nil {
-			if ttmCloudsThread.isRunning != 0 {
-				drawTexture(ttmCloudsThread.ttmLayer, ModeFlipped)
-			}
-		}
-
-		// Blit the saved zones layer
-		drawTexture(grSavedZonesLayer, ModeNormal) //r.c. This one should not be drawn upside down perhaps???
-
-		// Blit each threads layer
-		for i := 0; i < MaxTTMThreads; i++ {
-			if ttmThreads[i].isRunning != 0 {
-				txt := ttmThreads[i].ttmLayer
-				drawTexture(txt, ModeFlipped)
-			}
-		}
-
-		// Finally, blit the holiday layer
-		if ttmHolidayThread != nil {
-			if ttmHolidayThread.isRunning != 0 {
-				drawTexture(ttmHolidayThread.ttmLayer, ModeFlipped)
-			}
+		if grFinalRenderSur != nil {
+			drawTextureToScreen(grFinalRenderSur, ModeFlipped)
 		}
 
 		if isFadingOut {
-			xPos := float32(rl.GetScreenWidth()) / 2
-			yPos := float32(rl.GetScreenHeight()) / 2
-			rl.DrawCircle(int32(xPos), int32(yPos), float32(fadeOutRadius), rl.Black)
+			drawCircularIris(fadeOutRadius)
+		} else if isFadingIn {
+			drawCircularIris(fadeInRadius)
 		}
 
-		// Debug stuff added by me, r.c.
+		// Debug stuff
 		if debugEnabled {
 			fontSize := int32(35)
 			yPos := int32(rl.GetScreenHeight()) - (fontSize * 2)
@@ -234,51 +285,68 @@ func grUpdateDisplay(
 			rl.DrawFPS(10, 10)
 		}
 
-		// TODO: use a startup flag to enable "screensaver mode" which means if the mouse moves, kill self.
-		if screenSaverPos != rl.GetMousePosition() {
-			rl.SetMasterVolume(0)
-			os.Exit(0)
+		// If screensaver mode is enabled, exit on mouse movement (after settling) or key/mouse press.
+		if isScreensaverMode {
+			// Check for keyboard or mouse clicks
+			if rl.GetKeyPressed() != 0 || rl.IsMouseButtonPressed(rl.MouseLeftButton) || rl.IsMouseButtonPressed(rl.MouseRightButton) {
+				rl.SetMasterVolume(0)
+				shouldExitApp = true
+				return
+			}
+
+			frameCount++
+			if frameCount > 10 { // Wait 10 frames for mouse events/focus to settle
+				mousePos := rl.GetMousePosition()
+				if !isScreenSaverPosCaptured {
+					screenSaverPos = mousePos
+					isScreenSaverPosCaptured = true
+				} else {
+					dx := mousePos.X - screenSaverPos.X
+					dy := mousePos.Y - screenSaverPos.Y
+					if (dx*dx + dy*dy) > 100 { // 10 pixels threshold squared
+						rl.SetMasterVolume(0)
+						shouldExitApp = true
+						return
+					}
+				}
+			}
 		}
 	}
 
-	// TODO: Wait for the tick ...
-	// r.c. (this is not like original C code which uses SDL, Raylib still requires calls to Begin/End draw
-	// in addition to checking for WindowClose
 	start := rl.GetTime()
 	for {
 		draw()
+		if shouldExitApp {
+			break
+		}
+		if isFadingOut {
+			break
+		}
 		const fps = 30
 		const frameDelayMS = 1000 / fps
 		time.Sleep(time.Millisecond * time.Duration(frameDelayMS))
 
-		// r.c. - This is my own logic, trying to KISS
-		if isFadingOut {
-			if fadeOutRadius > MaxFadeOutRadius {
-				isFadingOut = false
-				fadeOutRadius = 0
-				break
-			} else {
-				fadeOutRadius += 20
-				continue // <-- important to not advance the story while this is happening.
+		if isFadingIn {
+			fadeInRadius += 25
+			if fadeInRadius >= 800 {
+				fadeInRadius = 800
+				isFadingIn = false
 			}
 		}
 
 		end := rl.GetTime()
-		if grUpdateDelay == 0 ||
-			(end-start) >= (float64(grUpdateDelay)*0.01) { //*0.02) {
+		if isFadingOut || grUpdateDelay == 0 ||
+			(end-start) >= (float64(grUpdateDelay)*0.02) {
 			break
 		}
 	}
-
-	// Original C code is below.
-	// eventsWaitTick(grUpdateDelay)
-
-	// ... and refresh the display
-	// SDL_UpdateWindowSurface(sdl_window)
 }
 
 func grNewLayer() *rl.RenderTexture2D {
 	rt := rl.LoadRenderTexture(screenWidth, screenHeight)
+	rl.BeginTextureMode(rt)
+	rl.ClearBackground(rl.Blank)
+	rl.EndTextureMode()
 	return &rt
 }
 
@@ -306,8 +374,9 @@ func grCopyZoneToBg(sur *rl.RenderTexture2D, x, y, width, height uint16) {
 	x += uint16(grDx)
 	y += uint16(grDy)
 
-	//SDL_Rect rect = { (short) x, (short) y, width + 2, height };
-	srcRect := rl.NewRectangle(float32(x), float32(y), float32(width+2), float32(height))
+	// Invert Y for the source rectangle since RenderTexture is flipped vertically in memory.
+	srcRect := rl.NewRectangle(float32(x), float32(screenHeight-int(y)), float32(width+2), -float32(height))
+	dstRect := rl.NewRectangle(float32(x), float32(y), float32(width+2), float32(height))
 
 	if grSavedZonesLayer == nil {
 		grSavedZonesLayer = grNewLayer()
@@ -316,7 +385,7 @@ func grCopyZoneToBg(sur *rl.RenderTexture2D, x, y, width, height uint16) {
 	rl.BeginTextureMode(*grSavedZonesLayer)
 	defer rl.EndTextureMode()
 
-	rl.DrawTexturePro(sur.Texture, srcRect, srcRect, rl.Vector2Zero(), 0.0, rl.White)
+	rl.DrawTexturePro(sur.Texture, srcRect, dstRect, rl.Vector2Zero(), 0.0, rl.White)
 
 	// BELOW IS ORIGINAL C Code
 
@@ -440,10 +509,6 @@ func grDrawCircle(sur *rl.RenderTexture2D, x1, y1 int16, width, height uint16, f
 		return
 	}
 
-	// Note: Original uses fully manual pixel drawing, we will just chat with Raylib's circle drawing facilities
-	// Comments from the original C code below.
-	// Bresenham's circle drawing algorithm
-	// Note : the code below intends to be pixel-perfect
 	rl.BeginTextureMode(*sur)
 	defer rl.EndTextureMode()
 
@@ -458,12 +523,18 @@ func grDrawCircle(sur *rl.RenderTexture2D, x1, y1 int16, width, height uint16, f
 		}
 	}
 
-	fgClr := grabColor(fgColor)
-	rl.DrawCircle(int32(x1), int32(y1), float32(width), fgClr)
+	radius := float32(width) / 2.0
+	centerX := int32(float32(x1) + radius)
+	centerY := int32(float32(y1) + radius)
 
+	// Draw filled circle with background/fill color
+	bgClr := grabColor(bgColor)
+	rl.DrawCircle(centerX, centerY, radius, bgClr)
+
+	// Draw border circle with foreground color
 	if fgColor != bgColor {
-		bgClr := grabColor(bgColor)
-		rl.DrawCircle(int32(x1)+1, int32(y1)+1, float32(width), bgClr)
+		fgClr := grabColor(fgColor)
+		rl.DrawCircleLines(centerX, centerY, radius, fgClr)
 	}
 }
 
@@ -710,8 +781,95 @@ func grReleaseBmp(ttmSlot *TTtmSlot, bmpSlotNo uint16) {
 }
 
 func grFadeOut() {
-	// Does screen transitions like iris, rect sliding
-	// Don't necessarily need this day 1
-	// May be able to fake it with just simple assets
 	isFadingOut = true
+	fadeOutRadius = 800
+
+	for isFadingOut && !shouldExitApp {
+		grUpdateDisplay(&ttmBackgroundThread, ttmThreads[:], &ttmHolidayThread, &ttmCloudsThread)
+
+		fadeOutRadius -= 25
+		if fadeOutRadius <= 0 {
+			fadeOutRadius = 0
+			isFadingOut = false
+		}
+
+		time.Sleep(time.Millisecond * 33)
+	}
+}
+
+func grFadeIn() {
+	isFadingIn = true
+	fadeInRadius = 0
+}
+
+func drawCircularIris(radiusVal int) {
+	screenWidthFloat := float32(rl.GetScreenWidth())
+	screenHeightFloat := float32(rl.GetScreenHeight())
+
+	cx := screenWidthFloat / 2.0
+	cy := screenHeightFloat / 2.0
+
+	targetAspect := float32(4.0) / 3.0
+	currentAspect := screenWidthFloat / screenHeightFloat
+
+	var renderH float32
+	if currentAspect > targetAspect {
+		renderH = screenHeightFloat
+	} else {
+		renderH = screenWidthFloat / targetAspect
+	}
+
+	actualRadius := float32(radiusVal) * (renderH / 480.0)
+	if actualRadius <= 0 {
+		rl.DrawRectangle(0, 0, int32(screenWidthFloat), int32(screenHeightFloat), rl.Black)
+		return
+	}
+
+	rInt := int32(actualRadius)
+	cxInt := int32(cx)
+	cyInt := int32(cy)
+	swInt := int32(screenWidthFloat)
+	shInt := int32(screenHeightFloat)
+
+	// Top area (above circle vertical span)
+	topHeight := cyInt - rInt
+	if topHeight > 0 {
+		rl.DrawRectangle(0, 0, swInt, topHeight, rl.Black)
+	}
+
+	// Bottom area (below circle vertical span)
+	bottomStart := cyInt + rInt
+	if bottomStart < shInt {
+		rl.DrawRectangle(0, bottomStart, swInt, shInt-bottomStart, rl.Black)
+	}
+
+	// Rows intersecting the circle
+	r2 := actualRadius * actualRadius
+	startY := cyInt - rInt
+	if startY < 0 {
+		startY = 0
+	}
+	endY := cyInt + rInt
+	if endY > shInt {
+		endY = shInt
+	}
+
+	for y := startY; y < endY; y++ {
+		dy := float32(y) - cy
+		val := r2 - dy*dy
+		if val < 0 {
+			val = 0
+		}
+		dx := float32(math.Sqrt(float64(val)))
+
+		xStart := cxInt - int32(dx)
+		xEnd := cxInt + int32(dx)
+
+		if xStart > 0 {
+			rl.DrawRectangle(0, y, xStart, 1, rl.Black)
+		}
+		if xEnd < swInt {
+			rl.DrawRectangle(xEnd, y, swInt-xEnd, 1, rl.Black)
+		}
+	}
 }
