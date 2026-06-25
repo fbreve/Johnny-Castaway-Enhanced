@@ -243,8 +243,15 @@ func main() {
 func setupApp() {
 	cfgFileRead(&activeConfig)
 	// Borderless fullscreen - covers entire screen without changing resolution
-	rl.SetConfigFlags(rl.FlagWindowUndecorated | rl.FlagWindowTopmost | rl.FlagMsaa4xHint)
+	// r.c. - dropped FlagWindowTopmost: forcing this OpenGL surface above
+	// everything (including DWM's own compositing) was a likely factor in
+	// the monitor's power-off/power-on cycle after the screensaver runs
+	// leaving HDR in a wrong state when returning from the lock screen.
+	// FlagWindowResizable is required for rl.MinimizeWindow()/RestoreWindow()
+	// to have any effect, which installMonitorPowerWatch() relies on below.
+	rl.SetConfigFlags(rl.FlagWindowUndecorated | rl.FlagWindowResizable | rl.FlagMsaa4xHint)
 	rl.InitWindow(screenWidth, screenHeight, "Johnny Castaway")
+	installMonitorPowerWatch()
 
 	mon := rl.GetCurrentMonitor()
 	monW := rl.GetMonitorWidth(mon)

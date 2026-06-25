@@ -185,6 +185,14 @@ func grUpdateDisplay(
 			return
 		}
 
+		// r.c. - while the window is minimized (installMonitorPowerWatch
+		// minimizes it when Windows reports the display off), skip the
+		// render work below. Presentation is already stopped by being
+		// minimized; this just avoids wasted per-frame work in that state.
+		if isMonitorOff() {
+			return
+		}
+
 		type OrientationMode int
 		const (
 			ModeNormal  OrientationMode = 0

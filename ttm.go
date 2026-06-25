@@ -1,5 +1,7 @@
 package main
 
+import "math/rand"
+
 var (
 	ttmDx = 0
 	ttmDy = 0
@@ -198,9 +200,18 @@ func ttmPlay(ttmThread *TTtmThread) {
 			debugPrintf("\tSET_FRAME1 %d %d\n", args[0], args[1])
 		case 0x2022:
 			debugPrintf("\tTIMER %d %d\n", args[0], args[1])
-			// Really, really not sure about this formula... but things
-			// do work not so bad like that
-			val := (args[0] + args[1]) / 2
+			// r.c. - args[0] and args[1] always form a (min, max) range in the
+			// original .TTM data (min <= max in every observed sample), so this
+			// picks a random delay uniformly within that range rather than a
+			// fixed average. This adds the jitter the original animations rely
+			// on instead of always producing the same value.
+			lo, hi := args[0], args[1]
+			var val uint16
+			if hi > lo {
+				val = lo + uint16(rand.Intn(int(hi-lo)+1))
+			} else {
+				val = lo
+			}
 			ttmThread.delay = val
 			ttmThread.timer = val
 		case 0x4004:
@@ -210,8 +221,8 @@ func ttmPlay(ttmThread *TTtmThread) {
 			debugPrintf("\tCOPY_ZONE_TO_BG: x:%d, y:%d, w:%d, h:%d\n", args[0], args[1], args[2], args[3])
 			grCopyZoneToBg(ttmThread.ttmLayer, args[0], args[1], args[2], args[3])
 		case 0x4214:
-			// defines the zone to be redrawn at each update ?
-			// but seems not used in the original
+			// r.c. - confirmed used in the original: appears 32+ times across
+			// multiple .TTM scripts, always with 4 args (a region rect).
 			debugPrintf("\tSAVE_IMAGE1 %d %d %d %d\n", args[0], args[1], args[2], args[3])
 			grSaveImage1(ttmThread.ttmLayer, args[0], args[1], args[2], args[3])
 		case 0xA002:
@@ -223,6 +234,10 @@ func ttmPlay(ttmThread *TTtmThread) {
 			grSaveZone(ttmThread.ttmLayer, args[0], args[1], args[2], args[3])
 		case 0xA064:
 			// only once, in GJGULIVR.TTM.txt
+			// r.c. - confirmed: appears exactly once in the original data,
+			// paired with a single matching SAVE_ZONE call using the same
+			// rect args. Left disabled since the bug described below is a
+			// runtime visual issue, not something static args can resolve.
 			debugPrintf("\tRESTORE_ZONE %d %d %d %d\n", args[0], args[1], args[2], args[3])
 			// r.c. if I enable this, the stupid copied zone, disappears too soon!!
 			//grRestoreZone(ttmThread.ttmLayer, args[0], args[1], args[2], args[3])
