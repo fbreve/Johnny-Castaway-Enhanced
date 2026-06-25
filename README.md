@@ -25,10 +25,12 @@ Here are the enhancements and fixes implemented in this version:
   * Corrected background zone copying coordinates and orientation inside `grCopyZoneToBg`.
   * Corrected coconut scale inside bounding boxes in `grDrawCircle`.
   * Resolved sub-scene mismatches on the central island setup.
+  * Corrected walk transition coordinate offsets (`ttmDx`/`ttmDy`) in `storyPlay` so that transitions between island halves (e.g. returning from water to the left side of the island) render Johnny at the correct offset immediately.
 
 ### ⚙️ Engine, Scripts, and RNG
 * **TIMER Opcode RNG**: Fixed the `TIMER` opcode (`0x2022`) to sample uniformly from the target range `[args[0], args[1]]` (instead of taking the static average), restoring the natural jitter/timing variation of the original screensaver.
 * **Script Comment & Opcode Corrections**: Verified and fixed several script interpreter assumptions against real `.TTM`/`.ADS` streams (e.g., `SAVE_IMAGE1`, `:TAG` labels for jump routing, mismatch of tag counts, and redundant duplicate scene additions).
+* **Local Trigger Chaining (`IF_LASTPLAYED_LOCAL` gating)**: Fixed a bug in `adsPlayTriggeredChunks` where having any local chunk pending globally blocked general/global chunk dispatches. The fallback general dispatch now properly fires for all unrelated scenes and tags while local triggers remain active.
 
 ### 💾 Memory & Resource Optimization
 * **VRAM Texture Leaks**: Fixed a memory leak in sprite loading (`graphics.go` / `grLoadBmp`) where CPU-side Image data was never unloaded after uploading to GPU VRAM.

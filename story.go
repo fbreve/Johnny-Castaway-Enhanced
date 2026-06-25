@@ -192,19 +192,27 @@ func storyPlay() {
 				}
 				scene := storyPickScene(wantedFlags, unwantedFlags)
 
-				if prevSpot != -1 {
-					adsPlayWalk(prevSpot, prevHdg, scene.spotStart, scene.hdgStart)
-				}
-				if shouldExitApp {
-					return
-				}
-
+				// r.c. - moved this offset calculation to before adsPlayWalk
+				// (it used to run after). adsPlayWalk walks toward this
+				// scene's start spot, so it needs this scene's offset, not
+				// whatever ttmDx/ttmDy were left at by the previous scene.
+				// Previously, a walk that crossed between the island's
+				// LEFT_ISLAND and non-LEFT_ISLAND halves (e.g. returning
+				// from water) would render using the wrong half's offset
+				// until adsPlay() below updated it afterward.
 				var xOffset = 0
 				if scene.flags&LEFT_ISLAND == LEFT_ISLAND {
 					xOffset = 272
 				}
 				ttmDx = islandState.xPos + xOffset
 				ttmDy = islandState.yPos
+
+				if prevSpot != -1 {
+					adsPlayWalk(prevSpot, prevHdg, scene.spotStart, scene.hdgStart)
+				}
+				if shouldExitApp {
+					return
+				}
 
 				if scene.dayNo != 0 {
 					soundPlay(17)
@@ -221,13 +229,9 @@ func storyPlay() {
 			}
 		}
 
-		if prevSpot != -1 {
-			adsPlayWalk(prevSpot, prevHdg, finalScene.spotStart, finalScene.hdgStart)
-		}
-		if shouldExitApp {
-			return
-		}
-
+		// r.c. - moved before adsPlayWalk for the same reason as above: this
+		// walk heads toward finalScene, so it needs finalScene's offset
+		// applied before it runs, not after.
 		if finalScene.flags&ISLAND == ISLAND {
 			xOffset := 0
 			if finalScene.flags&LEFT_ISLAND == LEFT_ISLAND {
@@ -238,6 +242,13 @@ func storyPlay() {
 		} else {
 			ttmDx = 0
 			ttmDy = 0
+		}
+
+		if prevSpot != -1 {
+			adsPlayWalk(prevSpot, prevHdg, finalScene.spotStart, finalScene.hdgStart)
+		}
+		if shouldExitApp {
+			return
 		}
 
 		if finalScene.dayNo != 0 {

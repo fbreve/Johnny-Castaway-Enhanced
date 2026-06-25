@@ -393,11 +393,17 @@ func adsPlayChunk(data []byte, dataSize, offset uint32) {
 			adsChunksLocal[numAdsChunksLocal].offset = offset
 			numAdsChunksLocal++
 		case 0x1330:
-			// Always just before a call to ADD_SCENE with same (ttm,tag)
-			// references tags which init commands : LOAD_IMAGE LOAD_SCREEN etc.
-			//   - one exception: FISHING.ADS tag 3
-			//   - seems to be a synonym of "IF_NOT_RUNNING"
-			//   - if so, our implementation works fine anyway by ignoring this one...
+			// r.c. - confirmed against the original .ADS data: in 54 of 55
+			// occurrences across all of the game's .ADS files, this opcode's
+			// (args[0], args[1]) exactly matches the (ttm, tag) pair of the
+			// ADD_SCENE call that immediately follows it -- consistent with
+			// it being IF_NOT_RUNNING, or some closely related check, just
+			// as suspected. The one exception found (ACTIVITY.ADS, checking
+			// tag 20 but adding tag 42 on the same ttm slot) doesn't change
+			// anything in practice: adsAddScene() already refuses to add a
+			// scene whose exact (ttm, tag) thread is already running, so
+			// whether or not this opcode is treated as a real conditional,
+			// the resulting behavior is identical. Safe to keep ignoring it.
 			peekUint16Block(data, &offset, args[:], 2)
 			debugPrintf("IF_UNKNOWN_1 %d %d\n", args[0], args[1])
 		case 0x1350:
@@ -516,16 +522,26 @@ func adsPlayChunk(data []byte, dataSize, offset uint32) {
 
 func adsPlayTriggeredChunks(data []byte, dataSize uint32, ttmSlotNo, ttmTag uint16) {
 	// First we deal with the case where a local trigger was declared
-	// (only one occurrence of this, in ACTIVITY.ADS tag #7)
-
-	if numAdsChunksLocal != 0 {
-		for i := 0; i < numAdsChunksLocal; i++ {
-			if adsChunksLocal[i].scene.slot == ttmSlotNo && adsChunksLocal[i].scene.tag == ttmTag {
-				adsPlayChunk(data, dataSize, adsChunksLocal[i].offset)
-				numAdsChunksLocal--
-			}
+	// (only one occurrence of this, in ACTIVITY.ADS tag #7).
+	//
+	// r.c. - fixed: this used to gate on `numAdsChunksLocal != 0` globally,
+	// which meant that as long as ANY local chunk was pending anywhere, the
+	// general dispatch below was skipped entirely for every other tag
+	// completion too -- not just the one tag the local chunk was actually
+	// registered for. Now we only skip the general dispatch for the
+	// specific (slot, tag) pair a local chunk actually matched and fired
+	// for; every other tag completion still falls through to the general
+	// case as intended.
+	localMatched := false
+	for i := 0; i < numAdsChunksLocal; i++ {
+		if adsChunksLocal[i].scene.slot == ttmSlotNo && adsChunksLocal[i].scene.tag == ttmTag {
+			adsPlayChunk(data, dataSize, adsChunksLocal[i].offset)
+			numAdsChunksLocal--
+			localMatched = true
 		}
-	} else { // Then, the general case
+	}
+
+	if !localMatched {
 		// Note : in a few rare cases (eg BUILDING.ADS tag #2), the ADS script
 		// contains several 'IF_LASTPLAYED' commands for one given scene.
 		for i := 0; i < numAdsChunks; i++ {
@@ -759,8 +775,14 @@ func adsPlayWalk(fromSpot, fromHdg, toSpot, toHdg int) {
 	adsAddScene(0, 0, 0)
 	grLoadBmp(&ttmSlots[0], 0, "JOHNWALK.BMP")
 
-	grDx = islandState.xPos
-	grDy = islandState.yPos
+	// r.c. - was: grDx = islandState.xPos; grDy = islandState.yPos (no
+	// LEFT_ISLAND offset). story.go now sets ttmDx/ttmDy to the destination
+	// scene's correctly-offset position before calling this function, so we
+	// use that instead of recomputing an un-offset value here. Walking
+	// toward a LEFT_ISLAND scene (e.g. returning from water on that side of
+	// the island) was rendering at the wrong half's X position otherwise.
+	grDx = ttmDx
+	grDy = ttmDy
 
 	ttmThreads[0].timer = 6
 	ttmThreads[0].delay = 6 // 12 ?
