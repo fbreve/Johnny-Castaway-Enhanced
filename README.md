@@ -1,6 +1,6 @@
 # Johnny Castaway Enhanced
 
-**Johnny Castaway Enhanced** is a modified fork of [Johnny Castaway 2026 by igtoth](https://github.com/igtoth/Johnny-Castaway-2026-Public), which in turn is a fork of [Johnny Castaway 2026 by deckarep](https://github.com/deckarep/Johnny-Castaway-2026).
+**Johnny Castaway Enhanced** is a preservation-focused fork of [Johnny Castaway 2026 by igtoth](https://github.com/igtoth/Johnny-Castaway-2026-Public), which in turn is a fork of [Johnny Castaway 2026 by deckarep](https://github.com/deckarep/Johnny-Castaway-2026).
 
 The ultimate goal of this fork is to add key enhancements, resolve bugs, and make this classic screensaver run as faithfully to the original as possible, fully optimized and smooth on modern **Windows 10 & 11**.
 
@@ -34,6 +34,7 @@ Here are the enhancements and fixes implemented in this version:
 
 ### 💾 Memory & Resource Optimization
 * **VRAM Texture Leaks**: Fixed a memory leak in sprite loading (`graphics.go` / `grLoadBmp`) where CPU-side Image data was never unloaded after uploading to GPU VRAM.
+* **Optimized Cloud Animations**: Re-enabled the original animated clouds by loading the `BACKGRND.BMP` sprite sheet once at island initialization instead of reloading and re-uploading the entire texture to the GPU every few ticks. This restores the classic clouds with negligible performance overhead.
 
 ---
 

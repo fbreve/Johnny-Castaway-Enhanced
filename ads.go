@@ -749,6 +749,15 @@ func adsInitIsland() {
 		}
 		ttmCloudsThread.ttmLayer = grNewLayer()
 
+		// r.c. - load the cloud sprite sheet once here, at init, instead of
+		// every animation tick. islandAnimateClouds previously reloaded
+		// this same BMP (a full resource decompress + GPU texture upload)
+		// on every tick just to redraw clouds a few pixels over, which is
+		// the actual cost behind the "super taxing" complaint that led to
+		// clouds being disabled entirely. Only positions change per tick;
+		// the sprite sheet itself doesn't need to be reloaded each time.
+		grLoadBmp(&ttmCloudsSlot, 0, "BACKGRND.BMP")
+
 		islandAnimateClouds(&ttmCloudsThread)
 	} else {
 		ttmCloudsThread.isRunning = 0

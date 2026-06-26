@@ -226,18 +226,15 @@ func islandInitHoliday(ttmThread *TTtmThread) {
 }
 
 func islandAnimateClouds(ttmThread *TTtmThread) {
-	// r.c. big observation, this cloud logic keeps excessively loading the BACKGROUND.BMP
-	// it's super taxing, and this came from the github.com/xesf/jc_reborn branch
-	if true {
-		// CLOUDS DISABLED FOR NOW - r.c.!!!
-		return
-	}
-
+	// r.c. - re-enabled. The actual cost was the grLoadBmp() call that used
+	// to run here every tick (a full resource decompress + GPU texture
+	// upload), not the position/draw logic below. BACKGRND.BMP is now
+	// loaded once at island init time instead (see adsInitIsland), so this
+	// function only updates cloud positions and draws -- cheap per tick.
 	ttmSlot := ttmThread.ttmSlot
 	grClearScreen(ttmThread.ttmLayer)
 	if islandState.clouds.numClouds > 0 {
 		ttmThread.isRunning = 3
-		grLoadBmp(ttmSlot, 0, "BACKGRND.BMP")
 
 		// animate clouds x position
 		for i := int32(0); i < islandState.clouds.numClouds; i++ {
