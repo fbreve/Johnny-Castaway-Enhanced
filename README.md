@@ -11,7 +11,7 @@ The ultimate goal of this fork is to add key enhancements, resolve bugs, and mak
 Here are the enhancements and fixes implemented in this version:
 
 ### 🖥️ Windows Screensaver & Lifecycle
-* **Options Dialog (`/c`)**: Implemented a Raylib-based screensaver configuration window (400x350) for setting options (Sound, Load Background, Password Protection, and "Start of Day" time setting). Preferences are saved persistently to `%USERPROFILE%\.johnny_castaway_2026`.
+* **Options Dialog (`/c`)**: Implemented a Raylib-based screensaver configuration window (400x380) for setting options (Sound, Load Background, Password Protection, Software OpenGL, and "Start of Day" time setting). Preferences are saved persistently to `%USERPROFILE%\.johnny_castaway_2026`.
 * **Quiet Preview Mode (`/p`)**: Handled screensaver preview calls by exiting cleanly and quietly.
 * **Graceful Exit & Display/HDR Cleanup**: Replaced direct hard-kills (`os.Exit`) with state-controlled cleanup flags. This ensures proper teardown, cleanly restoring desktop resolution and HDR display states on exit.
 * **Console Window Management**: Hides the background console window when launching the application as a screensaver.
@@ -35,6 +35,7 @@ Here are the enhancements and fixes implemented in this version:
 ### 💾 Memory & Resource Optimization
 * **VRAM Texture Leaks**: Fixed a memory leak in sprite loading (`graphics.go` / `grLoadBmp`) where CPU-side Image data was never unloaded after uploading to GPU VRAM.
 * **Optimized Cloud Animations**: Re-enabled the original animated clouds by loading the `BACKGRND.BMP` sprite sheet once at island initialization instead of reloading and re-uploading the entire texture to the GPU every few ticks. This restores the classic clouds with negligible performance overhead.
+* **Legacy Hardware & Software OpenGL Compatibility**: Supports preloading the system `opengl32.dll` to keep GPU hardware-acceleration default on modern systems, while allowing legacy/unsupported hardware (like Intel HD Graphics 3000 or virtual machines) to run via CPU-based Mesa Software Rendering (LLVMpipe) by ticking "Use Software OpenGL (Mesa)" in the Setup UI.
 
 ---
 

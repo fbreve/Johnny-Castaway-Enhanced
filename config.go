@@ -25,6 +25,7 @@ type TConfig struct {
 	Sounds      bool
 	Password    bool
 	StartTime   int
+	UseMesa     bool
 }
 
 const (
@@ -35,6 +36,7 @@ const (
 	SoundsKey     = "sounds="
 	PasswordKey   = "password="
 	StartTimeKey  = "startTime="
+	UseMesaKey    = "useMesa="
 )
 
 func cfgFullPath() string {
@@ -66,6 +68,7 @@ func cfgFileWrite(cfg *TConfig) {
 	_, _ = fmt.Fprintf(f, "%s%t\n", SoundsKey, cfg.Sounds)
 	_, _ = fmt.Fprintf(f, "%s%t\n", PasswordKey, cfg.Password)
 	_, _ = fmt.Fprintf(f, "%s%d\n", StartTimeKey, cfg.StartTime)
+	_, _ = fmt.Fprintf(f, "%s%t\n", UseMesaKey, cfg.UseMesa)
 }
 
 func cfgFileRead(cfg *TConfig) {
@@ -77,6 +80,7 @@ func cfgFileRead(cfg *TConfig) {
 	cfg.Sounds = true
 	cfg.Password = false
 	cfg.StartTime = 900
+	cfg.UseMesa = false
 
 	f, err := os.Open(cfgFullPath())
 	if err != nil {
@@ -115,6 +119,8 @@ func cfgFileRead(cfg *TConfig) {
 			if err == nil {
 				cfg.StartTime = st
 			}
+		} else if strings.HasPrefix(line, UseMesaKey) {
+			cfg.UseMesa = line[len(UseMesaKey):] == "true"
 		}
 	}
 

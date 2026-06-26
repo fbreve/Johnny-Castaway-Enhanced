@@ -57,7 +57,7 @@ func adjustStartTime(val int, up bool) int {
 }
 
 func runOptionsWindow() {
-	rl.InitWindow(400, 350, "ScreenAntics - Setup")
+	rl.InitWindow(400, 380, "ScreenAntics - Setup")
 	defer rl.CloseWindow()
 	rl.SetTargetFPS(60)
 
@@ -68,6 +68,7 @@ func runOptionsWindow() {
 	sounds := config.Sounds
 	password := config.Password
 	startTime := config.StartTime
+	useMesa := config.UseMesa
 
 	// Load Windows native fonts for gorgeous anti-aliased text
 	var font rl.Font
@@ -101,7 +102,7 @@ func runOptionsWindow() {
 		rl.ClearBackground(rl.GetColor(0xf0f0f0ff)) // Standard Win32 light gray background
 
 		// Groupbox "Setup"
-		rl.DrawRectangleLines(15, 15, 370, 250, rl.Gray)
+		rl.DrawRectangleLines(15, 15, 370, 290, rl.Gray)
 		rl.DrawRectangle(25, 5, 55, 20, rl.GetColor(0xf0f0f0ff))
 		drawText("Setup", 30, 6, 16, rl.Black)
 
@@ -176,8 +177,20 @@ func runOptionsWindow() {
 			sounds = !sounds
 		}
 
+		// Software OpenGL Checkbox
+		swHover := mousePos.X >= 30 && mousePos.X <= 350 && mousePos.Y >= 240 && mousePos.Y <= 270
+		rl.DrawRectangle(30, 245, 18, 18, rl.White)
+		rl.DrawRectangleLines(30, 245, 18, 18, rl.Gray)
+		if useMesa {
+			rl.DrawRectangle(34, 249, 10, 10, rl.GetColor(0x0078d7ff))
+		}
+		drawText("Use Software OpenGL (Mesa)", 60, 246, 16, rl.Black)
+		if swHover && click {
+			useMesa = !useMesa
+		}
+
 		// OK Button
-		okHover := mousePos.X >= 80 && mousePos.X <= 180 && mousePos.Y >= 285 && mousePos.Y <= 325
+		okHover := mousePos.X >= 80 && mousePos.X <= 180 && mousePos.Y >= 320 && mousePos.Y <= 360
 		okCol := rl.GetColor(0xe1e1e1ff)
 		if okHover {
 			okCol = rl.GetColor(0xd1d1d1ff)
@@ -186,16 +199,17 @@ func runOptionsWindow() {
 				config.Sounds = sounds
 				config.Password = password
 				config.StartTime = startTime
+				config.UseMesa = useMesa
 				cfgFileWrite(&config)
 				break
 			}
 		}
-		rl.DrawRectangle(80, 285, 100, 40, okCol)
-		rl.DrawRectangleLines(80, 285, 100, 40, rl.Gray)
-		drawText("OK", 118, 294, 16, rl.Black)
+		rl.DrawRectangle(80, 320, 100, 40, okCol)
+		rl.DrawRectangleLines(80, 320, 100, 40, rl.Gray)
+		drawText("OK", 118, 329, 16, rl.Black)
 
 		// Cancel Button
-		cancelHover := mousePos.X >= 220 && mousePos.X <= 320 && mousePos.Y >= 285 && mousePos.Y <= 325
+		cancelHover := mousePos.X >= 220 && mousePos.X <= 320 && mousePos.Y >= 320 && mousePos.Y <= 360
 		cancelCol := rl.GetColor(0xe1e1e1ff)
 		if cancelHover {
 			cancelCol = rl.GetColor(0xd1d1d1ff)
@@ -203,9 +217,9 @@ func runOptionsWindow() {
 				break
 			}
 		}
-		rl.DrawRectangle(220, 285, 100, 40, cancelCol)
-		rl.DrawRectangleLines(220, 285, 100, 40, rl.Gray)
-		drawText("Cancel", 246, 294, 16, rl.Black)
+		rl.DrawRectangle(220, 320, 100, 40, cancelCol)
+		rl.DrawRectangleLines(220, 320, 100, 40, rl.Gray)
+		drawText("Cancel", 246, 329, 16, rl.Black)
 
 		rl.EndDrawing()
 	}
@@ -227,6 +241,12 @@ func main() {
 		}
 	}
 
+	var initialConfig TConfig
+	cfgFileRead(&initialConfig)
+	if !isSettings && !initialConfig.UseMesa {
+		preloadNativeOpenGL()
+	}
+
 	if isSettings {
 		runOptionsWindow()
 		os.Exit(0)
@@ -242,13 +262,17 @@ func main() {
 
 func setupApp() {
 	cfgFileRead(&activeConfig)
-	// Borderless fullscreen - covers entire screen without changing resolution
-	// r.c. - dropped FlagWindowTopmost: forcing this OpenGL surface above
-	// everything (including DWM's own compositing) was a likely factor in
-	// the monitor's power-off/power-on cycle after the screensaver runs
-	// leaving HDR in a wrong state when returning from the lock screen.
-	rl.SetConfigFlags(rl.FlagWindowUndecorated | rl.FlagWindowResizable | rl.FlagMsaa4xHint)
+	// Enable 4x MSAA for smoother, anti-aliased graphics
+	rl.SetConfigFlags(rl.FlagMsaa4xHint)
+	// Initialize with default standard window flags to ensure 100% OpenGL context creation compatibility on all hardware/drivers.
 	rl.InitWindow(screenWidth, screenHeight, "Johnny Castaway")
+
+	// Apply Undecorated and Resizable states dynamically after the window is successfully initialized.
+	rl.SetWindowState(rl.FlagWindowUndecorated | rl.FlagWindowResizable)
+
+	if !rl.IsWindowReady() {
+		panic("Fatal: Failed to initialize window. Please check your OpenGL/graphics drivers.")
+	}
 
 	// r.c. - spans the window across every connected monitor (not just the
 	// current one) and records each monitor's own rectangle for the
