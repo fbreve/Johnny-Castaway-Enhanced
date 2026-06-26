@@ -150,28 +150,56 @@ func grUpdateDisplay(
 	ttmHolidayThread *TTtmThread,
 	ttmCloudsThread *TTtmThread,
 ) {
-	// Calculate the letterbox/pillarbox (4:3) centering bounds
-	screenWidthFloat := float32(rl.GetScreenWidth())
-	screenHeightFloat := float32(rl.GetScreenHeight())
+	// r.c. - compute one letterboxed (4:3) destination rect per connected
+	// monitor instead of one for the whole (now possibly multi-monitor-
+	// spanning) window, so the same scene is drawn correctly centered on
+	// each monitor individually rather than once across all of them.
+	// Falls back to a single full-window rect if monitorRects hasn't been
+	// populated (other window paths, like the settings/asset-browser
+	// windows, don't call setupMonitors()).
+	type monitorDrawRect struct {
+		offsetX, offsetY, renderW, renderH float32
+	}
 
 	targetAspect := float32(4.0) / 3.0
-	currentAspect := screenWidthFloat / screenHeightFloat
 
-	var renderW, renderH float32
-	var offsetX, offsetY float32
+	computeLetterbox := func(w, h float32) (rw, rh, ox, oy float32) {
+		aspect := w / h
+		if aspect > targetAspect {
+			rh = h
+			rw = rh * targetAspect
+			ox = (w - rw) / 2.0
+			oy = 0
+		} else {
+			rw = w
+			rh = rw / targetAspect
+			ox = 0
+			oy = (h - rh) / 2.0
+		}
+		return
+	}
 
-	if currentAspect > targetAspect {
-		// Screen is wider than 4:3 (pillarbox)
-		renderH = screenHeightFloat
-		renderW = renderH * targetAspect
-		offsetX = (screenWidthFloat - renderW) / 2.0
-		offsetY = 0
+	var monitorDrawRects []monitorDrawRect
+	if len(monitorRects) > 0 {
+		for _, m := range monitorRects {
+			rw, rh, ox, oy := computeLetterbox(m.W, m.H)
+			monitorDrawRects = append(monitorDrawRects, monitorDrawRect{
+				offsetX: m.X + ox,
+				offsetY: m.Y + oy,
+				renderW: rw,
+				renderH: rh,
+			})
+		}
 	} else {
-		// Screen is taller than 4:3 (letterbox)
-		renderW = screenWidthFloat
-		renderH = renderW / targetAspect
-		offsetX = 0
-		offsetY = (screenHeightFloat - renderH) / 2.0
+		screenWidthFloat := float32(rl.GetScreenWidth())
+		screenHeightFloat := float32(rl.GetScreenHeight())
+		rw, rh, ox, oy := computeLetterbox(screenWidthFloat, screenHeightFloat)
+		monitorDrawRects = append(monitorDrawRects, monitorDrawRect{
+			offsetX: ox,
+			offsetY: oy,
+			renderW: rw,
+			renderH: rh,
+		})
 	}
 
 	draw := func() {
@@ -185,11 +213,10 @@ func grUpdateDisplay(
 			return
 		}
 
-		// r.c. - while the window is minimized (installMonitorPowerWatch
-		// minimizes it when Windows reports the display off), skip the
-		// render work below. Presentation is already stopped by being
-		// minimized; this just avoids wasted per-frame work in that state.
-		if isMonitorOff() {
+		// r.c. - while the window is minimized, skip the render work below.
+		// Presentation is already stopped by being minimized; this just
+		// avoids wasted per-frame work in that state.
+		if rl.IsWindowMinimized() {
 			return
 		}
 
@@ -255,7 +282,7 @@ func grUpdateDisplay(
 
 		rl.ClearBackground(rl.Black)
 
-		drawTextureToScreen := func(rt *rl.RenderTexture2D, orientation OrientationMode) {
+		drawTextureToScreen := func(rt *rl.RenderTexture2D, orientation OrientationMode, destX, destY, destW, destH float32) {
 			if rt == nil {
 				return
 			}
@@ -268,18 +295,24 @@ func grUpdateDisplay(
 			}
 
 			src := rl.NewRectangle(0, 0, w, h)
-			dst := rl.NewRectangle(offsetX, offsetY, renderW, renderH)
+			dst := rl.NewRectangle(destX, destY, destW, destH)
 			rl.DrawTexturePro(rt.Texture, src, dst, rl.Vector2Zero(), 0, rl.White)
 		}
 
 		if grFinalRenderSur != nil {
-			drawTextureToScreen(grFinalRenderSur, ModeFlipped)
+			for _, r := range monitorDrawRects {
+				drawTextureToScreen(grFinalRenderSur, ModeFlipped, r.offsetX, r.offsetY, r.renderW, r.renderH)
+			}
 		}
 
 		if isFadingOut {
-			drawCircularIris(fadeOutRadius)
+			for _, r := range monitorDrawRects {
+				drawCircularIris(fadeOutRadius, r.offsetX, r.offsetY, r.renderW, r.renderH)
+			}
 		} else if isFadingIn {
-			drawCircularIris(fadeInRadius)
+			for _, r := range monitorDrawRects {
+				drawCircularIris(fadeInRadius, r.offsetX, r.offsetY, r.renderW, r.renderH)
+			}
 		}
 
 		// Debug stuff
@@ -810,56 +843,57 @@ func grFadeIn() {
 	fadeInRadius = 0
 }
 
-func drawCircularIris(radiusVal int) {
-	screenWidthFloat := float32(rl.GetScreenWidth())
-	screenHeightFloat := float32(rl.GetScreenHeight())
-
-	cx := screenWidthFloat / 2.0
-	cy := screenHeightFloat / 2.0
+func drawCircularIris(radiusVal int, regionX, regionY, regionW, regionH float32) {
+	cx := regionX + regionW/2.0
+	cy := regionY + regionH/2.0
 
 	targetAspect := float32(4.0) / 3.0
-	currentAspect := screenWidthFloat / screenHeightFloat
+	currentAspect := regionW / regionH
 
 	var renderH float32
 	if currentAspect > targetAspect {
-		renderH = screenHeightFloat
+		renderH = regionH
 	} else {
-		renderH = screenWidthFloat / targetAspect
+		renderH = regionW / targetAspect
 	}
 
 	actualRadius := float32(radiusVal) * (renderH / 480.0)
+
+	left := int32(regionX)
+	top := int32(regionY)
+	right := int32(regionX + regionW)
+	bottom := int32(regionY + regionH)
+
 	if actualRadius <= 0 {
-		rl.DrawRectangle(0, 0, int32(screenWidthFloat), int32(screenHeightFloat), rl.Black)
+		rl.DrawRectangle(left, top, right-left, bottom-top, rl.Black)
 		return
 	}
 
 	rInt := int32(actualRadius)
 	cxInt := int32(cx)
 	cyInt := int32(cy)
-	swInt := int32(screenWidthFloat)
-	shInt := int32(screenHeightFloat)
 
-	// Top area (above circle vertical span)
+	// Top area (above circle vertical span), bounded to this monitor's region
 	topHeight := cyInt - rInt
-	if topHeight > 0 {
-		rl.DrawRectangle(0, 0, swInt, topHeight, rl.Black)
+	if topHeight > top {
+		rl.DrawRectangle(left, top, right-left, topHeight-top, rl.Black)
 	}
 
-	// Bottom area (below circle vertical span)
+	// Bottom area (below circle vertical span), bounded to this monitor's region
 	bottomStart := cyInt + rInt
-	if bottomStart < shInt {
-		rl.DrawRectangle(0, bottomStart, swInt, shInt-bottomStart, rl.Black)
+	if bottomStart < bottom {
+		rl.DrawRectangle(left, bottomStart, right-left, bottom-bottomStart, rl.Black)
 	}
 
-	// Rows intersecting the circle
+	// Rows intersecting the circle, bounded to this monitor's region
 	r2 := actualRadius * actualRadius
 	startY := cyInt - rInt
-	if startY < 0 {
-		startY = 0
+	if startY < top {
+		startY = top
 	}
 	endY := cyInt + rInt
-	if endY > shInt {
-		endY = shInt
+	if endY > bottom {
+		endY = bottom
 	}
 
 	for y := startY; y < endY; y++ {
@@ -873,11 +907,11 @@ func drawCircularIris(radiusVal int) {
 		xStart := cxInt - int32(dx)
 		xEnd := cxInt + int32(dx)
 
-		if xStart > 0 {
-			rl.DrawRectangle(0, y, xStart, 1, rl.Black)
+		if xStart > left {
+			rl.DrawRectangle(left, y, xStart-left, 1, rl.Black)
 		}
-		if xEnd < swInt {
-			rl.DrawRectangle(xEnd, y, swInt-xEnd, 1, rl.Black)
+		if xEnd < right {
+			rl.DrawRectangle(xEnd, y, right-xEnd, 1, rl.Black)
 		}
 	}
 }

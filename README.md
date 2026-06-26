@@ -16,9 +16,9 @@ Here are the enhancements and fixes implemented in this version:
 * **Graceful Exit & Display/HDR Cleanup**: Replaced direct hard-kills (`os.Exit`) with state-controlled cleanup flags. This ensures proper teardown, cleanly restoring desktop resolution and HDR display states on exit.
 * **Console Window Management**: Hides the background console window when launching the application as a screensaver.
 * **Window Flags Cleanup**: Removed unnecessary topmost window flag (`FlagWindowTopmost`) and added resizable flag (`FlagWindowResizable`) to allow proper Windows focus, screensaver lifecycle handling, and window minimization.
-* **Display Power Watcher / HDR Mitigation (Experimental)**: Added registration for display power state notifications (`GUID_CONSOLE_DISPLAY_STATE`). Minimizes the window and pauses OpenGL render loops when the display turns off, restoring them when it turns back on, to mitigate HDR lock-screen issues (currently unresolved, kept for visibility).
 
 ### 🎨 Rendering & Scaling
+* **Multi-Monitor Spanning**: Automatically detects and spans the screensaver window across all connected displays. Renders a separate, correctly letterboxed (4:3) copy of the scene centered on each monitor individually, with matching monitor-bound circular iris transitions.
 * **Widescreen Canvas Scaling**: Implemented letterbox and pillarbox centering of the virtual 4:3 viewport on widescreen resolutions. Clears unused margins to solid black, keeping the scene layout correct.
 * **Composed Circular Iris Transitions**: Uses a dedicated global RenderTexture `grFinalRenderSur` to freeze the final frame buffer during `grFadeOut`. This prevents Johnny and other sprite layers from abruptly vanishing during transitions, and increases fade transition speeds to a smooth 30 FPS.
 * **Coordinate & Scale Fixes**:

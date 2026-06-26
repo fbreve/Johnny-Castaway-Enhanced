@@ -247,20 +247,14 @@ func setupApp() {
 	// everything (including DWM's own compositing) was a likely factor in
 	// the monitor's power-off/power-on cycle after the screensaver runs
 	// leaving HDR in a wrong state when returning from the lock screen.
-	// FlagWindowResizable is required for rl.MinimizeWindow()/RestoreWindow()
-	// to have any effect, which installMonitorPowerWatch() relies on below.
 	rl.SetConfigFlags(rl.FlagWindowUndecorated | rl.FlagWindowResizable | rl.FlagMsaa4xHint)
 	rl.InitWindow(screenWidth, screenHeight, "Johnny Castaway")
-	installMonitorPowerWatch()
 
-	mon := rl.GetCurrentMonitor()
-	monW := rl.GetMonitorWidth(mon)
-	monH := rl.GetMonitorHeight(mon)
-	if monW <= 0 { monW = 1920 }
-	if monH <= 0 { monH = 1080 }
-
-	rl.SetWindowSize(monW, monH)
-	rl.SetWindowPosition(0, 0)
+	// r.c. - spans the window across every connected monitor (not just the
+	// current one) and records each monitor's own rectangle for the
+	// renderer to draw a separate copy of the scene into. On a
+	// single-monitor system this behaves exactly like the previous code.
+	setupMonitors()
 	rl.DisableCursor()
 	rl.HideCursor()
 
@@ -284,7 +278,12 @@ func doFadeIn() {
 		rl.ClearBackground(rl.Blank)
 
 		alpha := 1.0 - fadeInVal/255.0
-		rl.DrawRectangle(0, 0, screenWidth, screenHeight, rl.Fade(rl.Black, alpha))
+		// r.c. - use the actual current window size, not the fixed 640x480
+		// game-resolution constants. After setupMonitors() the window can
+		// span multiple monitors and be much larger than 640x480; filling
+		// only that fixed corner would leave the rest of the window
+		// showing through as blank during this initial fade-in.
+		rl.DrawRectangle(0, 0, int32(rl.GetScreenWidth()), int32(rl.GetScreenHeight()), rl.Fade(rl.Black, alpha))
 		fadeInVal -= 10
 
 		if fadeInVal <= 0 {
