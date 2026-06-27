@@ -72,11 +72,11 @@ func ttmLoadTTM(ttmSlot *TTtmSlot, name string) {
 		}
 	}
 
-	// TODO : in SASKDATE.TTM, num SET_SCENE != ttmResource->numTags
-	for tagNo < ttmSlot.numTags {
-		ttmSlot.tags[tagNo].id = 0 // TODO is this useful ?
-		tagNo++
-	}
+	// Keep only real parsed :TAG/:LOCAL_TAG offsets. Leaving padded zero-offset
+	// entries in the active slice can make ttmFindPreviousTag() return 0,
+	// which incorrectly jumps timed loops back to file start.
+	ttmSlot.numTags = tagNo
+	ttmSlot.tags = ttmSlot.tags[:tagNo]
 }
 
 func ttmInitSlot(ttmSlot *TTtmSlot) {

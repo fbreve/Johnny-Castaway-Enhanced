@@ -186,7 +186,7 @@ func adsAddScene(ttmSlotNo, ttmTag, arg3 uint16) {
 	for i := 0; i < MaxTTMThreads; i++ {
 		ttmThread := &ttmThreads[i]
 
-		if ttmThread.isRunning == 1 {
+		if ttmThread.isRunning != 0 {
 			if ttmThread.sceneSlot == ttmSlotNo && ttmThread.sceneTag == ttmTag {
 				fmt.Printf("WARN: (%d,%d) thread is already running - didn't add extra one\n", ttmSlotNo, ttmTag)
 				return
@@ -250,7 +250,7 @@ func adsStopSceneByTtmTag(ttmSlotNo, ttmTag uint16) {
 func isSceneRunning(ttmSlotNo, ttmTag uint16) int {
 	for i := 0; i < MaxTTMThreads; i++ {
 		ttmThread := &ttmThreads[i]
-		if ttmThread.isRunning == 1 &&
+		if ttmThread.isRunning != 0 &&
 			ttmThread.sceneSlot == ttmSlotNo &&
 			ttmThread.sceneTag == ttmTag {
 			return 1
@@ -652,7 +652,6 @@ func adsPlay(adsName string, adsTag uint16) {
 		// Various threads processes
 		for i := 0; i < MaxTTMThreads; i++ {
 			if ttmThreads[i].isRunning != 0 && ttmThreads[i].timer == 0 {
-
 				// Process jumps
 				if ttmThreads[i].nextGotoOffset != 0 {
 					ttmThreads[i].ip = ttmThreads[i].nextGotoOffset

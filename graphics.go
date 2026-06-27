@@ -423,9 +423,10 @@ func grSetClipZone(sur *rl.RenderTexture2D, x1, y1, x2, y2 int16) {
 		return
 	}
 
-	// A SET_CLIP_ZONE covering the full/near-full screen (x1≈0, y1≈0, x2≥639)
-	// is the original game's convention for resetting/cancelling the clip zone.
-	if x1 <= 0 && y1 <= 0 && x2 >= 639 {
+	// Reset clip only when the zone spans the full screen. Some scripts (e.g.
+	// MJDIVE tag 2) intentionally use 0,0,639,279 to clip to the upper area;
+	// treating any x2>=639 as full-screen wrongly disables that clip.
+	if x1 <= 0 && y1 <= 0 && x2 >= int16(screenWidth-1) && y2 >= int16(screenHeight-1) {
 		delete(activeClipZones, sur)
 		return
 	}

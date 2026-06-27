@@ -198,9 +198,28 @@ func parseAdsResource(buf *bytes.Reader) TAdsResource {
 	res.NumRes = readUint16(buf)
 
 	res.Res = make([]TAdsRes, res.NumRes)
-	for i := 0; i < int(res.NumRes); i++ {
+	// In original Screen Antics resources, ADS RES entries are stored as
+	// (uint16 id + null-terminated name) with variable name length, not fixed
+	// 40-byte records. Reading fixed-width names misaligns the stream and causes
+	// wrong slot->TTM mappings for some ADS scripts (notably JOHNNY.ADS).
+	resBytesRead := uint32(0)
+	for i := 0; i < int(res.NumRes) && resBytesRead < res.ResSize-2; i++ {
 		res.Res[i].ID = readUint16(buf)
-		res.Res[i].Name = getString(buf, 40)
+		resBytesRead += 2
+
+		nameBytes := make([]byte, 0, 32)
+		for {
+			b, err := buf.ReadByte()
+			if err != nil {
+				break
+			}
+			resBytesRead++
+			if b == 0 {
+				break
+			}
+			nameBytes = append(nameBytes, b)
+		}
+		res.Res[i].Name = string(nameBytes)
 	}
 
 	readTag(buf, "SCR:")

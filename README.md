@@ -23,6 +23,7 @@ Here are the enhancements and fixes implemented in this version:
 * **Widescreen Canvas Scaling**: Implemented letterbox and pillarbox centering of the virtual 4:3 viewport on widescreen resolutions. Clears unused margins to solid black, keeping the scene layout correct.
 * **Composed Circular Iris Transitions**: Uses a dedicated global RenderTexture `grFinalRenderSur` to freeze the final frame buffer during `grFadeOut`. This prevents Johnny and other sprite layers from abruptly vanishing during transitions, and increases fade transition speeds to a smooth 30 FPS.
 * **Scissor-Clipping & Coordinate System**: Fixed coordinate evaluation in `grSetClipZone` to treat arguments as absolute bounding box coordinates `(x1, y1) -> (x2, y2)`. Resolved coordinate conversion discrepancy by feeding raw coordinates directly to Raylib's `BeginScissorMode`, which internally handles OpenGL's vertical y-axis flipping. Ensured clip zones persist across `grClearScreen` invocations until explicitly overwritten or reset.
+* **Clip Reset Detection Fix (MJDIVE Climb Sequence)**: Corrected clip reset logic so only true full-screen clip zones clear scissoring. This preserves intentional partial clip zones such as `SET_CLIP_ZONE 0,0,639,279` used during `MJDIVE.TTM` tag 2, restoring the original climb-back visual behavior.
 * **Coordinate & Scale Fixes**:
   * Corrected background zone copying coordinates and orientation inside `grCopyZoneToBg`.
   * Corrected coconut scale inside bounding boxes in `grDrawCircle`.
