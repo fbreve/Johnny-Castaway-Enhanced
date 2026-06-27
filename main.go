@@ -229,6 +229,7 @@ func main() {
 	var isSettings = false
 	var isPreview = false
 	var isRun = false
+	var isTest = false
 
 	for _, arg := range os.Args {
 		argLower := strings.ToLower(arg)
@@ -238,6 +239,8 @@ func main() {
 			isPreview = true
 		} else if strings.HasPrefix(argLower, "/s") || strings.HasPrefix(argLower, "-s") {
 			isRun = true
+		} else if strings.HasPrefix(argLower, "/t") || strings.HasPrefix(argLower, "-t") {
+			isTest = true
 		}
 	}
 
@@ -252,6 +255,10 @@ func main() {
 		os.Exit(0)
 	}
 	if isPreview {
+		os.Exit(0)
+	}
+	if isTest {
+		runTestMode()
 		os.Exit(0)
 	}
 	if isRun {
@@ -334,5 +341,29 @@ func singleTTM() {
 	defer graphicsEnd()
 	for {
 		adsPlaySingleTtm("MJFIRE.TTM")
+	}
+}
+
+func runTestMode() {
+	setupApp()
+	defer rl.CloseWindow()
+	defer rl.CloseAudioDevice()
+	defer graphicsEnd()
+	defer unloadSfx()
+
+	adsInit()
+	islandState.xPos = 0
+	islandState.yPos = 0
+	islandState.lowTide = 1 // Ensure low tide so they match the walk paths
+	adsInitIsland()
+
+	for !shouldExitApp {
+		// Play tree climb and dive (ACTIVITY.ADS tag 4)
+		adsPlay("ACTIVITY.ADS", 4)
+		if shouldExitApp {
+			break
+		}
+		// Play water return (JOHNNY.ADS tag 3)
+		adsPlay("JOHNNY.ADS", 3)
 	}
 }

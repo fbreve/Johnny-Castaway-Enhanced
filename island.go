@@ -130,7 +130,7 @@ func islandInit(ttmThread *TTtmThread) {
 	// The island itself
 	grDrawSprite(grBackgroundSur, ttmSlot, 288, 279, 0, 0)  // island
 	grDrawSprite(grBackgroundSur, ttmSlot, 442, 148, 13, 0) // trunk
-	grDrawSprite(grBackgroundSur, ttmSlot, 365, 122, 12, 0) // leafs
+	grDrawSprite(grBackgroundSur, ttmSlot, 365, 122, 12, 0) // leaves
 	grDrawSprite(grBackgroundSur, ttmSlot, 396, 279, 14, 0) // palmtree's shadow
 
 	if islandState.lowTide != 0 {

@@ -48,6 +48,8 @@ var (
 	grFinalRenderSur  *rl.RenderTexture2D
 )
 
+var activeClipZones = make(map[*rl.RenderTexture2D]rl.Rectangle)
+
 type TAdsScene struct {
 	slot     uint16
 	tag      uint16
@@ -103,6 +105,12 @@ func grPutPixel(sur *rl.RenderTexture2D, x, y uint16, c uint8) {
 
 	rl.BeginTextureMode(*sur)
 	defer rl.EndTextureMode()
+
+	rect, hasClip := activeClipZones[sur]
+	if hasClip {
+		rl.BeginScissorMode(int32(rect.X), int32(rect.Y), int32(rect.Width), int32(rect.Height))
+		defer rl.EndScissorMode()
+	}
 
 	if x < 640 && y < 480 {
 		rl.DrawPixel(int32(x), int32(y), clr)
@@ -268,6 +276,8 @@ func grUpdateDisplay(
 				}
 			}
 
+
+
 			// Finally, blit the holiday layer
 			if ttmHolidayThread != nil {
 				if ttmHolidayThread.isRunning != 0 {
@@ -396,19 +406,34 @@ func grFreeLayer(sur *rl.RenderTexture2D) {
 }
 
 func grSetClipZone(sur *rl.RenderTexture2D, x1, y1, x2, y2 int16) {
+	// The TTM args are (x1, y1, x2, y2) — absolute top-left and bottom-right
+	// corners of the clip rectangle. The dump disassembler labels arg3/arg4 as
+	// "w" and "h" but they are really x2 and y2.
+	// Example: SET_CLIP_ZONE x=423 y=148 w=500 h=349 → rect (423,148)→(500,349).
 	x1 += int16(grDx)
 	y1 += int16(grDy)
 	x2 += int16(grDx)
 	y2 += int16(grDy)
 
-	// SDL2 code
-	//SDL_Rect rect = { x1, y1, x2-x1, y2-y1 };
-	//SDL_SetClipRect(sur, &rect);
+	w := x2 - x1
+	h := y2 - y1
 
-	// Equivalent Raylib code?? Not sure, I need to prove this out.
+	if w <= 0 || h <= 0 {
+		delete(activeClipZones, sur)
+		return
+	}
 
-	//rect := image.Rect(int(x1), int(y1), int(x2), int(y2))
-	//grClippedImage = sur.SubImage(rect).(*ebiten.Image)
+	// A SET_CLIP_ZONE covering the full/near-full screen (x1≈0, y1≈0, x2≥639)
+	// is the original game's convention for resetting/cancelling the clip zone.
+	if x1 <= 0 && y1 <= 0 && x2 >= 639 {
+		delete(activeClipZones, sur)
+		return
+	}
+
+	// Store the clip rect in GAME coordinates (top-left origin: y increases downward).
+	// Raylib's BeginScissorMode(x, y, w, h) internally converts to OpenGL coords via
+	// glScissor(x, framebufferHeight-(y+h), w, h), so we must NOT pre-flip y here.
+	activeClipZones[sur] = rl.NewRectangle(float32(x1), float32(y1), float32(w), float32(h))
 }
 
 func grCopyZoneToBg(sur *rl.RenderTexture2D, x, y, width, height uint16) {
@@ -493,6 +518,12 @@ func grDrawLine(sur *rl.RenderTexture2D, x1, y1, x2, y2 int16, colorIdx uint8) {
 	rl.BeginTextureMode(*sur)
 	defer rl.EndTextureMode()
 
+	rect, hasClip := activeClipZones[sur]
+	if hasClip {
+		rl.BeginScissorMode(int32(rect.X), int32(rect.Y), int32(rect.Width), int32(rect.Height))
+		defer rl.EndScissorMode()
+	}
+
 	rl.DrawLine(int32(x1), int32(y1), int32(x2), int32(y2), c)
 }
 
@@ -531,6 +562,12 @@ func grDrawRect(sur *rl.RenderTexture2D, x, y int16, width, height uint16, color
 	rl.BeginTextureMode(*sur)
 	defer rl.EndTextureMode()
 
+	rect, hasClip := activeClipZones[sur]
+	if hasClip {
+		rl.BeginScissorMode(int32(rect.X), int32(rect.Y), int32(rect.Width), int32(rect.Height))
+		defer rl.EndScissorMode()
+	}
+
 	rl.DrawRectangle(int32(x), int32(y), int32(width), int32(height), c)
 }
 
@@ -552,6 +589,12 @@ func grDrawCircle(sur *rl.RenderTexture2D, x1, y1 int16, width, height uint16, f
 
 	rl.BeginTextureMode(*sur)
 	defer rl.EndTextureMode()
+
+	rect, hasClip := activeClipZones[sur]
+	if hasClip {
+		rl.BeginScissorMode(int32(rect.X), int32(rect.Y), int32(rect.Width), int32(rect.Height))
+		defer rl.EndScissorMode()
+	}
 
 	grabColor := func(idx uint8) color.RGBA {
 		clr := ttmPalette[idx&0x0f]
@@ -593,6 +636,12 @@ func grDrawSprite(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, sprite
 	rl.BeginTextureMode(*sur)
 	defer rl.EndTextureMode()
 
+	rect, hasClip := activeClipZones[sur]
+	if hasClip {
+		rl.BeginScissorMode(int32(rect.X), int32(rect.Y), int32(rect.Width), int32(rect.Height))
+		defer rl.EndScissorMode()
+	}
+
 	// NOTE: this clears the layer, and only the instruction-set should clear it when it deems necessary.
 	//rl.ClearBackground(rl.Blank)
 
@@ -627,6 +676,12 @@ func grDrawSpriteFlip(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, sp
 	rl.BeginTextureMode(*sur)
 	defer rl.EndTextureMode()
 
+	rect, hasClip := activeClipZones[sur]
+	if hasClip {
+		rl.BeginScissorMode(int32(rect.X), int32(rect.Y), int32(rect.Width), int32(rect.Height))
+		defer rl.EndScissorMode()
+	}
+
 	// NOTE: this clears the layer, and only the instruction-set should clear it when it deems necessary.
 	//rl.ClearBackground(rl.Blank)
 
@@ -647,6 +702,11 @@ func grDrawSpriteFlip(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, sp
 }
 
 func grClearScreen(sur *rl.RenderTexture2D) {
+	// NOTE: The clip zone is intentionally NOT cleared here. The original game
+	// sets a clip zone once with SET_CLIP_ZONE and expects it to persist across
+	// many subsequent CLEAR_SCREEN/DRAW_SPRITE/UPDATE cycles. Only a new
+	// SET_CLIP_ZONE call (with full-screen coords) resets the clip zone.
+
 	// NOTE: original game colors the key color, but when it renders does it show up? I doubt it.
 	//keyKnockoutColor := color.RGBA{R: 0xa8, G: 0x00, B: 0xa8, A: 0xff}
 	//keyKnockoutColor := color.RGBA{R: 0x00, G: 0x00, B: 0x00, A: 0x00}

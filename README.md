@@ -13,6 +13,7 @@ Here are the enhancements and fixes implemented in this version:
 ### 🖥️ Windows Screensaver & Lifecycle
 * **Options Dialog (`/c`)**: Implemented a Raylib-based screensaver configuration window (400x380) for setting options (Sound, Load Background, Password Protection, Software OpenGL, and "Start of Day" time setting). Preferences are saved persistently to `%USERPROFILE%\.johnny_castaway_2026`.
 * **Quiet Preview Mode (`/p`)**: Handled screensaver preview calls by exiting cleanly and quietly.
+* **Test Mode (`/t` or `-t`)**: Added a test mode that runs key scene sequences (`ACTIVITY.ADS` tag 4 tree climb/dive and `JOHNNY.ADS` tag 3 water return) sequentially on loop, allowing developers to debug animations and behaviors in isolation.
 * **Graceful Exit & Display/HDR Cleanup**: Replaced direct hard-kills (`os.Exit`) with state-controlled cleanup flags. This ensures proper teardown, cleanly restoring desktop resolution and HDR display states on exit.
 * **Console Window Management**: Hides the background console window when launching the application as a screensaver.
 * **Window Flags Cleanup**: Removed unnecessary topmost window flag (`FlagWindowTopmost`) and added resizable flag (`FlagWindowResizable`) to allow proper Windows focus, screensaver lifecycle handling, and window minimization.
@@ -21,6 +22,7 @@ Here are the enhancements and fixes implemented in this version:
 * **Multi-Monitor Spanning**: Automatically detects and spans the screensaver window across all connected displays. Renders a separate, correctly letterboxed (4:3) copy of the scene centered on each monitor individually, with matching monitor-bound circular iris transitions.
 * **Widescreen Canvas Scaling**: Implemented letterbox and pillarbox centering of the virtual 4:3 viewport on widescreen resolutions. Clears unused margins to solid black, keeping the scene layout correct.
 * **Composed Circular Iris Transitions**: Uses a dedicated global RenderTexture `grFinalRenderSur` to freeze the final frame buffer during `grFadeOut`. This prevents Johnny and other sprite layers from abruptly vanishing during transitions, and increases fade transition speeds to a smooth 30 FPS.
+* **Scissor-Clipping & Coordinate System**: Fixed coordinate evaluation in `grSetClipZone` to treat arguments as absolute bounding box coordinates `(x1, y1) -> (x2, y2)`. Resolved coordinate conversion discrepancy by feeding raw coordinates directly to Raylib's `BeginScissorMode`, which internally handles OpenGL's vertical y-axis flipping. Ensured clip zones persist across `grClearScreen` invocations until explicitly overwritten or reset.
 * **Coordinate & Scale Fixes**:
   * Corrected background zone copying coordinates and orientation inside `grCopyZoneToBg`.
   * Corrected coconut scale inside bounding boxes in `grDrawCircle`.
