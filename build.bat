@@ -9,7 +9,8 @@ if %ERRORLEVEL% NEQ 0 set "PATH=C:\Program Files\Go\bin;%PATH%"
 set "PATH=D:\Tools\w64devkit-1.22.0\bin;%PATH%"
 
 echo [1/3] Building...
-go build -ldflags "-H windowsgui" -o JohnnyCastaway.exe .
+for /f "usebackq tokens=*" %%a in (`powershell -Command "Get-Date -Format 'yyyy-MM-dd HH:mm:ss'"`) do set BUILD_TIME=%%a
+go build -ldflags "-H windowsgui -X 'main.buildTime=%BUILD_TIME%'" -o JohnnyCastaway.exe .
 if %ERRORLEVEL% NEQ 0 (
     echo BUILD FAILED
     pause

@@ -24,6 +24,7 @@ var (
 	fadeInVal         = float32(255.0)
 	runOnMonitorIndex int
 	hasMonitorIndex   bool
+	buildTime         = "Developer Build"
 )
 
 func formatStartTime(val int) string {
@@ -66,7 +67,8 @@ func adjustStartTime(val int, up bool) int {
 }
 
 func runOptionsWindow() {
-	rl.InitWindow(400, 430, "ScreenAntics - Setup")
+	rl.SetConfigFlags(rl.FlagWindowHighdpi)
+	rl.InitWindow(600, 500, "ScreenAntics - Setup")
 	defer rl.CloseWindow()
 	rl.SetTargetFPS(60)
 
@@ -83,7 +85,20 @@ func runOptionsWindow() {
 	// Load Windows native fonts for gorgeous anti-aliased text
 	var font rl.Font
 	fontLoaded := false
-	for _, fontPath := range []string{"C:\\Windows\\Fonts\\segoeui.ttf", "C:\\Windows\\Fonts\\arial.ttf"} {
+	winDir := os.Getenv("SystemRoot")
+	if winDir == "" {
+		winDir = os.Getenv("windir")
+	}
+	if winDir == "" {
+		winDir = "C:\\Windows"
+	}
+	fontPaths := []string{
+		winDir + "\\Fonts\\segoeui.ttf",
+		winDir + "\\Fonts\\arial.ttf",
+		"C:\\Windows\\Fonts\\segoeui.ttf",
+		"C:\\Windows\\Fonts\\arial.ttf",
+	}
+	for _, fontPath := range fontPaths {
 		if _, err := os.Stat(fontPath); err == nil {
 			font = rl.LoadFontEx(fontPath, 36, nil, 0)
 			fontLoaded = true
@@ -112,8 +127,8 @@ func runOptionsWindow() {
 		rl.ClearBackground(rl.GetColor(0xf0f0f0ff)) // Standard Win32 light gray background
 
 		// Groupbox "Setup"
-		rl.DrawRectangleLines(15, 15, 370, 340, rl.Gray)
-		rl.DrawRectangle(25, 5, 55, 20, rl.GetColor(0xf0f0f0ff))
+		rl.DrawRectangleLines(15, 15, 570, 340, rl.Gray)
+		rl.DrawRectangle(25, 5, 65, 20, rl.GetColor(0xf0f0f0ff))
 		drawText("Setup", 30, 6, 16, rl.Black)
 
 		// Start of Day Option
@@ -122,7 +137,7 @@ func runOptionsWindow() {
 		// Time display box
 		rl.DrawRectangle(140, 40, 110, 26, rl.White)
 		rl.DrawRectangleLines(140, 40, 110, 26, rl.Gray)
-		drawText(formatStartTime(startTime), 148, 44, 15, rl.Black)
+		drawText(formatStartTime(startTime), 148, 44, 16, rl.Black)
 
 		// Time Up/Down Arrow buttons
 		// Up button
@@ -136,7 +151,7 @@ func runOptionsWindow() {
 		}
 		rl.DrawRectangle(255, 40, 20, 12, upCol)
 		rl.DrawRectangleLines(255, 40, 20, 12, rl.Gray)
-		drawText("▲", 260, 41, 10, rl.Black)
+		drawText("^", 260, 43, 14, rl.Black)
 
 		// Down button
 		downHover := mousePos.X >= 255 && mousePos.X <= 275 && mousePos.Y >= 54 && mousePos.Y <= 66
@@ -149,10 +164,10 @@ func runOptionsWindow() {
 		}
 		rl.DrawRectangle(255, 54, 20, 12, downCol)
 		rl.DrawRectangleLines(255, 54, 20, 12, rl.Gray)
-		drawText("▼", 260, 54, 10, rl.Black)
+		drawText("v", 261, 51, 12, rl.Black)
 
 		// Load Background Checkbox
-		bgHover := mousePos.X >= 30 && mousePos.X <= 350 && mousePos.Y >= 90 && mousePos.Y <= 120
+		bgHover := mousePos.X >= 30 && mousePos.X <= 550 && mousePos.Y >= 90 && mousePos.Y <= 120
 		rl.DrawRectangle(30, 95, 18, 18, rl.White)
 		rl.DrawRectangleLines(30, 95, 18, 18, rl.Gray)
 		if background {
@@ -164,7 +179,7 @@ func runOptionsWindow() {
 		}
 
 		// Password Checkbox
-		passHover := mousePos.X >= 30 && mousePos.X <= 350 && mousePos.Y >= 140 && mousePos.Y <= 170
+		passHover := mousePos.X >= 30 && mousePos.X <= 550 && mousePos.Y >= 140 && mousePos.Y <= 170
 		rl.DrawRectangle(30, 145, 18, 18, rl.White)
 		rl.DrawRectangleLines(30, 145, 18, 18, rl.Gray)
 		if password {
@@ -176,7 +191,7 @@ func runOptionsWindow() {
 		}
 
 		// Sounds Checkbox
-		sndHover := mousePos.X >= 30 && mousePos.X <= 350 && mousePos.Y >= 190 && mousePos.Y <= 220
+		sndHover := mousePos.X >= 30 && mousePos.X <= 550 && mousePos.Y >= 190 && mousePos.Y <= 220
 		rl.DrawRectangle(30, 195, 18, 18, rl.White)
 		rl.DrawRectangleLines(30, 195, 18, 18, rl.Gray)
 		if sounds {
@@ -188,7 +203,7 @@ func runOptionsWindow() {
 		}
 
 		// Software OpenGL Checkbox
-		swHover := mousePos.X >= 30 && mousePos.X <= 350 && mousePos.Y >= 240 && mousePos.Y <= 270
+		swHover := mousePos.X >= 30 && mousePos.X <= 550 && mousePos.Y >= 240 && mousePos.Y <= 270
 		rl.DrawRectangle(30, 245, 18, 18, rl.White)
 		rl.DrawRectangleLines(30, 245, 18, 18, rl.Gray)
 		if useMesa {
@@ -200,7 +215,7 @@ func runOptionsWindow() {
 		}
 
 		// Independent instances checkbox
-		miHover := mousePos.X >= 30 && mousePos.X <= 350 && mousePos.Y >= 290 && mousePos.Y <= 320
+		miHover := mousePos.X >= 30 && mousePos.X <= 550 && mousePos.Y >= 290 && mousePos.Y <= 320
 		rl.DrawRectangle(30, 295, 18, 18, rl.White)
 		rl.DrawRectangleLines(30, 295, 18, 18, rl.Gray)
 		if multiInstance {
@@ -211,8 +226,34 @@ func runOptionsWindow() {
 			multiInstance = !multiInstance
 		}
 
+		// Skooter Blog branding link
+		brandText := "Visite o Skooter Blog: www.skooterblog.com"
+		brandSize := float32(16)
+		brandWidth := measureText(brandText, brandSize)
+		brandX := int32((600 - brandWidth) / 2)
+		brandY := int32(375)
+
+		brandHover := mousePos.X >= float32(brandX) && mousePos.X <= float32(brandX)+brandWidth &&
+			mousePos.Y >= float32(brandY-4) && mousePos.Y <= float32(brandY+18)
+
+		brandCol := rl.GetColor(0x555555ff)
+		if brandHover {
+			brandCol = rl.GetColor(0x0066ccff)
+			rl.SetMouseCursor(rl.MouseCursorPointingHand)
+			if click {
+				openURL("https://www.skooterblog.com/")
+			}
+		} else {
+			rl.SetMouseCursor(rl.MouseCursorDefault)
+		}
+
+		drawText(brandText, brandX, brandY, brandSize, brandCol)
+		if brandHover {
+			rl.DrawLine(brandX, brandY+15, brandX+int32(brandWidth), brandY+15, brandCol)
+		}
+
 		// OK Button
-		okHover := mousePos.X >= 80 && mousePos.X <= 180 && mousePos.Y >= 370 && mousePos.Y <= 410
+		okHover := mousePos.X >= 180 && mousePos.X <= 280 && mousePos.Y >= 410 && mousePos.Y <= 450
 		okCol := rl.GetColor(0xe1e1e1ff)
 		if okHover {
 			okCol = rl.GetColor(0xd1d1d1ff)
@@ -227,12 +268,12 @@ func runOptionsWindow() {
 				break
 			}
 		}
-		rl.DrawRectangle(80, 370, 100, 40, okCol)
-		rl.DrawRectangleLines(80, 370, 100, 40, rl.Gray)
-		drawText("OK", 118, 379, 16, rl.Black)
+		rl.DrawRectangle(180, 410, 100, 40, okCol)
+		rl.DrawRectangleLines(180, 410, 100, 40, rl.Gray)
+		drawText("OK", 218, 419, 16, rl.Black)
 
 		// Cancel Button
-		cancelHover := mousePos.X >= 220 && mousePos.X <= 320 && mousePos.Y >= 370 && mousePos.Y <= 410
+		cancelHover := mousePos.X >= 320 && mousePos.X <= 420 && mousePos.Y >= 410 && mousePos.Y <= 450
 		cancelCol := rl.GetColor(0xe1e1e1ff)
 		if cancelHover {
 			cancelCol = rl.GetColor(0xd1d1d1ff)
@@ -240,10 +281,17 @@ func runOptionsWindow() {
 				break
 			}
 		}
-		rl.DrawRectangle(220, 370, 100, 40, cancelCol)
-		rl.DrawRectangleLines(220, 370, 100, 40, rl.Gray)
-		drawText("Cancel", 246, 379, 16, rl.Black)
+		rl.DrawRectangle(320, 410, 100, 40, cancelCol)
+		rl.DrawRectangleLines(320, 410, 100, 40, rl.Gray)
+		drawText("Cancel", 342, 419, 16, rl.Black)
 
+		// Build Time stamp
+		buildText := "Build: " + buildTime
+		buildSize := float32(14)
+		buildWidth := measureText(buildText, buildSize)
+		buildX := int32((600 - buildWidth) / 2)
+		buildY := int32(465)
+		drawText(buildText, buildX, buildY, buildSize, rl.GetColor(0x444444ff))
 		rl.EndDrawing()
 	}
 }
