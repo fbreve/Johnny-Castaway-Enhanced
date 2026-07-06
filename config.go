@@ -19,24 +19,26 @@ var (
 )
 
 type TConfig struct {
-	CurrentDay  int
-	CurrentDate int
-	Background  bool
-	Sounds      bool
-	Password    bool
-	StartTime   int
-	UseMesa     bool
+	CurrentDay    int
+	CurrentDate   int
+	Background    bool
+	Sounds        bool
+	Password      bool
+	StartTime     int
+	UseMesa       bool
+	MultiInstance bool
 }
 
 const (
-	CfgFileName   = ".johnny_castaway_2026"
-	CurrentDayKey = "currentDay="
-	DateKey       = "date="
-	BackgroundKey = "background="
-	SoundsKey     = "sounds="
-	PasswordKey   = "password="
-	StartTimeKey  = "startTime="
-	UseMesaKey    = "useMesa="
+	CfgFileName      = ".johnny_castaway_2026"
+	CurrentDayKey    = "currentDay="
+	DateKey          = "date="
+	BackgroundKey    = "background="
+	SoundsKey        = "sounds="
+	PasswordKey      = "password="
+	StartTimeKey     = "startTime="
+	UseMesaKey       = "useMesa="
+	MultiInstanceKey = "multiInstance="
 )
 
 func cfgFullPath() string {
@@ -69,6 +71,7 @@ func cfgFileWrite(cfg *TConfig) {
 	_, _ = fmt.Fprintf(f, "%s%t\n", PasswordKey, cfg.Password)
 	_, _ = fmt.Fprintf(f, "%s%d\n", StartTimeKey, cfg.StartTime)
 	_, _ = fmt.Fprintf(f, "%s%t\n", UseMesaKey, cfg.UseMesa)
+	_, _ = fmt.Fprintf(f, "%s%t\n", MultiInstanceKey, cfg.MultiInstance)
 }
 
 func cfgFileRead(cfg *TConfig) {
@@ -81,6 +84,7 @@ func cfgFileRead(cfg *TConfig) {
 	cfg.Password = false
 	cfg.StartTime = 900
 	cfg.UseMesa = false
+	cfg.MultiInstance = false
 
 	f, err := os.Open(cfgFullPath())
 	if err != nil {
@@ -121,6 +125,8 @@ func cfgFileRead(cfg *TConfig) {
 			}
 		} else if strings.HasPrefix(line, UseMesaKey) {
 			cfg.UseMesa = line[len(UseMesaKey):] == "true"
+		} else if strings.HasPrefix(line, MultiInstanceKey) {
+			cfg.MultiInstance = line[len(MultiInstanceKey):] == "true"
 		}
 	}
 

@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
+	"sync"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
@@ -19,7 +21,9 @@ const (
 )
 
 var (
-	fadeInVal   = float32(255.0)
+	fadeInVal         = float32(255.0)
+	runOnMonitorIndex int
+	hasMonitorIndex   bool
 )
 
 func formatStartTime(val int) string {
@@ -62,7 +66,7 @@ func adjustStartTime(val int, up bool) int {
 }
 
 func runOptionsWindow() {
-	rl.InitWindow(400, 380, "ScreenAntics - Setup")
+	rl.InitWindow(400, 430, "ScreenAntics - Setup")
 	defer rl.CloseWindow()
 	rl.SetTargetFPS(60)
 
@@ -74,6 +78,7 @@ func runOptionsWindow() {
 	password := config.Password
 	startTime := config.StartTime
 	useMesa := config.UseMesa
+	multiInstance := config.MultiInstance
 
 	// Load Windows native fonts for gorgeous anti-aliased text
 	var font rl.Font
@@ -107,7 +112,7 @@ func runOptionsWindow() {
 		rl.ClearBackground(rl.GetColor(0xf0f0f0ff)) // Standard Win32 light gray background
 
 		// Groupbox "Setup"
-		rl.DrawRectangleLines(15, 15, 370, 290, rl.Gray)
+		rl.DrawRectangleLines(15, 15, 370, 340, rl.Gray)
 		rl.DrawRectangle(25, 5, 55, 20, rl.GetColor(0xf0f0f0ff))
 		drawText("Setup", 30, 6, 16, rl.Black)
 
@@ -194,8 +199,20 @@ func runOptionsWindow() {
 			useMesa = !useMesa
 		}
 
+		// Independent instances checkbox
+		miHover := mousePos.X >= 30 && mousePos.X <= 350 && mousePos.Y >= 290 && mousePos.Y <= 320
+		rl.DrawRectangle(30, 295, 18, 18, rl.White)
+		rl.DrawRectangleLines(30, 295, 18, 18, rl.Gray)
+		if multiInstance {
+			rl.DrawRectangle(34, 299, 10, 10, rl.GetColor(0x0078d7ff))
+		}
+		drawText("Independent instances per monitor", 60, 296, 16, rl.Black)
+		if miHover && click {
+			multiInstance = !multiInstance
+		}
+
 		// OK Button
-		okHover := mousePos.X >= 80 && mousePos.X <= 180 && mousePos.Y >= 320 && mousePos.Y <= 360
+		okHover := mousePos.X >= 80 && mousePos.X <= 180 && mousePos.Y >= 370 && mousePos.Y <= 410
 		okCol := rl.GetColor(0xe1e1e1ff)
 		if okHover {
 			okCol = rl.GetColor(0xd1d1d1ff)
@@ -205,16 +222,17 @@ func runOptionsWindow() {
 				config.Password = password
 				config.StartTime = startTime
 				config.UseMesa = useMesa
+				config.MultiInstance = multiInstance
 				cfgFileWrite(&config)
 				break
 			}
 		}
-		rl.DrawRectangle(80, 320, 100, 40, okCol)
-		rl.DrawRectangleLines(80, 320, 100, 40, rl.Gray)
-		drawText("OK", 118, 329, 16, rl.Black)
+		rl.DrawRectangle(80, 370, 100, 40, okCol)
+		rl.DrawRectangleLines(80, 370, 100, 40, rl.Gray)
+		drawText("OK", 118, 379, 16, rl.Black)
 
 		// Cancel Button
-		cancelHover := mousePos.X >= 220 && mousePos.X <= 320 && mousePos.Y >= 320 && mousePos.Y <= 360
+		cancelHover := mousePos.X >= 220 && mousePos.X <= 320 && mousePos.Y >= 370 && mousePos.Y <= 410
 		cancelCol := rl.GetColor(0xe1e1e1ff)
 		if cancelHover {
 			cancelCol = rl.GetColor(0xd1d1d1ff)
@@ -222,9 +240,9 @@ func runOptionsWindow() {
 				break
 			}
 		}
-		rl.DrawRectangle(220, 320, 100, 40, cancelCol)
-		rl.DrawRectangleLines(220, 320, 100, 40, rl.Gray)
-		drawText("Cancel", 246, 329, 16, rl.Black)
+		rl.DrawRectangle(220, 370, 100, 40, cancelCol)
+		rl.DrawRectangleLines(220, 370, 100, 40, rl.Gray)
+		drawText("Cancel", 246, 379, 16, rl.Black)
 
 		rl.EndDrawing()
 	}
@@ -254,6 +272,11 @@ func main() {
 			if i+2 < len(os.Args) {
 				fmt.Sscanf(os.Args[i+2], "%d", &testTagNo)
 			}
+		} else if strings.HasPrefix(argLower, "/m") || strings.HasPrefix(argLower, "-m") {
+			if i+1 < len(os.Args) {
+				fmt.Sscanf(os.Args[i+1], "%d", &runOnMonitorIndex)
+				hasMonitorIndex = true
+			}
 		}
 	}
 
@@ -282,6 +305,9 @@ func main() {
 
 func setupApp() {
 	cfgFileRead(&activeConfig)
+	if hasMonitorIndex && runOnMonitorIndex != 0 {
+		activeConfig.Sounds = false
+	}
 	// Enable 4x MSAA for smoother, anti-aliased graphics
 	rl.SetConfigFlags(rl.FlagMsaa4xHint)
 	// Initialize with default standard window flags to ensure 100% OpenGL context creation compatibility on all hardware/drivers.
@@ -339,6 +365,56 @@ func doFadeIn() {
 }
 
 func runStory() {
+	var config TConfig
+	cfgFileRead(&config)
+
+	if config.MultiInstance && !hasMonitorIndex {
+		// Initialize a tiny hidden window to query monitors
+		rl.SetConfigFlags(rl.FlagWindowHidden)
+		rl.InitWindow(1, 1, "Johnny Parent")
+		monitorCount := rl.GetMonitorCount()
+		rl.CloseWindow()
+
+		if monitorCount > 1 {
+			// Spawn child processes for each monitor
+			var wg sync.WaitGroup
+			cmds := make([]*exec.Cmd, monitorCount)
+			shouldExitChan := make(chan struct{}, monitorCount)
+
+			for i := 0; i < monitorCount; i++ {
+				args := []string{"-s", "-m", fmt.Sprintf("%d", i)}
+				cmd := exec.Command(os.Args[0], args...)
+				cmds[i] = cmd
+
+				wg.Add(1)
+				go func(index int, c *exec.Cmd) {
+					defer wg.Done()
+					err := c.Run()
+					if err != nil {
+						fmt.Printf("Instance %d exited: %v\n", index, err)
+					}
+					select {
+					case shouldExitChan <- struct{}{}:
+					default:
+					}
+				}(i, cmd)
+			}
+
+			// Wait for any child process to exit
+			<-shouldExitChan
+
+			// Terminate all other child processes
+			for _, c := range cmds {
+				if c != nil && c.Process != nil {
+					_ = c.Process.Kill()
+				}
+			}
+
+			wg.Wait()
+			return
+		}
+	}
+
 	setupApp()
 	defer rl.CloseWindow()
 	defer rl.CloseAudioDevice()

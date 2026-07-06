@@ -27,6 +27,19 @@ var monitorRects []TMonitorRect
 // full-window rectangle), so this is always safe to call instead of the
 // old single-monitor sizing code, not just an opt-in extra mode.
 func setupMonitors() {
+	if hasMonitorIndex {
+		pos := rl.GetMonitorPosition(runOnMonitorIndex)
+		w := float32(rl.GetMonitorWidth(runOnMonitorIndex))
+		h := float32(rl.GetMonitorHeight(runOnMonitorIndex))
+		if w <= 0 || h <= 0 {
+			w, h = 1920, 1080
+		}
+		rl.SetWindowSize(int(w), int(h))
+		rl.SetWindowPosition(int(pos.X), int(pos.Y))
+		monitorRects = []TMonitorRect{{X: 0, Y: 0, W: w, H: h}}
+		return
+	}
+
 	count := rl.GetMonitorCount()
 	if count < 1 {
 		count = 1
