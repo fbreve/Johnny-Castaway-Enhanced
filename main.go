@@ -11,6 +11,11 @@ import (
 const (
 	screenWidth  = 640
 	screenHeight = 480
+
+	// The game's logical scene coordinate space. Scripts use 0–639 × 0–349.
+	// The bottom 130 rows of the 480-tall window are unused by game content.
+	gameWidth  = 640
+	gameHeight = 350
 )
 
 var (
@@ -230,8 +235,10 @@ func main() {
 	var isPreview = false
 	var isRun = false
 	var isTest = false
+	var testAdsName = ""
+	var testTagNo = 0
 
-	for _, arg := range os.Args {
+	for i, arg := range os.Args {
 		argLower := strings.ToLower(arg)
 		if strings.HasPrefix(argLower, "/c") || strings.HasPrefix(argLower, "-c") {
 			isSettings = true
@@ -241,6 +248,12 @@ func main() {
 			isRun = true
 		} else if strings.HasPrefix(argLower, "/t") || strings.HasPrefix(argLower, "-t") {
 			isTest = true
+			if i+1 < len(os.Args) {
+				testAdsName = os.Args[i+1]
+			}
+			if i+2 < len(os.Args) {
+				fmt.Sscanf(os.Args[i+2], "%d", &testTagNo)
+			}
 		}
 	}
 
@@ -258,7 +271,7 @@ func main() {
 		os.Exit(0)
 	}
 	if isTest {
-		runTestMode()
+		runTestMode(testAdsName, testTagNo)
 		os.Exit(0)
 	}
 	if isRun {
@@ -344,7 +357,7 @@ func singleTTM() {
 	}
 }
 
-func runTestMode() {
+func runTestMode(testAdsName string, testTagNo int) {
 	setupApp()
 	defer rl.CloseWindow()
 	defer rl.CloseAudioDevice()
@@ -357,13 +370,24 @@ func runTestMode() {
 	islandState.lowTide = 1 // Ensure low tide so they match the walk paths
 	adsInitIsland()
 
-	for !shouldExitApp {
-		// Play tree climb and dive (ACTIVITY.ADS tag 4)
-		adsPlay("ACTIVITY.ADS", 4)
-		if shouldExitApp {
-			break
+	if testAdsName != "" && testTagNo > 0 {
+		testAdsName = strings.ToUpper(testAdsName)
+		if !strings.HasSuffix(testAdsName, ".ADS") {
+			testAdsName += ".ADS"
 		}
-		// Play water return (JOHNNY.ADS tag 3)
-		adsPlay("JOHNNY.ADS", 3)
+		fmt.Printf("Running custom test mode for scene: %s tag %d\n", testAdsName, testTagNo)
+		for !shouldExitApp {
+			adsPlay(testAdsName, uint16(testTagNo))
+		}
+	} else {
+		for !shouldExitApp {
+			// Play tree climb and dive (ACTIVITY.ADS tag 4)
+			adsPlay("ACTIVITY.ADS", 4)
+			if shouldExitApp {
+				break
+			}
+			// Play water return (JOHNNY.ADS tag 3)
+			adsPlay("JOHNNY.ADS", 3)
+		}
 	}
 }

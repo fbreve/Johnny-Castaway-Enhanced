@@ -45,6 +45,10 @@ var (
 	grUpdateDelay     int = 0
 	grBackgroundSur   *rl.RenderTexture2D
 	grSavedZonesLayer *rl.RenderTexture2D
+
+	// r.c. debug instrumentation - tracks nil transitions of grSavedZonesLayer
+	// for logging in grUpdateDisplay
+	lastSavedZonesLayerWasNil = true
 	grFinalRenderSur  *rl.RenderTexture2D
 )
 
@@ -85,6 +89,62 @@ type TTtmThread struct {
 	fgColor         uint8
 	bgColor         uint8
 	ttmLayer        *rl.RenderTexture2D
+
+	// r.c. - tracks the bounding span of all DRAW_SPRITE/DRAW_SPRITE_FLIP
+	// positions issued on this thread during its lifetime. Used to decide,
+	// on STOP_SCENE, whether this thread was a stationary decoration (e.g.
+	// a sandcastle or an anchored ship - worth freezing into the persistent
+	// background) versus a moving actor (Johnny, planes, a sailor walking -
+	// should just vanish, not leave a ghost behind).
+	moveTracked bool
+	moveMinX    int16
+	moveMaxX    int16
+	moveMinY    int16
+	moveMaxY    int16
+	drawCount   int
+
+	// r.c. - tracks the most recent DRAW_SPRITE/DRAW_SPRITE_FLIP call on
+	// this thread. COPY_ZONE_TO_BG is used by original scripts almost
+	// always as "freeze the sprite I just drew" (drawn onto ttmLayer, then
+	// immediately copied out to the persistent background in the same
+	// tick). Reading ttmLayer back as a texture immediately after
+	// rendering to it has proven unreliable in testing (confirmed via
+	// repeated screenshots), while every other approach that draws the
+	// original sprite texture directly works correctly. So when the
+	// COPY_ZONE_TO_BG rect matches this last draw, redraw the sprite
+	// directly instead of reading ttmLayer back.
+	hasLastDraw      bool
+	lastDrawX        int16
+	lastDrawY        int16
+	lastDrawW        int32
+	lastDrawH        int32
+	lastDrawSpriteNo uint16
+	lastDrawImageNo  uint16
+	lastDrawFlipped  bool
+
+	// r.c. - some animations settle into a final position and then cycle
+	// between a few frames there (e.g. the ship: a one-time "sails
+	// catching wind" frame on arrival, then loops on a "sails full" idle
+	// frame forever after). Neither "first sprite ever drawn" (could be
+	// mid-transit, off-screen) nor "last sprite drawn" (could be the
+	// common loop frame, not the correct at-rest look) is reliable. So we
+	// track, scoped to whatever position the thread is CURRENTLY holding
+	// steady at, which distinct sprites have been drawn there and how
+	// often - resetting whenever the position actually changes. The rarest
+	// sprite at the final settled position is what we want.
+	settledX          int16
+	settledY          int16
+	settledEntries     [maxSettledEntries]settledSpriteEntry
+	settledEntryCount int
+}
+
+const maxSettledEntries = 8
+
+type settledSpriteEntry struct {
+	spriteNo uint16
+	imageNo  uint16
+	flipped  bool
+	count    int
 }
 
 func grReleaseScreen() {
@@ -92,6 +152,7 @@ func grReleaseScreen() {
 }
 
 func grReleaseSavedLayer() {
+	debugPrintln("*** SAVED ZONES LAYER RELEASED ***")
 	grSavedZonesLayer = nil
 }
 
@@ -266,13 +327,74 @@ func grUpdateDisplay(
 			}
 
 			// Blit the saved zones layer
+			if (grSavedZonesLayer == nil) != lastSavedZonesLayerWasNil {
+				lastSavedZonesLayerWasNil = grSavedZonesLayer == nil
+				debugPrintf("*** SAVED ZONES LAYER composite state changed: nil=%v ***\n", lastSavedZonesLayerWasNil)
+			}
 			drawTextureToFinal(grSavedZonesLayer, ModeFlipped)
 
-			// Blit each threads layer
+			// Blit each thread's layer.
+			//
+			// r.c. - Normally this is a simple array-index pass. But when
+			// Johnny (identified explicitly via isJohnnyThread) is present
+			// alongside other active threads (planes circling him), the
+			// original game shows planes passing BEHIND Johnny when flying
+			// right-to-left and IN FRONT when flying left-to-right - a depth
+			// cue for orbiting around a fixed point. DRAW_SPRITE_FLIP
+			// correlates exactly with right-to-left motion in this data.
+			// Plain array-index order can't express "some threads behind,
+			// some in front of a specific other thread", so when Johnny
+			// is present, split into three passes: flipped/moving-left (right-
+			// to-left) threads first (behind), all Johnny threads (middle),
+			// then non-flipped/moving-right (left-to-right) threads last (in front).
+			//
+			// Movement-based heuristics (tight bounding box, relative span
+			// comparison) were tried and both failed: Johnny still moves
+			// somewhat while animating (fighting the planes), and other
+			// unrelated threads (e.g. the anchored ship, also motionless)
+			// kept getting misidentified as "Johnny" instead. Explicit
+			// identity, confirmed from the disassembly/logs, is reliable
+			// where behavioral inference wasn't.
+			johnnyIdx := -1
 			for i := 0; i < MaxTTMThreads; i++ {
-				if ttmThreads[i].isRunning != 0 {
-					txt := ttmThreads[i].ttmLayer
-					drawTextureToFinal(txt, ModeFlipped)
+				if ttmThreads[i].isRunning != 0 && isJohnnyThread(ttmThreads[i].sceneSlot, ttmThreads[i].sceneTag) {
+					johnnyIdx = i
+					break
+				}
+			}
+			{
+				activeSummary := ""
+				for i := 0; i < MaxTTMThreads; i++ {
+					if ttmThreads[i].isRunning != 0 {
+						activeSummary += fmt.Sprintf("[#%d slot=%d tag=%d flip=%v] ", i, ttmThreads[i].sceneSlot, ttmThreads[i].sceneTag, ttmThreads[i].lastDrawFlipped)
+					}
+				}
+				if activeSummary != "" {
+					debugPrintf("*** compositing: johnnyIdx=%d active=%s***\n", johnnyIdx, activeSummary)
+				}
+			}
+
+			if johnnyIdx >= 0 {
+				for i := 0; i < MaxTTMThreads; i++ {
+					if ttmThreads[i].isRunning != 0 && !isJohnnyThread(ttmThreads[i].sceneSlot, ttmThreads[i].sceneTag) && ttmThreads[i].lastDrawFlipped {
+						drawTextureToFinal(ttmThreads[i].ttmLayer, ModeFlipped)
+					}
+				}
+				for i := 0; i < MaxTTMThreads; i++ {
+					if ttmThreads[i].isRunning != 0 && isJohnnyThread(ttmThreads[i].sceneSlot, ttmThreads[i].sceneTag) {
+						drawTextureToFinal(ttmThreads[i].ttmLayer, ModeFlipped)
+					}
+				}
+				for i := 0; i < MaxTTMThreads; i++ {
+					if ttmThreads[i].isRunning != 0 && !isJohnnyThread(ttmThreads[i].sceneSlot, ttmThreads[i].sceneTag) && !ttmThreads[i].lastDrawFlipped {
+						drawTextureToFinal(ttmThreads[i].ttmLayer, ModeFlipped)
+					}
+				}
+			} else {
+				for i := 0; i < MaxTTMThreads; i++ {
+					if ttmThreads[i].isRunning != 0 {
+						drawTextureToFinal(ttmThreads[i].ttmLayer, ModeFlipped)
+					}
 				}
 			}
 
@@ -402,6 +524,7 @@ func grNewLayer() *rl.RenderTexture2D {
 }
 
 func grFreeLayer(sur *rl.RenderTexture2D) {
+	delete(activeClipZones, sur)
 	rl.UnloadRenderTexture(*sur)
 }
 
@@ -410,6 +533,17 @@ func grSetClipZone(sur *rl.RenderTexture2D, x1, y1, x2, y2 int16) {
 	// corners of the clip rectangle. The dump disassembler labels arg3/arg4 as
 	// "w" and "h" but they are really x2 and y2.
 	// Example: SET_CLIP_ZONE x=423 y=148 w=500 h=349 → rect (423,148)→(500,349).
+	//
+	// The "full screen" reset convention (0,0,639,479) is expressed by scripts
+	// in their own unshifted 640x480 coordinate space, so that check MUST be
+	// done on the raw args, before grDx/grDy (the island's randomized on-screen
+	// position for VARPOS_OK scenes, e.g. BUILDING.ADS) are applied below.
+	// Checking it post-offset meant x1<=0 could never be true again once grDx
+	// was non-zero, so a real reset call was mistaken for a partial clip zone
+	// and stuck around, scissoring away anything drawn outside it afterwards
+	// (e.g. later stages of the BUILDING.ADS tag 2 sandcastle animation).
+	isFullScreenReset := x1 <= 0 && y1 <= 0 && x2 >= int16(screenWidth-1) && y2 >= int16(screenHeight-1)
+
 	x1 += int16(grDx)
 	y1 += int16(grDy)
 	x2 += int16(grDx)
@@ -426,7 +560,7 @@ func grSetClipZone(sur *rl.RenderTexture2D, x1, y1, x2, y2 int16) {
 	// Reset clip only when the zone spans the full screen. Some scripts (e.g.
 	// MJDIVE tag 2) intentionally use 0,0,639,279 to clip to the upper area;
 	// treating any x2>=639 as full-screen wrongly disables that clip.
-	if x1 <= 0 && y1 <= 0 && x2 >= int16(screenWidth-1) && y2 >= int16(screenHeight-1) {
+	if isFullScreenReset {
 		delete(activeClipZones, sur)
 		return
 	}
@@ -437,6 +571,169 @@ func grSetClipZone(sur *rl.RenderTexture2D, x1, y1, x2, y2 int16) {
 	activeClipZones[sur] = rl.NewRectangle(float32(x1), float32(y1), float32(w), float32(h))
 }
 
+func grFreezeLayerToBg(sur *rl.RenderTexture2D) {
+	debugPrintf("*** FREEZE LAYER TO BG: surface=%p ***\n", sur)
+	if grSavedZonesLayer == nil {
+		grSavedZonesLayer = grNewLayer()
+	}
+
+	rl.BeginTextureMode(*grSavedZonesLayer)
+	defer rl.EndTextureMode()
+
+	// Full-canvas copy, no vertical flip needed here since both sur and
+	// grSavedZonesLayer are RenderTextures stored the same way, and we're
+	// copying the whole canvas top-to-bottom (not reading a sub-rect that
+	// needs the screenHeight-relative flip that grCopyZoneToBg does).
+	srcRect := rl.NewRectangle(0, float32(screenHeight), float32(screenWidth), -float32(screenHeight))
+	dstRect := rl.NewRectangle(0, 0, float32(screenWidth), float32(screenHeight))
+	rl.DrawTexturePro(sur.Texture, srcRect, dstRect, rl.Vector2Zero(), 0.0, rl.White)
+}
+
+// grTryRedrawLastSpriteToBg checks whether the requested COPY_ZONE_TO_BG
+// rect matches the sprite most recently drawn on this thread, and if so,
+// redraws that original sprite texture directly onto the persistent layer
+// instead of reading ttmThread.ttmLayer back as a texture (which testing
+// has repeatedly shown to be unreliable immediately after rendering to it
+// within the same tick). Returns true if it handled the freeze this way.
+func grTryRedrawLastSpriteToBg(ttmThread *TTtmThread, x, y int16, width, height uint16) bool {
+	const tolerance = 8 // COPY_ZONE_TO_BG rects are sometimes off by a couple px from the draw that preceded them
+
+	if !ttmThread.hasLastDraw {
+		return false
+	}
+	dx := int(x) - int(ttmThread.lastDrawX)
+	dy := int(y) - int(ttmThread.lastDrawY)
+	dw := int(width) - int(ttmThread.lastDrawW)
+	dh := int(height) - int(ttmThread.lastDrawH)
+	if abs(dx) > tolerance || abs(dy) > tolerance || abs(dw) > tolerance || abs(dh) > tolerance {
+		return false
+	}
+
+	if grSavedZonesLayer == nil {
+		grSavedZonesLayer = grNewLayer()
+	}
+	debugPrintf("*** COPY_ZONE_TO_BG matched last draw: redrawing sprtNo=%d imgNo=%d at (%d,%d) flipped=%v ***\n",
+		ttmThread.lastDrawSpriteNo, ttmThread.lastDrawImageNo, ttmThread.lastDrawX, ttmThread.lastDrawY, ttmThread.lastDrawFlipped)
+	if ttmThread.lastDrawFlipped {
+		grDrawSpriteFlip(grSavedZonesLayer, ttmThread.ttmSlot, ttmThread.lastDrawX, ttmThread.lastDrawY, ttmThread.lastDrawSpriteNo, ttmThread.lastDrawImageNo)
+	} else {
+		grDrawSprite(grSavedZonesLayer, ttmThread.ttmSlot, ttmThread.lastDrawX, ttmThread.lastDrawY, ttmThread.lastDrawSpriteNo, ttmThread.lastDrawImageNo)
+	}
+	return true
+}
+
+// grRedrawLastSpriteToBg unconditionally redraws whatever sprite this
+// thread most recently drew, directly onto the persistent layer - no
+// coordinate matching, no render-texture read-back. Used for the explicit
+// STOP_SCENE decoration exceptions (e.g. the anchored ship), which have no
+// script-driven COPY_ZONE_TO_BG of their own to trigger off of.
+func grRedrawLastSpriteToBg(ttmThread *TTtmThread) {
+	if !ttmThread.hasLastDraw {
+		debugPrintln("*** STOP_SCENE exception: no last draw recorded, nothing to redraw ***")
+		return
+	}
+	if grSavedZonesLayer == nil {
+		grSavedZonesLayer = grNewLayer()
+	}
+	// Sanity check: has the underlying bitmap at this sprite index changed
+	// since we recorded it? ttmThread.ttmSlot is a pointer to a SHARED
+	// resource slot - if another scene reused the same resource slot number
+	// and reloaded a different BMP into this image bank in the meantime,
+	// the pixels here would no longer be what was actually drawn.
+	if int(ttmThread.lastDrawImageNo) < len(ttmThread.ttmSlot.sprites) &&
+		int(ttmThread.lastDrawSpriteNo) < len(ttmThread.ttmSlot.sprites[ttmThread.lastDrawImageNo]) {
+		cur := ttmThread.ttmSlot.sprites[ttmThread.lastDrawImageNo][ttmThread.lastDrawSpriteNo]
+		if cur == nil {
+			debugPrintln("*** STOP_SCENE exception: WARNING sprite is now nil - underlying bitmap slot was reloaded/cleared since the original draw ***")
+		} else if cur.Width != ttmThread.lastDrawW || cur.Height != ttmThread.lastDrawH {
+			debugPrintf("*** STOP_SCENE exception: WARNING sprite dimensions changed since original draw (was %dx%d, now %dx%d) - underlying bitmap slot was reloaded ***\n",
+				ttmThread.lastDrawW, ttmThread.lastDrawH, cur.Width, cur.Height)
+		}
+	}
+	debugPrintf("*** STOP_SCENE exception: redrawing sprtNo=%d imgNo=%d at (%d,%d) flipped=%v ***\n",
+		ttmThread.lastDrawSpriteNo, ttmThread.lastDrawImageNo, ttmThread.lastDrawX, ttmThread.lastDrawY, ttmThread.lastDrawFlipped)
+	if ttmThread.lastDrawFlipped {
+		grDrawSpriteFlip(grSavedZonesLayer, ttmThread.ttmSlot, ttmThread.lastDrawX, ttmThread.lastDrawY, ttmThread.lastDrawSpriteNo, ttmThread.lastDrawImageNo)
+	} else {
+		grDrawSprite(grSavedZonesLayer, ttmThread.ttmSlot, ttmThread.lastDrawX, ttmThread.lastDrawY, ttmThread.lastDrawSpriteNo, ttmThread.lastDrawImageNo)
+	}
+}
+
+// grRedrawRarestSettledSpriteToBg picks, among the sprites drawn at the
+// thread's final settled position, whichever one was drawn LEAST often, and
+// redraws that directly onto the persistent layer. Confirmed necessary for
+// the anchored ship: it draws a one-time "sails catching wind" arrival
+// frame (sprtNo:8, drawn once) then loops on a "sails full" frame (sprtNo:9,
+// drawn ~50x) at the same position for the rest of its life. Neither
+// "literally first sprite ever" (could be mid-transit, off-screen, before
+// the thread settles) nor "literally last" (the common loop frame) is
+// correct - the rare one-off frame at the final resting spot is what the
+// original game shows as the ship's at-rest appearance.
+func grRedrawRarestSettledSpriteToBg(ttmThread *TTtmThread) {
+	if ttmThread.settledEntryCount == 0 {
+		return
+	}
+	for i := 0; i < ttmThread.settledEntryCount; i++ {
+		e := ttmThread.settledEntries[i]
+		debugPrintf("*** settled-position candidate: sprtNo=%d imgNo=%d flipped=%v seen=%dx ***\n", e.spriteNo, e.imageNo, e.flipped, e.count)
+	}
+	best := ttmThread.settledEntries[0]
+	for i := 1; i < ttmThread.settledEntryCount; i++ {
+		if ttmThread.settledEntries[i].count < best.count {
+			best = ttmThread.settledEntries[i]
+		}
+	}
+	if grSavedZonesLayer == nil {
+		grSavedZonesLayer = grNewLayer()
+	}
+	debugPrintf("*** STOP_SCENE exception: redrawing rarest-at-rest sprtNo=%d imgNo=%d (seen %dx) at (%d,%d) flipped=%v ***\n",
+		best.spriteNo, best.imageNo, best.count, ttmThread.settledX, ttmThread.settledY, best.flipped)
+	if best.flipped {
+		grDrawSpriteFlip(grSavedZonesLayer, ttmThread.ttmSlot, ttmThread.settledX, ttmThread.settledY, best.spriteNo, best.imageNo)
+	} else {
+		grDrawSprite(grSavedZonesLayer, ttmThread.ttmSlot, ttmThread.settledX, ttmThread.settledY, best.spriteNo, best.imageNo)
+	}
+}
+
+// grRedrawMostCommonSettledSpriteToBg is the inverse of the rarest variant:
+// picks whichever sprite was drawn MOST often at the thread's final settled
+// position. Visual comparison against the original showed the rare one-off
+// frame (sprtNo:8, a "wind gust catching the sail" transient) looks wrong
+// frozen in place - the common steady-state loop frame (sprtNo:9) is more
+// likely the correct at-rest appearance.
+func grRedrawMostCommonSettledSpriteToBg(ttmThread *TTtmThread) {
+	if ttmThread.settledEntryCount == 0 {
+		return
+	}
+	for i := 0; i < ttmThread.settledEntryCount; i++ {
+		e := ttmThread.settledEntries[i]
+		debugPrintf("*** settled-position candidate: sprtNo=%d imgNo=%d flipped=%v seen=%dx ***\n", e.spriteNo, e.imageNo, e.flipped, e.count)
+	}
+	best := ttmThread.settledEntries[0]
+	for i := 1; i < ttmThread.settledEntryCount; i++ {
+		if ttmThread.settledEntries[i].count > best.count {
+			best = ttmThread.settledEntries[i]
+		}
+	}
+	if grSavedZonesLayer == nil {
+		grSavedZonesLayer = grNewLayer()
+	}
+	debugPrintf("*** STOP_SCENE exception: redrawing most-common-at-rest sprtNo=%d imgNo=%d (seen %dx) at (%d,%d) flipped=%v ***\n",
+		best.spriteNo, best.imageNo, best.count, ttmThread.settledX, ttmThread.settledY, best.flipped)
+	if best.flipped {
+		grDrawSpriteFlip(grSavedZonesLayer, ttmThread.ttmSlot, ttmThread.settledX, ttmThread.settledY, best.spriteNo, best.imageNo)
+	} else {
+		grDrawSprite(grSavedZonesLayer, ttmThread.ttmSlot, ttmThread.settledX, ttmThread.settledY, best.spriteNo, best.imageNo)
+	}
+}
+
+func abs(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
+}
+
 func grCopyZoneToBg(sur *rl.RenderTexture2D, x, y, width, height uint16) {
 	x += uint16(grDx)
 	y += uint16(grDy)
@@ -445,6 +742,15 @@ func grCopyZoneToBg(sur *rl.RenderTexture2D, x, y, width, height uint16) {
 	srcRect := rl.NewRectangle(float32(x), float32(screenHeight-int(y)), float32(width+2), -float32(height))
 	dstRect := rl.NewRectangle(float32(x), float32(y), float32(width+2), float32(height))
 
+	// r.c. - NOT grBackgroundSur: the ambient tide/wave animation
+	// (islandAnimate, in island.go) draws directly onto grBackgroundSur on
+	// its own timer without ever clearing it, at fixed positions that can
+	// overlap a copied zone (e.g. BUILDING.ADS's sandcastle). Since that's
+	// the same physical texture rather than a separate composited layer,
+	// whichever one draws last permanently overwrites the other's pixels.
+	// grSavedZonesLayer is composited *after* background+clouds and *before*
+	// the active per-thread layers (see grUpdateDisplay), so it sits above
+	// the wave animation and is safe from it.
 	if grSavedZonesLayer == nil {
 		grSavedZonesLayer = grNewLayer()
 	}
@@ -623,6 +929,97 @@ func grDrawCircle(sur *rl.RenderTexture2D, x1, y1 int16, width, height uint16, f
 	}
 }
 
+
+func trackLastDraw(ttmThread *TTtmThread, x, y int16, spriteNo, imageNo uint16, flipped bool) {
+	if int(spriteNo) >= ttmThread.ttmSlot.numSprites[imageNo] {
+		return
+	}
+
+	// Skip tracking for the sandcastle decoration sprite to prevent it
+	// from overwriting the thread's lastDrawFlipped state (the plane's direction).
+	if imageNo == 5 && spriteNo == 18 {
+		return
+	}
+
+	const settleTolerance = 8
+	dx := int(x) - int(ttmThread.settledX)
+	dy := int(y) - int(ttmThread.settledY)
+	if dx < 0 {
+		dx = -dx
+	}
+	if dy < 0 {
+		dy = -dy
+	}
+	if ttmThread.settledEntryCount == 0 || dx > settleTolerance || dy > settleTolerance {
+		// Position moved (or this is the very first draw) - start fresh.
+		ttmThread.settledX = x
+		ttmThread.settledY = y
+		ttmThread.settledEntryCount = 0
+	}
+	found := false
+	for i := 0; i < ttmThread.settledEntryCount; i++ {
+		e := &ttmThread.settledEntries[i]
+		if e.spriteNo == spriteNo && e.imageNo == imageNo && e.flipped == flipped {
+			e.count++
+			found = true
+			break
+		}
+	}
+	if !found && ttmThread.settledEntryCount < maxSettledEntries {
+		ttmThread.settledEntries[ttmThread.settledEntryCount] = settledSpriteEntry{spriteNo: spriteNo, imageNo: imageNo, flipped: flipped, count: 1}
+		ttmThread.settledEntryCount++
+	}
+
+	srcSurface := ttmThread.ttmSlot.sprites[imageNo][spriteNo]
+	ttmThread.hasLastDraw = true
+	ttmThread.lastDrawX = x
+	ttmThread.lastDrawY = y
+	ttmThread.lastDrawW = srcSurface.Width
+	ttmThread.lastDrawH = srcSurface.Height
+	ttmThread.lastDrawSpriteNo = spriteNo
+	ttmThread.lastDrawImageNo = imageNo
+	ttmThread.lastDrawFlipped = flipped
+}
+
+func trackThreadMovement(ttmThread *TTtmThread, x, y int16) {
+	ttmThread.drawCount++
+	if !ttmThread.moveTracked {
+		ttmThread.moveTracked = true
+		ttmThread.moveMinX, ttmThread.moveMaxX = x, x
+		ttmThread.moveMinY, ttmThread.moveMaxY = y, y
+		return
+	}
+	if x < ttmThread.moveMinX {
+		ttmThread.moveMinX = x
+	}
+	if x > ttmThread.moveMaxX {
+		ttmThread.moveMaxX = x
+	}
+	if y < ttmThread.moveMinY {
+		ttmThread.moveMinY = y
+	}
+	if y > ttmThread.moveMaxY {
+		ttmThread.moveMaxY = y
+	}
+}
+
+// threadWasStationary reports whether this thread was a long-lived, fixed
+// decoration (an anchored ship, say) rather than a moving actor or a
+// character briefly pausing. Requires BOTH a tight bounding box (every draw
+// stayed close to the first position) AND a substantial number of draws -
+// the duration check matters because a character can briefly hold still
+// (sitting, perched) and look identical to a decoration by position alone;
+// sustained repetition over many ticks is a much more specific signal.
+func threadWasStationary(ttmThread *TTtmThread) bool {
+	const tolerance = 20
+	const minDrawsForDecoration = 80
+	if !ttmThread.moveTracked || ttmThread.drawCount < minDrawsForDecoration {
+		return false
+	}
+	return (ttmThread.moveMaxX-ttmThread.moveMinX) <= tolerance &&
+		(ttmThread.moveMaxY-ttmThread.moveMinY) <= tolerance
+}
+
 func grDrawSprite(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, spriteNo, imageNo uint16) {
 	if int(spriteNo) >= ttmSlot.numSprites[imageNo] {
 		fmt.Printf("Warning : grDrawSprite(): less than %d sprites loaded in slot %d\n", imageNo, spriteNo)
@@ -639,6 +1036,9 @@ func grDrawSprite(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, sprite
 
 	rect, hasClip := activeClipZones[sur]
 	if hasClip {
+		if sur == grSavedZonesLayer {
+			debugPrintf("*** WARNING: clip zone active on SAVED_ZONES_LAYER: rect=(%.0f,%.0f,%.0f,%.0f) ***\n", rect.X, rect.Y, rect.Width, rect.Height)
+		}
 		rl.BeginScissorMode(int32(rect.X), int32(rect.Y), int32(rect.Width), int32(rect.Height))
 		defer rl.EndScissorMode()
 	}

@@ -18,6 +18,54 @@ const (
 )
 
 var (
+	currentAdsName string
+
+	// r.c. - explicit, confirmed exception list for threads that have no
+	// COPY_ZONE_TO_BG (or equivalent) of their own in the script, but are
+	// known (verified against the real disassembly, and against the
+	// original game) to need their final frame kept as a lasting decoration
+	// when stopped. This is deliberately NOT a heuristic: every heuristic
+	// tried (position bounding box, draw-count duration) failed because a
+	// character can legitimately hold still for a long dramatic beat
+	// (Johnny watching the invasion from the palm tree) in a way that's
+	// indistinguishable from a genuine decoration by behavior alone. Add
+	// entries here only after confirming via the disassembly + a real test
+	// that the given (slot,tag) has no explicit freeze of its own AND is
+	// meant to persist.
+	stopFreezeExceptions = map[string]bool{
+		"BUILDING.ADS:1:35": true, // the anchored ship (confirmed: draws sprtNo:8/9 imgNo:4 at fixed 196,124, rect 168x136 matching the visually-confirmed ship size) - ends via natural completion, no COPY_ZONE_TO_BG of its own
+	}
+
+	// r.c. - explicit identity for Johnny's own thread during the
+	// palm-tree/plane-chase scene. The active tags for Johnny on the tree
+	// are 48-52, 55, and 56 (drawing from imgNo:3, MJSANDC.BMP).
+	// Tags 46 and 84 are deliberately omitted as they belong to the
+	// sandcastle building thread, which would otherwise falsely match and
+	// override the primary Johnny thread due to thread index priority.
+	// Used to select Johnny's active threads for direction-aware plane
+	// compositing (see grUpdateDisplay).
+	johnnyThreadTags = map[string]bool{
+		"BUILDING.ADS:1:48": true,
+		"BUILDING.ADS:1:49": true,
+		"BUILDING.ADS:1:50": true,
+		"BUILDING.ADS:1:51": true,
+		"BUILDING.ADS:1:52": true,
+		"BUILDING.ADS:1:55": true,
+		"BUILDING.ADS:1:56": true,
+	}
+)
+
+func isJohnnyThread(ttmSlotNo, ttmTag uint16) bool {
+	key := fmt.Sprintf("%s:%d:%d", currentAdsName, ttmSlotNo, ttmTag)
+	return johnnyThreadTags[key]
+}
+
+func shouldFreezeOnStop(ttmSlotNo, ttmTag uint16) bool {
+	key := fmt.Sprintf("%s:%d:%d", currentAdsName, ttmSlotNo, ttmTag)
+	return stopFreezeExceptions[key]
+}
+
+var (
 	adsChunks    [MaxAdsChunks]TAdsChunk
 	numAdsChunks = 0
 
@@ -227,21 +275,48 @@ func adsAddScene(ttmSlotNo, ttmTag, arg3 uint16) {
 	}
 
 	ttmThread.ttmLayer = grNewLayer()
+	ttmThread.moveTracked = false
+	ttmThread.moveMinX, ttmThread.moveMaxX = 0, 0
+	ttmThread.moveMinY, ttmThread.moveMaxY = 0, 0
+	ttmThread.drawCount = 0
+	ttmThread.hasLastDraw = false
+	ttmThread.settledEntryCount = 0
+	ttmThread.settledX = 0
+	ttmThread.settledY = 0
 	numThreads++
 }
 
-func adsStopScene(sceneNo int) {
+func adsStopScene(sceneNo int, keepAsDecoration bool) {
+	_ = keepAsDecoration
+	if shouldFreezeOnStop(ttmThreads[sceneNo].sceneSlot, ttmThreads[sceneNo].sceneTag) {
+		// r.c. - TEMP: -t test mode keeps landing on a run where the ship's
+		// thread only ever draws sprtNo:8 (confirmed wrong via screenshot)
+		// before completing, so the settled-position histogram never gets a
+		// chance to also see sprtNo:9 (confirmed present in an earlier,
+		// longer story-mode run - looped ~50x). Bypassing the histogram to
+		// test sprtNo:9 directly instead of picking whatever this run
+		// happened to observe.
+		if ttmThreads[sceneNo].sceneSlot == 1 && ttmThreads[sceneNo].sceneTag == 35 {
+			if grSavedZonesLayer == nil {
+				grSavedZonesLayer = grNewLayer()
+			}
+			debugPrintln("*** STOP_SCENE exception: TEMP forcing sprtNo=9 imgNo=4 for the ship ***")
+			grDrawSprite(grSavedZonesLayer, ttmThreads[sceneNo].ttmSlot, 196, 124, 9, 4)
+		} else {
+			grRedrawMostCommonSettledSpriteToBg(&ttmThreads[sceneNo])
+		}
+	}
 	grFreeLayer(ttmThreads[sceneNo].ttmLayer)
 	ttmThreads[sceneNo].isRunning = 0
 	numThreads--
 }
 
-func adsStopSceneByTtmTag(ttmSlotNo, ttmTag uint16) {
+func adsStopSceneByTtmTag(ttmSlotNo, ttmTag uint16, keepAsDecoration bool) {
 	for i := 0; i < MaxTTMThreads; i++ {
 		ttmThread := &ttmThreads[i]
 		if ttmThread.isRunning != 0 {
 			if ttmThread.sceneSlot == ttmSlotNo && ttmThread.sceneTag == ttmTag {
-				adsStopScene(i)
+				adsStopScene(i, keepAsDecoration)
 			}
 		}
 	}
@@ -319,7 +394,7 @@ func adsRandomEnd() {
 			adsAddScene(op.slot, op.tag, op.numPlays)
 		case OP_STOP_SCENE:
 			debugPrintf("RANDOM: chose STOP_SCENE %d %d...\n", op.slot, op.tag)
-			adsStopSceneByTtmTag(op.slot, op.tag)
+			adsStopSceneByTtmTag(op.slot, op.tag, true)
 		default:
 			debugPrintln("RANDOM: chose NOP")
 		}
@@ -362,7 +437,7 @@ func adsPlaySingleTtm(ttmName string) {
 		grUpdateDelay = int(ttmThreads[0].delay)
 	}
 
-	adsStopScene(0)
+	adsStopScene(0, false)
 	ttmResetSlot(&ttmSlots[0])
 }
 
@@ -475,7 +550,7 @@ func adsPlayChunk(data []byte, dataSize, offset uint32) {
 				if inRandBlock != 0 {
 					adsRandomStopSceneByTtmTag(args[0], args[1], args[2])
 				} else {
-					adsStopSceneByTtmTag(args[0], args[1])
+					adsStopSceneByTtmTag(args[0], args[1], true)
 				}
 			}
 		case 0x3010:
@@ -561,6 +636,7 @@ func adsPlay(adsName string, adsTag uint16) {
 
 	adsResource := findAdsResource(adsName)
 	debugPrintf("\n\n========== Playing ADS: %s:%d ==========\n", adsResource.ResName, adsTag)
+	currentAdsName = adsResource.ResName
 
 	data = adsResource.UncompressedData
 	dataSize = adsResource.UncompressedSize
@@ -674,7 +750,7 @@ func adsPlay(adsName string, adsTag uint16) {
 						ttmThreads[i].isRunning = 1
 						ttmThreads[i].ip = ttmFindTag(&ttmSlots[ttmThreads[i].sceneSlot], ttmThreads[i].sceneTag)
 					} else { // Is there one (or more) IF_LASTPLAYED matching the terminated thread ?
-						adsStopScene(i)
+						adsStopScene(i, true)
 						if adsStopRequested == 0 {
 							adsPlayTriggeredChunks(data, dataSize, ttmThreads[i].sceneSlot, ttmThreads[i].sceneTag)
 						}
@@ -844,5 +920,5 @@ func adsPlayWalk(fromSpot, fromHdg, toSpot, toHdg int) {
 		grUpdateDelay = int(mini)
 	}
 
-	adsStopScene(0)
+	adsStopScene(0, false)
 }

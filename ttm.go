@@ -219,7 +219,11 @@ func ttmPlay(ttmThread *TTtmThread) {
 			grSetClipZone(ttmThread.ttmLayer, int16(args[0]), int16(args[1]), int16(args[2]), int16(args[3]))
 		case 0x4204:
 			debugPrintf("\tCOPY_ZONE_TO_BG: x:%d, y:%d, w:%d, h:%d\n", args[0], args[1], args[2], args[3])
-			grCopyZoneToBg(ttmThread.ttmLayer, args[0], args[1], args[2], args[3])
+			if grTryRedrawLastSpriteToBg(ttmThread, int16(args[0]), int16(args[1]), args[2], args[3]) {
+				debugPrintln("\t  (redrew original sprite instead of copying rendered pixels)")
+			} else {
+				grCopyZoneToBg(ttmThread.ttmLayer, args[0], args[1], args[2], args[3])
+			}
 		case 0x4214:
 			// r.c. - confirmed used in the original: appears 32+ times across
 			// multiple .TTM scripts, always with 4 args (a region rect).
@@ -252,9 +256,13 @@ func ttmPlay(ttmThread *TTtmThread) {
 			grDrawCircle(ttmThread.ttmLayer, int16(args[0]), int16(args[1]), args[2], args[3], ttmThread.fgColor, ttmThread.bgColor)
 		case 0xA504:
 			debugPrintf("\tDRAW_SPRITE x:%d y:%d sprtNo:%d imgNo:%d\n", args[0], args[1], args[2], args[3])
+			trackThreadMovement(ttmThread, int16(args[0]), int16(args[1]))
+			trackLastDraw(ttmThread, int16(args[0]), int16(args[1]), args[2], args[3], false)
 			grDrawSprite(ttmThread.ttmLayer, ttmThread.ttmSlot, int16(args[0]), int16(args[1]), args[2], args[3])
 		case 0xA524:
 			debugPrintf("\tDRAW_SPRITE_FLIP x:%d y:%d sprtNo:%d imgNo:%d\n", args[0], args[1], args[2], args[3])
+			trackThreadMovement(ttmThread, int16(args[0]), int16(args[1]))
+			trackLastDraw(ttmThread, int16(args[0]), int16(args[1]), args[2], args[3], true)
 			grDrawSpriteFlip(ttmThread.ttmLayer, ttmThread.ttmSlot, int16(args[0]), int16(args[1]), args[2], args[3])
 		case 0xA601:
 			debugPrintf("\tCLEAR SCREEN\n")
