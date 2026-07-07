@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -427,11 +428,17 @@ func runStory() {
 			// Spawn child processes for each monitor
 			var wg sync.WaitGroup
 			cmds := make([]*exec.Cmd, monitorCount)
+			stdinPipes := make([]io.WriteCloser, monitorCount)
 			shouldExitChan := make(chan struct{}, monitorCount)
 
 			for i := 0; i < monitorCount; i++ {
 				args := []string{"-s", "-m", fmt.Sprintf("%d", i)}
 				cmd := exec.Command(os.Args[0], args...)
+				
+				pipe, err := cmd.StdinPipe()
+				if err == nil {
+					stdinPipes[i] = pipe
+				}
 				cmds[i] = cmd
 
 				wg.Add(1)
@@ -451,16 +458,28 @@ func runStory() {
 			// Wait for any child process to exit
 			<-shouldExitChan
 
-			// Terminate all other child processes
-			for _, c := range cmds {
-				if c != nil && c.Process != nil {
-					_ = c.Process.Kill()
+			// Clean exit: signal all other child processes to terminate gracefully
+			// by closing their stdin pipes. This causes their stdin reader loop to unblock
+			// and trigger a standard Raylib/GLFW teardown to cleanly restore HDR and display settings.
+			for _, pipe := range stdinPipes {
+				if pipe != nil {
+					_ = pipe.Close()
 				}
 			}
 
 			wg.Wait()
 			return
 		}
+	}
+
+	if hasMonitorIndex {
+		// Child process: listen to standard input to receive the exit signal from the parent.
+		// When the parent closes the stdin pipe, Read returns immediately, triggering clean exit.
+		go func() {
+			buf := make([]byte, 1)
+			_, _ = os.Stdin.Read(buf)
+			shouldExitApp = true
+		}()
 	}
 
 	setupApp()
