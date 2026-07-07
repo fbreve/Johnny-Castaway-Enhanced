@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -116,6 +117,14 @@ func runOptionsWindow() {
 		} else {
 			rl.DrawText(text, x, y, int32(size), col)
 		}
+	}
+
+	measureText := func(text string, size float32) float32 {
+		if fontLoaded {
+			vec := rl.MeasureTextEx(font, text, size, 1)
+			return vec.X
+		}
+		return float32(rl.MeasureText(text, int32(size)))
 	}
 
 	for !rl.WindowShouldClose() {
@@ -532,5 +541,20 @@ func runTestMode(testAdsName string, testTagNo int) {
 			// Play water return (JOHNNY.ADS tag 3)
 			adsPlay("JOHNNY.ADS", 3)
 		}
+	}
+}
+
+func openURL(url string) {
+	var err error
+	switch runtime.GOOS {
+	case "windows":
+		err = exec.Command("cmd", "/c", "start", url).Start()
+	case "darwin":
+		err = exec.Command("open", url).Start()
+	default: // "linux", etc.
+		err = exec.Command("xdg-open", url).Start()
+	}
+	if err != nil {
+		fmt.Println("failed to open URL: ", err)
 	}
 }
