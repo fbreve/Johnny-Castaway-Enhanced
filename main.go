@@ -27,6 +27,7 @@ var (
 	runOnMonitorIndex int
 	hasMonitorIndex   bool
 	buildTime         = "Developer Build"
+	isRun             = false
 )
 
 func formatStartTime(val int) string {
@@ -309,8 +310,8 @@ func runOptionsWindow() {
 func main() {
 	var isSettings = false
 	var isPreview = false
-	var isRun = false
 	var isTest = false
+	var isBench = false
 	var testAdsName = ""
 	var testTagNo = 0
 
@@ -330,6 +331,11 @@ func main() {
 			if i+2 < len(os.Args) {
 				fmt.Sscanf(os.Args[i+2], "%d", &testTagNo)
 			}
+		} else if strings.HasPrefix(argLower, "/b") || strings.HasPrefix(argLower, "-b") {
+			isBench = true
+		} else if strings.HasPrefix(argLower, "/k") || strings.HasPrefix(argLower, "-k") {
+			// -k enables debug hotkeys: Space=pause, M=max-speed, Enter=advance, Esc=quit
+			hotKeysEnabled = true
 		} else if strings.HasPrefix(argLower, "/m") || strings.HasPrefix(argLower, "-m") {
 			if i+1 < len(os.Args) {
 				fmt.Sscanf(os.Args[i+1], "%d", &runOnMonitorIndex)
@@ -351,11 +357,15 @@ func main() {
 	if isPreview {
 		os.Exit(0)
 	}
+	if isBench {
+		runBenchMode()
+		os.Exit(0)
+	}
 	if isTest {
 		runTestMode(testAdsName, testTagNo)
 		os.Exit(0)
 	}
-	if isRun {
+	if isRun || (!isSettings && !isPreview && !isBench && !isTest) {
 		isScreensaverMode = true
 	}
 	runStory()
@@ -363,16 +373,10 @@ func main() {
 
 func setupApp() {
 	cfgFileRead(&activeConfig)
-	if hasMonitorIndex && runOnMonitorIndex != 0 {
-		activeConfig.Sounds = false
-	}
-	// Enable 4x MSAA for smoother, anti-aliased graphics
-	rl.SetConfigFlags(rl.FlagMsaa4xHint)
-	// Initialize with default standard window flags to ensure 100% OpenGL context creation compatibility on all hardware/drivers.
-	rl.InitWindow(screenWidth, screenHeight, "Johnny Castaway")
 
-	// Apply Undecorated and Resizable states dynamically after the window is successfully initialized.
-	rl.SetWindowState(rl.FlagWindowUndecorated | rl.FlagWindowResizable)
+	// Enable 4x MSAA, undecorated, and resizable window flags before initialization to ensure window focus
+	rl.SetConfigFlags(rl.FlagMsaa4xHint | rl.FlagWindowUndecorated | rl.FlagWindowResizable)
+	rl.InitWindow(screenWidth, screenHeight, "Johnny Castaway")
 
 	if !rl.IsWindowReady() {
 		panic("Fatal: Failed to initialize window. Please check your OpenGL/graphics drivers.")
@@ -387,6 +391,7 @@ func setupApp() {
 	rl.HideCursor()
 
 	rl.InitAudioDevice()
+	rl.SetMasterVolume(1.0)
 	loadSfx()
 
 	rl.SetTargetFPS(30)
@@ -426,7 +431,7 @@ func runStory() {
 	var config TConfig
 	cfgFileRead(&config)
 
-	if config.MultiInstance && !hasMonitorIndex {
+	if config.MultiInstance && !hasMonitorIndex && isScreensaverMode {
 		// Initialize a tiny hidden window to query monitors
 		rl.SetConfigFlags(rl.FlagWindowHidden)
 		rl.InitWindow(1, 1, "Johnny Parent")
@@ -441,7 +446,13 @@ func runStory() {
 			shouldExitChan := make(chan struct{}, monitorCount)
 
 			for i := 0; i < monitorCount; i++ {
-				args := []string{"-s", "-m", fmt.Sprintf("%d", i)}
+				args := []string{"-m", fmt.Sprintf("%d", i)}
+				if isRun {
+					args = append(args, "-s")
+				}
+				if hotKeysEnabled {
+					args = append(args, "-k")
+				}
 				cmd := exec.Command(os.Args[0], args...)
 				
 				pipe, err := cmd.StdinPipe()
@@ -506,6 +517,67 @@ func singleTTM() {
 	defer graphicsEnd()
 	for {
 		adsPlaySingleTtm("MJFIRE.TTM")
+	}
+}
+
+func runBenchMode() {
+	// Mirrors jc_reborn bench mode: loads the full app, runs adsPlayBench()
+	// which measures rendering throughput for 1, 4, and 8 simultaneous
+	// sprite layers. The results are printed to stdout, saved to bench.log,
+	// and rendered directly on screen.
+	fmt.Println("\nJohnny Castaway - Render Benchmark")
+	fmt.Println("-----------------------------------")
+	setupApp()
+	defer rl.CloseWindow()
+	defer rl.CloseAudioDevice()
+	defer graphicsEnd()
+	defer unloadSfx()
+
+	results := adsPlayBench()
+
+	// Output to console and log file
+	var logOutput strings.Builder
+	logOutput.WriteString("Johnny Castaway - Render Benchmark Results\n")
+	logOutput.WriteString("-----------------------------------\n")
+	for _, res := range results {
+		fmt.Println(res)
+		logOutput.WriteString(res + "\n")
+	}
+	logOutput.WriteString("-----------------------------------\n")
+	_ = os.WriteFile("bench.log", []byte(logOutput.String()), 0644)
+
+	fmt.Println("-----------------------------------")
+	fmt.Println("Benchmark complete. Results saved to bench.log. Press any key to exit.")
+
+	// Keep the window alive to show results on screen
+	rects := monitorRects
+	if len(rects) == 0 {
+		rects = []TMonitorRect{{X: 0, Y: 0, W: float32(rl.GetScreenWidth()), H: float32(rl.GetScreenHeight())}}
+	}
+
+	for !rl.WindowShouldClose() && !shouldExitApp {
+		rl.BeginDrawing()
+		rl.ClearBackground(rl.Black)
+
+		for _, m := range rects {
+			rl.DrawText("Johnny Castaway - Render Benchmark Results", int32(m.X)+60, int32(m.Y)+80, 20, rl.RayWhite)
+			rl.DrawText("--------------------------------------------------", int32(m.X)+60, int32(m.Y)+110, 20, rl.Gray)
+
+			y := int32(140)
+			for _, res := range results {
+				rl.DrawText(res, int32(m.X)+60, int32(m.Y)+y, 20, rl.Green)
+				y += 30
+			}
+
+			rl.DrawText("--------------------------------------------------", int32(m.X)+60, int32(m.Y)+y, 20, rl.Gray)
+			rl.DrawText("Results saved to bench.log.", int32(m.X)+60, int32(m.Y)+y+30, 18, rl.LightGray)
+			rl.DrawText("Press any key to exit.", int32(m.X)+60, int32(m.Y)+y+60, 18, rl.Yellow)
+		}
+
+		rl.EndDrawing()
+		if rl.GetKeyPressed() != 0 {
+			break
+		}
 	}
 }
 

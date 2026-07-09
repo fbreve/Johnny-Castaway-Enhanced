@@ -2,9 +2,13 @@ package main
 
 import "C"
 import (
+	"encoding/json"
 	"fmt"
 	"image/color"
 	"math"
+	"os"
+	"path/filepath"
+	"syscall"
 	"time"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
@@ -29,6 +33,110 @@ var (
 	isScreenSaverPosCaptured            = false
 	shouldExitApp                       = false
 )
+
+// hotkey state — only active when hotKeysEnabled is true (set via -k CLI flag).
+var (
+	hotKeysEnabled  = false
+	isPaused        = false
+	isMaxSpeed      = false
+	advanceOneFrame = false // set by Enter while paused; consumed after one draw tick
+)
+
+// Shared state for multi-monitor synchronization of hotkeys (lock-free multi-file design)
+var (
+	myStatePath        string
+	lastReadTimes      = make(map[string]time.Time)
+	lastAdvanceTrigger int
+)
+
+var (
+	modUser32            = syscall.NewLazyDLL("user32.dll")
+	procGetAsyncKeyState = modUser32.NewProc("GetAsyncKeyState")
+
+	prevSpaceDown  = false
+	prevMDown      = false
+	prevEnterDown  = false
+	prevEscapeDown = false
+	prevShiftDown  = false
+)
+
+func isKeyDownGlobally(vk int) bool {
+	r, _, _ := procGetAsyncKeyState.Call(uintptr(vk))
+	return (r & 0x8000) != 0
+}
+
+func isAnyKeyPressedGlobally() bool {
+	for vk := 8; vk <= 255; vk++ {
+		if isKeyDownGlobally(vk) {
+			return true
+		}
+	}
+	return false
+}
+
+type TSharedState struct {
+	Paused         bool `json:"p"`
+	MaxSpeed       bool `json:"m"`
+	AdvanceTrigger int  `json:"a"`
+}
+
+func initSharedState() {
+	myStatePath = filepath.Join(os.TempDir(), fmt.Sprintf("johnny_state_%d.json", os.Getpid()))
+	_ = os.Remove(myStatePath)
+}
+
+func writeSharedState() {
+	state := TSharedState{
+		Paused:         isPaused,
+		MaxSpeed:       isMaxSpeed,
+		AdvanceTrigger: lastAdvanceTrigger,
+	}
+	data, err := json.Marshal(state)
+	if err == nil {
+		_ = os.WriteFile(myStatePath, data, 0644)
+	}
+}
+
+func readSharedState() {
+	pattern := filepath.Join(os.TempDir(), "johnny_state_*.json")
+	files, err := filepath.Glob(pattern)
+	if err != nil {
+		return
+	}
+
+	for _, file := range files {
+		// Ignore our own state file
+		if file == myStatePath {
+			continue
+		}
+
+		fi, err := os.Stat(file)
+		if err != nil {
+			continue
+		}
+
+		lastTime, exists := lastReadTimes[file]
+		if !exists || fi.ModTime().After(lastTime) {
+			lastReadTimes[file] = fi.ModTime()
+			data, err := os.ReadFile(file)
+			if err == nil {
+				var state TSharedState
+				if json.Unmarshal(data, &state) == nil {
+					if state.Paused != isPaused {
+						isPaused = state.Paused
+					}
+					if state.MaxSpeed != isMaxSpeed {
+						isMaxSpeed = state.MaxSpeed
+					}
+					if state.AdvanceTrigger != lastAdvanceTrigger {
+						lastAdvanceTrigger = state.AdvanceTrigger
+						advanceOneFrame = true
+					}
+				}
+			}
+		}
+	}
+}
 
 var (
 	ttmPalette = [16][4]uint8{}
@@ -195,6 +303,20 @@ func graphicsInit() {
 	// todo more stuff
 	grLoadPalette(&palResources[0])
 
+	// Initialize state path and clean up stale shared files
+	initSharedState()
+	if files, err := filepath.Glob(filepath.Join(os.TempDir(), "johnny_state_*.json")); err == nil {
+		for _, f := range files {
+			if f != myStatePath {
+				if fi, err := os.Stat(f); err == nil {
+					if time.Since(fi.ModTime()) > 30*time.Second {
+						_ = os.Remove(f)
+					}
+				}
+			}
+		}
+	}
+
 	// Mouse position is captured after a few frames in grUpdateDisplay to avoid startup fluctuations
 	screenSaverPos = rl.Vector2Zero()
 
@@ -206,6 +328,10 @@ func graphicsEnd() {
 	if grFinalRenderSur != nil {
 		rl.UnloadRenderTexture(*grFinalRenderSur)
 		grFinalRenderSur = nil
+	}
+	// Clean up our own state file on exit
+	if myStatePath != "" {
+		_ = os.Remove(myStatePath)
 	}
 }
 
@@ -272,8 +398,47 @@ func grUpdateDisplay(
 	}
 
 	draw := func() {
-		if rl.IsKeyReleased(rl.KeyLeftShift) {
+		shiftDown := isKeyDownGlobally(0x10) // VK_SHIFT
+		if shiftDown && !prevShiftDown {
 			debugEnabled = !debugEnabled
+		}
+		prevShiftDown = shiftDown
+
+		// --- Debug hot-keys (only when explicitly enabled) ---
+		// Works in both normal and screensaver mode; when active, keys are
+		// consumed here and the screensaver any-key-exits check below is skipped.
+		if hotKeysEnabled {
+			readSharedState()
+
+			spaceDown := isKeyDownGlobally(0x20) // VK_SPACE
+			if spaceDown && !prevSpaceDown {
+				isPaused = !isPaused
+				advanceOneFrame = false
+				writeSharedState()
+			}
+			prevSpaceDown = spaceDown
+
+			mDown := isKeyDownGlobally(0x4D) // VK_M
+			if mDown && !prevMDown {
+				isMaxSpeed = !isMaxSpeed
+				writeSharedState()
+			}
+			prevMDown = mDown
+
+			enterDown := isKeyDownGlobally(0x0D) // VK_RETURN
+			if enterDown && !prevEnterDown {
+				lastAdvanceTrigger++
+				advanceOneFrame = true
+				writeSharedState()
+			}
+			prevEnterDown = enterDown
+
+			escapeDown := isKeyDownGlobally(0x1B) // VK_ESCAPE
+			if escapeDown && !prevEscapeDown {
+				shouldExitApp = true
+				return
+			}
+			prevEscapeDown = escapeDown
 		}
 
 		if rl.WindowShouldClose() || shouldExitApp {
@@ -447,21 +612,52 @@ func grUpdateDisplay(
 			}
 		}
 
+		// Debug and status overlays — drawn on every active monitor
+		rects := monitorRects
+		if len(rects) == 0 {
+			rects = []TMonitorRect{{X: 0, Y: 0, W: float32(rl.GetScreenWidth()), H: float32(rl.GetScreenHeight())}}
+		}
+
 		// Debug stuff
 		if debugEnabled {
 			fontSize := int32(35)
-			yPos := int32(rl.GetScreenHeight()) - (fontSize * 2)
 			offset := int32(3)
-			rl.DrawText(fmt.Sprintf("Story: %d", storyCurrentDay), fontSize, yPos, fontSize, rl.Black)
-			rl.DrawText(fmt.Sprintf("Story: %d", storyCurrentDay), fontSize-offset, yPos-offset, fontSize, rl.White)
+			for _, m := range rects {
+				yPos := int32(m.Y) + int32(m.H) - (fontSize * 2)
+				rl.DrawText(fmt.Sprintf("Story: %d", storyCurrentDay), int32(m.X)+int32(fontSize), yPos, fontSize, rl.Black)
+				rl.DrawText(fmt.Sprintf("Story: %d", storyCurrentDay), int32(m.X)+int32(fontSize)-offset, yPos-offset, fontSize, rl.White)
 
-			rl.DrawFPS(10, 10)
+				rl.DrawFPS(int32(m.X)+10, int32(m.Y)+10)
+			}
+		}
+
+		// Hotkey status overlay — shown whenever hotkeys are active, independent of the debug overlay.
+		if hotKeysEnabled {
+			statusMsg := ""
+			if isPaused {
+				statusMsg += "[PAUSED] "
+			}
+			if isMaxSpeed {
+				statusMsg += "[MAX SPEED] "
+			}
+			if statusMsg != "" {
+				for _, m := range rects {
+					rl.DrawText(statusMsg, int32(m.X)+10, int32(m.Y)+int32(m.H)/2, 24, rl.Yellow)
+				}
+			}
 		}
 
 		// If screensaver mode is enabled, exit on mouse movement (after settling) or key/mouse press.
-		if isScreensaverMode {
-			// Check for keyboard or mouse clicks
-			if rl.GetKeyPressed() != 0 || rl.IsMouseButtonPressed(rl.MouseLeftButton) || rl.IsMouseButtonPressed(rl.MouseRightButton) {
+		// When hotkeys are active, skip all exit checks so the user can interact and use Esc to exit.
+		if isScreensaverMode && !hotKeysEnabled {
+			shouldExit := false
+			if isRun {
+				shouldExit = isAnyKeyPressedGlobally()
+			} else {
+				shouldExit = isKeyDownGlobally(0x1B) // VK_ESCAPE
+			}
+
+			if shouldExit || rl.IsMouseButtonPressed(rl.MouseLeftButton) || rl.IsMouseButtonPressed(rl.MouseRightButton) {
 				rl.SetMasterVolume(0)
 				shouldExitApp = true
 				return
@@ -507,8 +703,19 @@ func grUpdateDisplay(
 			}
 		}
 
+		// When paused, spin-wait for either unpause or a single-frame advance.
+		// advanceOneFrame is consumed here so the outer timing logic sees
+		// grUpdateDelay == 0 and exits immediately after one tick.
+		if isPaused && !advanceOneFrame {
+			continue
+		}
+		if advanceOneFrame {
+			advanceOneFrame = false
+			break
+		}
+
 		end := rl.GetTime()
-		if isFadingOut || grUpdateDelay == 0 ||
+		if isFadingOut || grUpdateDelay == 0 || isMaxSpeed ||
 			(end-start) >= (float64(grUpdateDelay)*0.02) {
 			break
 		}

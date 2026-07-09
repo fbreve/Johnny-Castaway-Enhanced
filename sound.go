@@ -43,9 +43,9 @@ var (
 )
 
 func loadSfx() {
-	// Extract embedded sounds to temp directory
-	soundTmpDir = filepath.Join(os.TempDir(), "johnny_castaway_sounds")
-	os.MkdirAll(soundTmpDir, 0755)
+	// Extract embedded sounds to a process-specific temp directory to avoid conflicts
+	soundTmpDir = filepath.Join(os.TempDir(), fmt.Sprintf("johnny_castaway_sounds_%d", os.Getpid()))
+	_ = os.MkdirAll(soundTmpDir, 0755)
 
 	for i, filename := range sfx {
 		if filename == "missing" {
@@ -57,7 +57,7 @@ func loadSfx() {
 			continue
 		}
 		tmpPath := filepath.Join(soundTmpDir, filename)
-		os.WriteFile(tmpPath, data, 0644)
+		_ = os.WriteFile(tmpPath, data, 0644)
 		snd := rl.LoadSound(tmpPath)
 		soundSfx[i] = snd
 	}
@@ -78,6 +78,10 @@ func unloadSfx() {
 
 func soundPlay(id uint16) {
 	if !activeConfig.Sounds {
+		return
+	}
+	// Disable sound on secondary monitors to prevent overlapping audio
+	if hasMonitorIndex && runOnMonitorIndex != 0 {
 		return
 	}
 	if int(id) > len(soundSfx)-1 {

@@ -3,7 +3,10 @@ package main
 import (
 	"fmt"
 	"math/rand"
+
+	rl "github.com/gen2brain/raylib-go/raylib"
 )
+
 
 const (
 	MaxRandomOps      = 10
@@ -769,10 +772,74 @@ func adsPlay(adsName string, adsTag uint16) {
 	adsReleaseAds()
 }
 
-func adsPlayBench() {
-	// r.c. in the original C version, I think this one is only called via a cli argument.
-	// it's likely just a debug/tool thing, not sure if I will bother implementing.
+func adsPlayBench() []string {
+	// Mirrors jc_reborn's adsPlayBench() / benchInit() / benchPlay().
+	// Runs three timed passes (1, 4, 8 sprite layers) for 3 seconds each.
+	// Returns result strings (windowsgui binary has no stdout).
+
+	var results []string
+	numsLayers := []int{1, 4, 8}
+
+	adsInit()
+
+	// Allocate layers for all 8 threads and point them at slot 0
+	for i := 0; i < 8; i++ {
+		ttmThreads[i].ttmSlot = &ttmSlots[0]
+		ttmThreads[i].isRunning = 1
+		ttmThreads[i].selectedBmpSlot = 0
+		ttmThreads[i].ttmLayer = grNewLayer()
+	}
+
+	// benchInit: load the ocean background + boat sprite sheet
+	grLoadScreen("OCEAN00.SCR")
+	grLoadBmp(&ttmSlots[0], 0, "BOAT.BMP")
+
+	grUpdateDelay = 0
+
+	boatX := [8]int{}
+
+	for _, numLayers := range numsLayers {
+		for i := 0; i < MaxTTMThreads; i++ {
+			if i < numLayers {
+				ttmThreads[i].isRunning = 1
+			} else {
+				ttmThreads[i].isRunning = 0
+			}
+		}
+
+		startTime := rl.GetTime()
+		counter := 0
+
+		for rl.GetTime()-startTime <= 3.0 {
+			// benchPlay: clear each active layer and draw the bouncing boat
+			for i := 0; i < numLayers; i++ {
+				if ttmThreads[i].ttmLayer != nil {
+					rl.BeginTextureMode(*ttmThreads[i].ttmLayer)
+					rl.ClearBackground(rl.Blank)
+					rl.EndTextureMode()
+				}
+				grDrawSprite(ttmThreads[i].ttmLayer, &ttmSlots[0], int16(boatX[i]), int16(180+25*i), 0, 0)
+				boatX[i] = (boatX[i] + 5) % 640
+			}
+
+			grUpdateDisplay(nil, ttmThreads[:], nil, nil)
+			if shouldExitApp {
+				goto benchDone
+			}
+			counter++
+		}
+
+		results = append(results, fmt.Sprintf("%d-layer bench --> %d fps", numLayers, counter/3))
+	}
+
+benchDone:
+	for i := 0; i < 8; i++ {
+		adsStopScene(i, false)
+	}
+	ttmResetSlot(&ttmSlots[0])
+	return results
 }
+
 
 func adsPlayIntro() {
 	grLoadScreen("INTRO.SCR")

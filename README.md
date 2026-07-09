@@ -15,9 +15,18 @@ Here are the enhancements and fixes implemented in this version:
 * **Quiet Preview Mode (`/p`)**: Handled screensaver preview calls by exiting cleanly and quietly.
 * **Test Mode (`/t` or `-t` [<ADS_FILE>] [<TAG_NO>])**: Added a developer test mode that runs scene sequences sequentially on loop, allowing debugging of animations and behaviors in isolation. By default, it loops the palm tree climb/dive (`ACTIVITY.ADS` tag 4) and the water return (`JOHNNY.ADS` tag 3). You can optionally append a custom scene filename and tag number (e.g. `/t BUILDING.ADS 2` or `/t activity 4`) to run and inspect any specific sequence on loop.
 * **Independent Instances per Monitor**: Added an option (disabled by default) to run independent instances of Johnny Castaway on each connected monitor, enabling users to watch different scenes simultaneously. Spawns separate borderless window child processes positioned on each monitor. Moving the mouse or pressing any key on any monitor signals all instances to cleanly close immediately. Sound is automatically disabled on non-primary displays to prevent overlapping audio.
+* **Interactive Debug Hotkeys (`/k` or `-k`)**: Added runtime hotkeys to pause/unpause, speed up, or single-step through animations. The controls utilize Windows global `GetAsyncKeyState` key polling, allowing them to work focus-free regardless of which monitor's window is active or if focus was temporarily lost.
+  * **Space**: Toggle pause / resume (displays a yellow `[PAUSED]` overlay).
+  * **Enter**: Advance exactly one frame when paused.
+  * **M**: Toggle maximum speed mode (displays a yellow `[MAX SPEED]` overlay and disables logical delay).
+  * **Left Shift**: Toggle the debug text overlay.
+  * **Escape**: Exit the screensaver/application cleanly.
+* **Render Benchmark Mode (`/b` or `-b`)**: Ported the performance test logic from the original `bench.c` in `jc_reborn`. It executes three timed passes of 3 seconds each to benchmark rendering 1, 4, and 8 concurrent compositing sprite layers on screen. Benchmark results are printed to the console, saved to `bench.log`, and rendered directly on screen across all active display viewports.
+* **Default Launch Mode (No flags)**: When double-clicked or run without command-line flags, the screensaver now defaults to screensaver mode (spanning all monitors), but ignores general key presses to prevent accidental exits. In this default watch mode, only the **Escape** key (and mouse movement/clicks) will close the screensaver. Standard Windows screensaver launches using **`/s`** retain the normal "any key exits" screensaver behavior.
 * **Graceful Exit & Display/HDR Cleanup**: Replaced direct hard-kills (`os.Exit`) with state-controlled cleanup flags. This ensures proper teardown, cleanly restoring desktop resolution and HDR display states on exit.
 * **Console Window Management**: Hides the background console window when launching the application as a screensaver.
 * **Window Flags Cleanup**: Removed unnecessary topmost window flag (`FlagWindowTopmost`) and added resizable flag (`FlagWindowResizable`) to allow proper Windows focus, screensaver lifecycle handling, and window minimization.
+
 
 ### 🎨 Rendering & Scaling
 * **Multi-Monitor Spanning**: Automatically detects and spans the screensaver window across all connected displays. Renders a separate, correctly letterboxed (4:3) copy of the scene centered on each monitor individually, with matching monitor-bound circular iris transitions.
