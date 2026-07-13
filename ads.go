@@ -36,7 +36,7 @@ var (
 	// that the given (slot,tag) has no explicit freeze of its own AND is
 	// meant to persist.
 	stopFreezeExceptions = map[string]bool{
-		"BUILDING.ADS:1:35": true, // the anchored ship (confirmed: draws sprtNo:8/9 imgNo:4 at fixed 196,124, rect 168x136 matching the visually-confirmed ship size) - ends via natural completion, no COPY_ZONE_TO_BG of its own
+		"BUILDING.ADS:1:35": true, // the anchored ship in tag 2 (confirmed: draws sprtNo:8/9 imgNo:4 at fixed 196,124, rect 168x136 matching the visually-confirmed ship size) - ends via natural completion, no COPY_ZONE_TO_BG of its own
 	}
 
 	// r.c. - explicit identity for Johnny's own thread during the

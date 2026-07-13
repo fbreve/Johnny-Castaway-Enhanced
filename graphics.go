@@ -803,16 +803,30 @@ func grFreezeLayerToBg(sur *rl.RenderTexture2D) {
 // has repeatedly shown to be unreliable immediately after rendering to it
 // within the same tick). Returns true if it handled the freeze this way.
 func grTryRedrawLastSpriteToBg(ttmThread *TTtmThread, x, y int16, width, height uint16) bool {
-	const tolerance = 8 // COPY_ZONE_TO_BG rects are sometimes off by a couple px from the draw that preceded them
-
 	if !ttmThread.hasLastDraw {
 		return false
 	}
-	dx := int(x) - int(ttmThread.lastDrawX)
-	dy := int(y) - int(ttmThread.lastDrawY)
-	dw := int(width) - int(ttmThread.lastDrawW)
-	dh := int(height) - int(ttmThread.lastDrawH)
-	if abs(dx) > tolerance || abs(dy) > tolerance || abs(dw) > tolerance || abs(dh) > tolerance {
+
+	// Check if the last drawn sprite's bounding box is inside (or very close to) the copy zone rect.
+	// We allow a small tolerance in case the copy zone is slightly smaller, but usually it is larger.
+	const tolerance = 8
+
+	spriteLeft := int(ttmThread.lastDrawX)
+	spriteTop := int(ttmThread.lastDrawY)
+	spriteRight := spriteLeft + int(ttmThread.lastDrawW)
+	spriteBottom := spriteTop + int(ttmThread.lastDrawH)
+
+	rectLeft := int(x)
+	rectTop := int(y)
+	rectRight := rectLeft + int(width)
+	rectBottom := rectTop + int(height)
+
+	matched := (spriteLeft >= rectLeft - tolerance) &&
+		(spriteTop >= rectTop - tolerance) &&
+		(spriteRight <= rectRight + tolerance) &&
+		(spriteBottom <= rectBottom + tolerance)
+
+	if !matched {
 		return false
 	}
 
