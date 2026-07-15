@@ -1437,11 +1437,21 @@ func grLoadScreen(screenName string) {
 
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
-			byteIdx := y*bytesPerRow + (x / 2)
+			// Overwrite the leftmost column (index 0) with column 2
+			// and the rightmost column (index 639) with column 637
+			// to remove edge flaws while preserving checkerboard dither parity.
+			targetX := x
+			if x == 0 {
+				targetX = 2
+			} else if x == width-1 {
+				targetX = width - 3
+			}
+
+			byteIdx := y*bytesPerRow + (targetX / 2)
 
 			// NOTE: This is a 4bit/per pixel color index
 			var colorIdx int
-			if x%2 == 0 {
+			if targetX%2 == 0 {
 				colorIdx = int((data[byteIdx] >> 4) & 0x0f)
 			} else {
 				colorIdx = int(data[byteIdx] & 0x0f)
