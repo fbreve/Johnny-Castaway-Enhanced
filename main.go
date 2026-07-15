@@ -85,6 +85,9 @@ func runOptionsWindow() {
 	useMesa := config.UseMesa
 	multiInstance := config.MultiInstance
 	widescreen := config.Widescreen
+	filterMode := config.FilterMode
+	filterDropdownOpen := false
+	scanlines := config.Scanlines
 
 	// Load Windows native fonts for gorgeous anti-aliased text
 	var font rl.Font
@@ -133,6 +136,21 @@ func runOptionsWindow() {
 		// Update inputs
 		mousePos := rl.GetMousePosition()
 		click := rl.IsMouseButtonPressed(rl.MouseLeftButton)
+
+		// Intercept clicks if the dropdown is open
+		if filterDropdownOpen {
+			optionsHover := mousePos.X >= 140 && mousePos.X <= 310 && mousePos.Y >= 296 && mousePos.Y <= 296+7*26
+			if click {
+				if optionsHover {
+					clickedIdx := int(mousePos.Y-296) / 26
+					if clickedIdx >= 0 && clickedIdx < 7 {
+						filterMode = clickedIdx
+					}
+				}
+				filterDropdownOpen = false
+				click = false // Consume the click
+			}
+		}
 
 		// Draw
 		rl.BeginDrawing()
@@ -254,6 +272,48 @@ func runOptionsWindow() {
 			multiInstance = !multiInstance
 		}
 
+		// Scaling Filter Option
+		drawText("Scaling Filter:", 30, 275, 16, rl.Black)
+
+		// Filter display box
+		filterNames := []string{
+			"Nearest",
+			"Bilinear",
+			"Sharp Bilinear",
+			"CRT Dither",
+			"Smart Dither",
+			"Aperture Grille",
+			"CRT Simulator",
+		}
+
+		// Draw header box
+		rl.DrawRectangle(140, 270, 170, 26, rl.White)
+		rl.DrawRectangleLines(140, 270, 170, 26, rl.Gray)
+		drawText(filterNames[filterMode], 148, 274, 16, rl.Black)
+
+		// Draw small down arrow box on the right
+		rl.DrawRectangle(290, 271, 19, 24, rl.GetColor(0xe1e1e1ff))
+		rl.DrawLine(290, 270, 290, 296, rl.Gray)
+		drawText("v", 296, 277, 12, rl.Black)
+
+		headerHover := mousePos.X >= 140 && mousePos.X <= 310 && mousePos.Y >= 270 && mousePos.Y <= 296
+		if headerHover && click {
+			filterDropdownOpen = !filterDropdownOpen
+			click = false // Consume the click
+		}
+
+		// Scanlines Checkbox (Column 2, aligned with Scaling Filter)
+		slHover := mousePos.X >= 320 && mousePos.X <= 570 && mousePos.Y >= 270 && mousePos.Y <= 305
+		rl.DrawRectangle(320, 275, 18, 18, rl.White)
+		rl.DrawRectangleLines(320, 275, 18, 18, rl.Gray)
+		if scanlines {
+			rl.DrawRectangle(324, 279, 10, 10, rl.GetColor(0x0078d7ff))
+		}
+		drawText("Scanlines", 350, 276, 16, rl.Black)
+		if slHover && click {
+			scanlines = !scanlines
+		}
+
 		// Skooter Blog branding link
 		brandText := "Visite o Skooter Blog: www.skooterblog.com"
 		brandSize := float32(16)
@@ -293,6 +353,8 @@ func runOptionsWindow() {
 				config.UseMesa = useMesa
 				config.MultiInstance = multiInstance
 				config.Widescreen = widescreen
+				config.FilterMode = filterMode
+				config.Scanlines = scanlines
 				cfgFileWrite(&config)
 				break
 			}
@@ -321,6 +383,31 @@ func runOptionsWindow() {
 		buildX := int32((600 - buildWidth) / 2)
 		buildY := int32(465)
 		drawText(buildText, buildX, buildY, buildSize, rl.GetColor(0x444444ff))
+
+		// Draw dropdown options overlay if open
+		if filterDropdownOpen {
+			// Draw dropdown background shadow/borders
+			rl.DrawRectangle(140, 296, 170, 7*26, rl.White)
+			rl.DrawRectangleLines(140, 296, 170, 7*26, rl.Gray)
+
+			for i := 0; i < 7; i++ {
+				optY := int32(296 + i*26)
+				optHover := mousePos.X >= 140 && mousePos.X <= 310 && mousePos.Y >= float32(optY) && mousePos.Y <= float32(optY+26)
+
+				if optHover {
+					rl.DrawRectangle(141, optY, 168, 25, rl.GetColor(0x0078d7ff)) // Windows blue highlight
+					drawText(filterNames[i], 148, optY+4, 16, rl.White)
+				} else {
+					drawText(filterNames[i], 148, optY+4, 16, rl.Black)
+				}
+
+				// Draw subtle separator lines between options
+				if i < 6 {
+					rl.DrawLine(140, optY+26, 310, optY+26, rl.GetColor(0xe0e0e0ff))
+				}
+			}
+		}
+
 		rl.EndDrawing()
 	}
 }

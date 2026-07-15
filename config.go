@@ -28,6 +28,8 @@ type TConfig struct {
 	UseMesa       bool
 	MultiInstance bool
 	Widescreen    bool
+	FilterMode    int
+	Scanlines     bool
 }
 
 const (
@@ -41,6 +43,8 @@ const (
 	UseMesaKey       = "useMesa="
 	MultiInstanceKey = "multiInstance="
 	WidescreenKey    = "widescreen="
+	FilterModeKey    = "filterMode="
+	ScanlinesKey     = "scanlines="
 )
 
 func cfgFullPath() string {
@@ -75,6 +79,8 @@ func cfgFileWrite(cfg *TConfig) {
 	_, _ = fmt.Fprintf(f, "%s%t\n", UseMesaKey, cfg.UseMesa)
 	_, _ = fmt.Fprintf(f, "%s%t\n", MultiInstanceKey, cfg.MultiInstance)
 	_, _ = fmt.Fprintf(f, "%s%t\n", WidescreenKey, cfg.Widescreen)
+	_, _ = fmt.Fprintf(f, "%s%d\n", FilterModeKey, cfg.FilterMode)
+	_, _ = fmt.Fprintf(f, "%s%t\n", ScanlinesKey, cfg.Scanlines)
 }
 
 func cfgFileRead(cfg *TConfig) {
@@ -89,6 +95,8 @@ func cfgFileRead(cfg *TConfig) {
 	cfg.UseMesa = false
 	cfg.MultiInstance = false
 	cfg.Widescreen = false
+	cfg.FilterMode = 0
+	cfg.Scanlines = false
 
 	f, err := os.Open(cfgFullPath())
 	if err != nil {
@@ -133,6 +141,13 @@ func cfgFileRead(cfg *TConfig) {
 			cfg.MultiInstance = line[len(MultiInstanceKey):] == "true"
 		} else if strings.HasPrefix(line, WidescreenKey) {
 			cfg.Widescreen = line[len(WidescreenKey):] == "true"
+		} else if strings.HasPrefix(line, FilterModeKey) {
+			fm, err := strconv.Atoi(line[len(FilterModeKey):])
+			if err == nil {
+				cfg.FilterMode = fm
+			}
+		} else if strings.HasPrefix(line, ScanlinesKey) {
+			cfg.Scanlines = line[len(ScanlinesKey):] == "true"
 		}
 	}
 

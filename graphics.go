@@ -304,6 +304,195 @@ func grLoadPalette(palResource *TPALResource) {
 	}
 }
 
+const sharpBilinearFs = `#version 330
+in vec2 fragTexCoord;
+in vec4 fragColor;
+uniform sampler2D texture0;
+out vec4 finalColor;
+uniform vec2 textureSize;
+uniform vec2 renderSize;
+uniform float scanlineWeight;
+void main() {
+    vec2 texelCoord = fragTexCoord * textureSize - vec2(0.5);
+    vec2 integer = floor(texelCoord);
+    vec2 scale = renderSize / textureSize;
+    vec2 fractionalLocation = clamp((fract(texelCoord) - 0.5) * scale + 0.5, 0.0, 1.0);
+    vec2 uv = (integer + fractionalLocation + vec2(0.5)) / textureSize;
+    vec4 col = texture(texture0, uv);
+    if (scanlineWeight > 0.0) {
+        float scanline = 1.0 - scanlineWeight * 0.5 * (1.0 + cos(fract(fragTexCoord.y * textureSize.y) * 2.0 * 3.14159265));
+        col.rgb *= scanline;
+    }
+    finalColor = col * fragColor;
+}`
+
+const ditherBlendFs = `#version 330
+in vec2 fragTexCoord;
+in vec4 fragColor;
+uniform sampler2D texture0;
+out vec4 finalColor;
+uniform vec2 textureSize;
+uniform vec2 renderSize;
+uniform float scanlineWeight;
+void main() {
+    vec2 texelCoord = fragTexCoord * textureSize - vec2(0.5);
+    vec2 integer = floor(texelCoord);
+    vec2 scale = renderSize / textureSize;
+    vec2 fractionalLocation = clamp((fract(texelCoord) - 0.5) * scale + 0.5, 0.0, 1.0);
+    vec2 uv = (integer + fractionalLocation + vec2(0.5)) / textureSize;
+
+    float texelWidth = 1.0 / textureSize.x;
+    vec4 colorC = texture(texture0, uv);
+    vec4 colorL = texture(texture0, uv + vec2(-1.0 * texelWidth, 0.0));
+    vec4 colorR = texture(texture0, uv + vec2(1.0 * texelWidth, 0.0));
+    vec4 col = (colorL + 2.0 * colorC + colorR) * 0.25;
+    if (scanlineWeight > 0.0) {
+        float scanline = 1.0 - scanlineWeight * 0.5 * (1.0 + cos(fract(fragTexCoord.y * textureSize.y) * 2.0 * 3.14159265));
+        col.rgb *= scanline;
+    }
+    finalColor = col * fragColor;
+}`
+
+const smartDitherFs = `#version 330
+in vec2 fragTexCoord;
+in vec4 fragColor;
+uniform sampler2D texture0;
+out vec4 finalColor;
+uniform vec2 textureSize;
+uniform vec2 renderSize;
+uniform float scanlineWeight;
+void main() {
+    vec2 texelCoord = fragTexCoord * textureSize - vec2(0.5);
+    vec2 integer = floor(texelCoord);
+    vec2 scale = renderSize / textureSize;
+    vec2 fractionalLocation = clamp((fract(texelCoord) - 0.5) * scale + 0.5, 0.0, 1.0);
+    vec2 uv = (integer + fractionalLocation + vec2(0.5)) / textureSize;
+
+    float texelWidth = 1.0 / textureSize.x;
+    float texelHeight = 1.0 / textureSize.y;
+
+    vec4 colorC = texture(texture0, uv);
+    vec4 colorL = texture(texture0, uv + vec2(-1.0 * texelWidth, 0.0));
+    vec4 colorR = texture(texture0, uv + vec2(1.0 * texelWidth, 0.0));
+    vec4 colorU = texture(texture0, uv + vec2(0.0, -1.0 * texelHeight));
+    vec4 colorD = texture(texture0, uv + vec2(0.0, 1.0 * texelHeight));
+
+    float diffL = distance(colorC.rgb, colorL.rgb);
+    float diffR = distance(colorC.rgb, colorR.rgb);
+    float diffLR = distance(colorL.rgb, colorR.rgb);
+
+    float diffU = distance(colorC.rgb, colorU.rgb);
+    float diffD = distance(colorC.rgb, colorD.rgb);
+    float diffUD = distance(colorU.rgb, colorD.rgb);
+
+    float ditherH = clamp((min(diffL, diffR) - diffLR) * 4.0, 0.0, 1.0);
+    float ditherV = clamp((min(diffU, diffD) - diffUD) * 4.0, 0.0, 1.0);
+    float ditherAmount = max(ditherH, ditherV);
+
+    vec4 blendedColor = (colorL + 2.0 * colorC + colorR) * 0.25;
+    vec4 col = mix(colorC, blendedColor, ditherAmount);
+    if (scanlineWeight > 0.0) {
+        float scanline = 1.0 - scanlineWeight * 0.5 * (1.0 + cos(fract(fragTexCoord.y * textureSize.y) * 2.0 * 3.14159265));
+        col.rgb *= scanline;
+    }
+    finalColor = col * fragColor;
+}`
+
+const scanlineFs = `#version 330
+in vec2 fragTexCoord;
+in vec4 fragColor;
+uniform sampler2D texture0;
+out vec4 finalColor;
+uniform vec2 textureSize;
+uniform float scanlineWeight;
+void main() {
+    vec4 col = texture(texture0, fragTexCoord);
+    if (scanlineWeight > 0.0) {
+        float scanline = 1.0 - scanlineWeight * 0.5 * (1.0 + cos(fract(fragTexCoord.y * textureSize.y) * 2.0 * 3.14159265));
+        col.rgb *= scanline;
+    }
+    finalColor = col * fragColor;
+}`
+
+const crtSimulatorFs = `#version 330
+in vec2 fragTexCoord;
+in vec4 fragColor;
+uniform sampler2D texture0;
+out vec4 finalColor;
+uniform vec2 textureSize;
+uniform vec2 renderSize;
+uniform float scanlineWeight;
+uniform float curvatureWeight;
+uniform float vignetteWeight;
+
+vec2 curve(vec2 uv) {
+    uv = (uv - 0.5) * 2.0;
+    uv.x *= 1.0 + (uv.y * uv.y) * 0.04;
+    uv.y *= 1.0 + (uv.x * uv.x) * 0.04;
+    uv = (uv / 2.0) + 0.5;
+    return uv;
+}
+
+void main() {
+    vec2 curvedUV = fragTexCoord;
+    if (curvatureWeight > 0.0) {
+        curvedUV = curve(fragTexCoord);
+        if (curvedUV.x < 0.0 || curvedUV.x > 1.0 || curvedUV.y < 0.0 || curvedUV.y > 1.0) {
+            finalColor = vec4(0.0, 0.0, 0.0, 1.0);
+            return;
+        }
+    }
+    vec2 texelCoord = curvedUV * textureSize - vec2(0.5);
+    vec2 integer = floor(texelCoord);
+    vec2 scale = renderSize / textureSize;
+    vec2 fractionalLocation = clamp((fract(texelCoord) - 0.5) * scale + 0.5, 0.0, 1.0);
+    vec2 uv = (integer + fractionalLocation + vec2(0.5)) / textureSize;
+    vec4 col = texture(texture0, uv);
+
+    float scanline = 1.0 - scanlineWeight * 0.5 * (1.0 + cos(fract(curvedUV.y * textureSize.y) * 2.0 * 3.14159265));
+    col.rgb *= scanline;
+
+    float xPixel = fragTexCoord.x * renderSize.x;
+    int subpixel = int(mod(xPixel, 3.0));
+    vec3 maskColor = vec3(0.9, 0.9, 0.9);
+    if (subpixel == 0) maskColor = vec3(1.0, 0.85, 0.85);
+    else if (subpixel == 1) maskColor = vec3(0.85, 1.0, 0.85);
+    else maskColor = vec3(0.85, 0.85, 1.0);
+    col.rgb *= maskColor;
+
+    if (vignetteWeight > 0.0) {
+        float vignette = curvedUV.x * curvedUV.y * (1.0 - curvedUV.x) * (1.0 - curvedUV.y);
+        vignette = clamp(pow(16.0 * vignette, 0.25), 0.0, 1.0);
+        col.rgb *= mix(0.75, 1.0, vignette);
+    }
+
+    finalColor = col * fragColor;
+}`
+
+var (
+	sharpBilinearShader     rl.Shader
+	ditherBlendShader       rl.Shader
+	smartDitherShader       rl.Shader
+	scanlineShader          rl.Shader
+	crtSimulatorShader      rl.Shader
+	sharpBilinearTexSizeLoc int32
+	sharpBilinearRenSizeLoc int32
+	sharpBilinearScanLoc    int32
+	ditherBlendTexSizeLoc   int32
+	ditherBlendRenSizeLoc   int32
+	ditherBlendScanLoc      int32
+	smartDitherTexSizeLoc   int32
+	smartDitherRenSizeLoc   int32
+	smartDitherScanLoc      int32
+	scanlineTexSizeLoc      int32
+	scanlineScanLoc         int32
+	crtSimulatorTexSizeLoc  int32
+	crtSimulatorRenSizeLoc  int32
+	crtSimulatorScanLoc     int32
+	crtSimulatorCurveLoc    int32
+	crtSimulatorVigLoc      int32
+)
+
 func graphicsInit() {
 	// todo more stuff
 	grLoadPalette(&palResources[0])
@@ -353,6 +542,33 @@ func graphicsInit() {
 
 	rt := rl.LoadRenderTexture(int32(virtualWidth), int32(virtualHeight))
 	grFinalRenderSur = &rt
+
+	// Load shaders from memory
+	sharpBilinearShader = rl.LoadShaderFromMemory("", sharpBilinearFs)
+	sharpBilinearTexSizeLoc = rl.GetShaderLocation(sharpBilinearShader, "textureSize")
+	sharpBilinearRenSizeLoc = rl.GetShaderLocation(sharpBilinearShader, "renderSize")
+	sharpBilinearScanLoc = rl.GetShaderLocation(sharpBilinearShader, "scanlineWeight")
+
+	ditherBlendShader = rl.LoadShaderFromMemory("", ditherBlendFs)
+	ditherBlendTexSizeLoc = rl.GetShaderLocation(ditherBlendShader, "textureSize")
+	ditherBlendRenSizeLoc = rl.GetShaderLocation(ditherBlendShader, "renderSize")
+	ditherBlendScanLoc = rl.GetShaderLocation(ditherBlendShader, "scanlineWeight")
+
+	smartDitherShader = rl.LoadShaderFromMemory("", smartDitherFs)
+	smartDitherTexSizeLoc = rl.GetShaderLocation(smartDitherShader, "textureSize")
+	smartDitherRenSizeLoc = rl.GetShaderLocation(smartDitherShader, "renderSize")
+	smartDitherScanLoc = rl.GetShaderLocation(smartDitherShader, "scanlineWeight")
+
+	scanlineShader = rl.LoadShaderFromMemory("", scanlineFs)
+	scanlineTexSizeLoc = rl.GetShaderLocation(scanlineShader, "textureSize")
+	scanlineScanLoc = rl.GetShaderLocation(scanlineShader, "scanlineWeight")
+
+	crtSimulatorShader = rl.LoadShaderFromMemory("", crtSimulatorFs)
+	crtSimulatorTexSizeLoc = rl.GetShaderLocation(crtSimulatorShader, "textureSize")
+	crtSimulatorRenSizeLoc = rl.GetShaderLocation(crtSimulatorShader, "renderSize")
+	crtSimulatorScanLoc = rl.GetShaderLocation(crtSimulatorShader, "scanlineWeight")
+	crtSimulatorCurveLoc = rl.GetShaderLocation(crtSimulatorShader, "curvatureWeight")
+	crtSimulatorVigLoc = rl.GetShaderLocation(crtSimulatorShader, "vignetteWeight")
 }
 
 func graphicsEnd() {
@@ -363,6 +579,22 @@ func graphicsEnd() {
 	// Clean up our own state file on exit
 	if myStatePath != "" {
 		_ = os.Remove(myStatePath)
+	}
+	// Unload shaders
+	if sharpBilinearShader.ID > 0 {
+		rl.UnloadShader(sharpBilinearShader)
+	}
+	if ditherBlendShader.ID > 0 {
+		rl.UnloadShader(ditherBlendShader)
+	}
+	if smartDitherShader.ID > 0 {
+		rl.UnloadShader(smartDitherShader)
+	}
+	if scanlineShader.ID > 0 {
+		rl.UnloadShader(scanlineShader)
+	}
+	if crtSimulatorShader.ID > 0 {
+		rl.UnloadShader(crtSimulatorShader)
 	}
 }
 
@@ -624,7 +856,100 @@ func grUpdateDisplay(
 
 			src := rl.NewRectangle(0, 0, w, h)
 			dst := rl.NewRectangle(destX, destY, destW, destH)
-			rl.DrawTexturePro(rt.Texture, src, dst, rl.Vector2Zero(), 0, rl.White)
+
+			scanlineWeightVal := []float32{0.0}
+			if activeConfig.Scanlines {
+				scanlineWeightVal[0] = 0.15 // 15% opacity scanlines (subtle retro grid)
+			}
+
+			// If scanlines are enabled, we must run a shader even for Nearest/Bilinear
+			useShader := true
+			if !activeConfig.Scanlines && (activeConfig.FilterMode == 0 || activeConfig.FilterMode == 1) {
+				useShader = false
+			}
+
+			if useShader {
+				switch activeConfig.FilterMode {
+				case 1: // Bilinear + Scanlines
+					rl.SetTextureFilter(rt.Texture, rl.FilterBilinear)
+					texSizeVal := []float32{float32(rt.Texture.Width), float32(rt.Texture.Height)}
+					rl.SetShaderValue(scanlineShader, scanlineTexSizeLoc, texSizeVal, rl.ShaderUniformVec2)
+					rl.SetShaderValue(scanlineShader, scanlineScanLoc, scanlineWeightVal, rl.ShaderUniformFloat)
+					rl.BeginShaderMode(scanlineShader)
+					rl.DrawTexturePro(rt.Texture, src, dst, rl.Vector2Zero(), 0, rl.White)
+					rl.EndShaderMode()
+				case 2: // Sharp Bilinear
+					rl.SetTextureFilter(rt.Texture, rl.FilterBilinear)
+					texSizeVal := []float32{float32(rt.Texture.Width), float32(rt.Texture.Height)}
+					renSizeVal := []float32{destW, destH}
+					rl.SetShaderValue(sharpBilinearShader, sharpBilinearTexSizeLoc, texSizeVal, rl.ShaderUniformVec2)
+					rl.SetShaderValue(sharpBilinearShader, sharpBilinearRenSizeLoc, renSizeVal, rl.ShaderUniformVec2)
+					rl.SetShaderValue(sharpBilinearShader, sharpBilinearScanLoc, scanlineWeightVal, rl.ShaderUniformFloat)
+					rl.BeginShaderMode(sharpBilinearShader)
+					rl.DrawTexturePro(rt.Texture, src, dst, rl.Vector2Zero(), 0, rl.White)
+					rl.EndShaderMode()
+				case 3: // Dither Blend (CRT/NTSC horizontal low-pass)
+					rl.SetTextureFilter(rt.Texture, rl.FilterBilinear)
+					texSizeVal := []float32{float32(rt.Texture.Width), float32(rt.Texture.Height)}
+					renSizeVal := []float32{destW, destH}
+					rl.SetShaderValue(ditherBlendShader, ditherBlendTexSizeLoc, texSizeVal, rl.ShaderUniformVec2)
+					rl.SetShaderValue(ditherBlendShader, ditherBlendRenSizeLoc, renSizeVal, rl.ShaderUniformVec2)
+					rl.SetShaderValue(ditherBlendShader, ditherBlendScanLoc, scanlineWeightVal, rl.ShaderUniformFloat)
+					rl.BeginShaderMode(ditherBlendShader)
+					rl.DrawTexturePro(rt.Texture, src, dst, rl.Vector2Zero(), 0, rl.White)
+					rl.EndShaderMode()
+				case 4: // Smart Dither (Sharp + dither-only blend)
+					rl.SetTextureFilter(rt.Texture, rl.FilterBilinear)
+					texSizeVal := []float32{float32(rt.Texture.Width), float32(rt.Texture.Height)}
+					renSizeVal := []float32{destW, destH}
+					rl.SetShaderValue(smartDitherShader, smartDitherTexSizeLoc, texSizeVal, rl.ShaderUniformVec2)
+					rl.SetShaderValue(smartDitherShader, smartDitherRenSizeLoc, renSizeVal, rl.ShaderUniformVec2)
+					rl.SetShaderValue(smartDitherShader, smartDitherScanLoc, scanlineWeightVal, rl.ShaderUniformFloat)
+					rl.BeginShaderMode(smartDitherShader)
+					rl.DrawTexturePro(rt.Texture, src, dst, rl.Vector2Zero(), 0, rl.White)
+					rl.EndShaderMode()
+				case 5: // Aperture Grille (Flat CRT: Scanlines + RGB subpixels, no curve, no vignette)
+					rl.SetTextureFilter(rt.Texture, rl.FilterBilinear)
+					texSizeVal := []float32{float32(rt.Texture.Width), float32(rt.Texture.Height)}
+					renSizeVal := []float32{destW, destH}
+					rl.SetShaderValue(crtSimulatorShader, crtSimulatorTexSizeLoc, texSizeVal, rl.ShaderUniformVec2)
+					rl.SetShaderValue(crtSimulatorShader, crtSimulatorRenSizeLoc, renSizeVal, rl.ShaderUniformVec2)
+					rl.SetShaderValue(crtSimulatorShader, crtSimulatorScanLoc, scanlineWeightVal, rl.ShaderUniformFloat)
+					rl.SetShaderValue(crtSimulatorShader, crtSimulatorCurveLoc, []float32{0.0}, rl.ShaderUniformFloat)
+					rl.SetShaderValue(crtSimulatorShader, crtSimulatorVigLoc, []float32{0.0}, rl.ShaderUniformFloat)
+					rl.BeginShaderMode(crtSimulatorShader)
+					rl.DrawTexturePro(rt.Texture, src, dst, rl.Vector2Zero(), 0, rl.White)
+					rl.EndShaderMode()
+				case 6: // CRT Simulator (Curved CRT: Scanlines + RGB subpixels + Curvature + Vignette)
+					rl.SetTextureFilter(rt.Texture, rl.FilterBilinear)
+					texSizeVal := []float32{float32(rt.Texture.Width), float32(rt.Texture.Height)}
+					renSizeVal := []float32{destW, destH}
+					rl.SetShaderValue(crtSimulatorShader, crtSimulatorTexSizeLoc, texSizeVal, rl.ShaderUniformVec2)
+					rl.SetShaderValue(crtSimulatorShader, crtSimulatorRenSizeLoc, renSizeVal, rl.ShaderUniformVec2)
+					rl.SetShaderValue(crtSimulatorShader, crtSimulatorScanLoc, scanlineWeightVal, rl.ShaderUniformFloat)
+					rl.SetShaderValue(crtSimulatorShader, crtSimulatorCurveLoc, []float32{1.0}, rl.ShaderUniformFloat)
+					rl.SetShaderValue(crtSimulatorShader, crtSimulatorVigLoc, []float32{1.0}, rl.ShaderUniformFloat)
+					rl.BeginShaderMode(crtSimulatorShader)
+					rl.DrawTexturePro(rt.Texture, src, dst, rl.Vector2Zero(), 0, rl.White)
+					rl.EndShaderMode()
+				default: // 0 - Nearest + Scanlines
+					rl.SetTextureFilter(rt.Texture, rl.FilterPoint)
+					texSizeVal := []float32{float32(rt.Texture.Width), float32(rt.Texture.Height)}
+					rl.SetShaderValue(scanlineShader, scanlineTexSizeLoc, texSizeVal, rl.ShaderUniformVec2)
+					rl.SetShaderValue(scanlineShader, scanlineScanLoc, scanlineWeightVal, rl.ShaderUniformFloat)
+					rl.BeginShaderMode(scanlineShader)
+					rl.DrawTexturePro(rt.Texture, src, dst, rl.Vector2Zero(), 0, rl.White)
+					rl.EndShaderMode()
+				}
+			} else {
+				// No shaders (pure Nearest or pure Bilinear)
+				if activeConfig.FilterMode == 1 {
+					rl.SetTextureFilter(rt.Texture, rl.FilterBilinear)
+				} else {
+					rl.SetTextureFilter(rt.Texture, rl.FilterPoint)
+				}
+				rl.DrawTexturePro(rt.Texture, src, dst, rl.Vector2Zero(), 0, rl.White)
+			}
 		}
 
 		if grFinalRenderSur != nil {
