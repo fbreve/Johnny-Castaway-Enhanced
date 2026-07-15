@@ -697,14 +697,47 @@ func runTestMode(testAdsName string, testTagNo int) {
 	islandState.xPos = 0
 	islandState.yPos = 0
 	islandState.lowTide = 1 // Ensure low tide so they match the walk paths
-	adsInitIsland()
-
 	if testAdsName != "" && testTagNo > 0 {
 		testAdsName = strings.ToUpper(testAdsName)
 		if !strings.HasSuffix(testAdsName, ".ADS") {
 			testAdsName += ".ADS"
 		}
-		fmt.Printf("Running custom test mode for scene: %s tag %d\n", testAdsName, testTagNo)
+
+		// Find the scene in storyScenes to get its flags (e.g. LEFT_ISLAND)
+		var scene TStoryScene
+		found := false
+		for _, s := range storyScenes {
+			if strings.ToUpper(s.adsName) == testAdsName && int(s.adsTagNo) == testTagNo {
+				scene = s
+				found = true
+				break
+			}
+		}
+
+		if found {
+			if scene.flags&LEFT_ISLAND == LEFT_ISLAND {
+				islandState.xPos = -272
+				islandState.yPos = 0
+				ttmDx = 0
+				ttmDy = 0
+			} else {
+				islandState.xPos = 0
+				islandState.yPos = 0
+				ttmDx = 0
+				ttmDy = 0
+			}
+		} else {
+			islandState.xPos = 0
+			islandState.yPos = 0
+			ttmDx = 0
+			ttmDy = 0
+		}
+	}
+
+	adsInitIsland()
+
+	if testAdsName != "" && testTagNo > 0 {
+		fmt.Printf("Running custom test mode for scene: %s tag %d (LEFT_ISLAND=%v, xPos=%d)\n", testAdsName, testTagNo, islandState.xPos == -272, islandState.xPos)
 		for !shouldExitApp {
 			adsPlay(testAdsName, uint16(testTagNo))
 		}

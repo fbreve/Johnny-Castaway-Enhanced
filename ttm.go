@@ -1,6 +1,8 @@
 package main
 
-import "math/rand"
+import (
+	"math/rand"
+)
 
 var (
 	ttmDx = 0
@@ -20,10 +22,10 @@ func ttmFindPreviousTag(ttmSlot *TTtmSlot, offset uint32) uint32 {
 }
 
 func ttmFindTag(ttmSlot *TTtmSlot, reqdTag uint16) uint32 {
-	var result uint32 = 0
+	var result uint32 = 0xffffffff
 	i := 0
 
-	for result == 0 && i < ttmSlot.numTags {
+	for result == 0xffffffff && i < ttmSlot.numTags {
 		if ttmSlot.tags[i].id == reqdTag {
 			result = ttmSlot.tags[i].offset
 		} else {
@@ -31,14 +33,15 @@ func ttmFindTag(ttmSlot *TTtmSlot, reqdTag uint16) uint32 {
 		}
 	}
 
-	if result == 0 {
-		debugPrintf("WARN: TTM tag %d not found, returning offset 0000\n", reqdTag)
+	if result == 0xffffffff {
+		debugPrintf("WARN: TTM tag %d not found, returning offset FFFF\n", reqdTag)
 	}
 
 	return result
 }
 
 func ttmLoadTTM(ttmSlot *TTtmSlot, name string) {
+	ttmSlot.ResName = name
 	ttmResource := findTTMResource(name)
 
 	ttmSlot.data = ttmResource.UncompressedData
@@ -177,10 +180,12 @@ func ttmPlay(ttmThread *TTtmThread) {
 		case 0x1061:
 			debugPrintf("\tSET_PALETTE_SLOT: slot:%d\n", args[0])
 		case 0x1101:
-			debugPrintf("\t:LOCAL_TAG %d", args[0])
+			debugPrintf("\t:LOCAL_TAG %d\n", args[0])
+			ttmThread.sceneTag = args[0]
 		case 0x1111:
 			// r.c. seems like some script animation marker possibly, perhaps used for debugging.
 			debugPrintf("\t:TAG #%d ------------------------\n", args[0])
+			ttmThread.sceneTag = args[0]
 		case 0x1121:
 			// is called before SAVE_IMAGE1, defines the id of the region
 			// for further use by CLEAR_SCREEN

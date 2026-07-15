@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"time"
 
+	"strings"
+
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
@@ -180,6 +182,7 @@ type TTtmSlot struct {
 	numTags    int
 	numSprites [MaxBMPSlots]int
 	sprites    [MaxBMPSlots][MaxSpritesPerBMP]*rl.Texture2D
+	ResName    string
 }
 
 type TTtmTag struct { // TODO : rename, used for ADS too
@@ -1629,18 +1632,61 @@ func threadWasStationary(ttmThread *TTtmThread) bool {
 		(ttmThread.moveMaxY-ttmThread.moveMinY) <= tolerance
 }
 
+func getThreadByLayer(sur *rl.RenderTexture2D) *TTtmThread {
+	if sur == nil {
+		return nil
+	}
+	if ttmCloudsThread.ttmLayer == sur {
+		return &ttmCloudsThread
+	}
+	if ttmBackgroundThread.ttmLayer == sur {
+		return &ttmBackgroundThread
+	}
+	if ttmHolidayThread.ttmLayer == sur {
+		return &ttmHolidayThread
+	}
+	for i := 0; i < MaxTTMThreads; i++ {
+		if ttmThreads[i].isRunning != 0 && ttmThreads[i].ttmLayer == sur {
+			return &ttmThreads[i]
+		}
+	}
+	return nil
+}
+
+func isScreenSpanningDraw(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot) bool {
+	if ttmSlot == nil {
+		return false
+	}
+	name := strings.ToUpper(ttmSlot.ResName)
+	if name == "GJVIS3.TTM" || name == "GJVIS6.TTM" || name == "WOULDBE.TTM" || name == "THEEND.TTM" {
+		return true
+	}
+	if name == "GJVIS5.TTM" {
+		// Only tag 9 is the screen-spanning plane flyby
+		thread := getThreadByLayer(sur)
+		if thread != nil && thread.sceneTag == 9 {
+			return true
+		}
+	}
+	return false
+}
+
 func grDrawSprite(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, spriteNo, imageNo uint16) {
 	if int(spriteNo) >= ttmSlot.numSprites[imageNo] {
 		fmt.Printf("Warning : grDrawSprite(): less than %d sprites loaded in slot %d\n", imageNo, spriteNo)
 		return
 	}
 
+	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
+		if isScreenSpanningDraw(sur, ttmSlot) {
+			x = int16(float32(x) * (float32(virtualWidth) / 640.0))
+		} else {
+			x += widescreenOffsetX
+		}
+	}
+
 	x += int16(grDx)
 	y += int16(grDy)
-
-	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
-		x += widescreenOffsetX
-	}
 
 	srcSurface := ttmSlot.sprites[imageNo][spriteNo]
 
@@ -1681,12 +1727,16 @@ func grDrawSpriteFlip(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, sp
 		return
 	}
 
+	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
+		if isScreenSpanningDraw(sur, ttmSlot) {
+			x = int16(float32(x) * (float32(virtualWidth) / 640.0))
+		} else {
+			x += widescreenOffsetX
+		}
+	}
+
 	x += int16(grDx)
 	y += int16(grDy)
-
-	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
-		x += widescreenOffsetX
-	}
 
 	srcSurface := ttmSlot.sprites[imageNo][spriteNo]
 	//x += int16(srcSurface.Width) - 1 // In original C, but NOT NEEDED, in Raylib.

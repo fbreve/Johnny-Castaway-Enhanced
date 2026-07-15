@@ -266,7 +266,13 @@ func adsAddScene(ttmSlotNo, ttmTag, arg3 uint16) {
 	ttmThread.bgColor = 0x0f
 
 	if ttmSlotNo != 0 {
-		ttmThread.ip = ttmFindTag(&ttmSlots[ttmSlotNo], ttmTag)
+		offset := ttmFindTag(&ttmSlots[ttmSlotNo], ttmTag)
+		if offset == 0xffffffff {
+			ttmThread.isRunning = 2 // terminate immediately
+			ttmThread.ip = 0
+		} else {
+			ttmThread.ip = offset
+		}
 	} else {
 		ttmThread.ip = 0
 	}
@@ -318,8 +324,16 @@ func adsStopSceneByTtmTag(ttmSlotNo, ttmTag uint16, keepAsDecoration bool) {
 	for i := 0; i < MaxTTMThreads; i++ {
 		ttmThread := &ttmThreads[i]
 		if ttmThread.isRunning != 0 {
-			if ttmThread.sceneSlot == ttmSlotNo && ttmThread.sceneTag == ttmTag {
-				adsStopScene(i, keepAsDecoration)
+			if ttmThread.sceneSlot == ttmSlotNo {
+				match := ttmThread.sceneTag == ttmTag
+				if ttmSlotNo == 5 && ttmTag == 10 {
+					if ttmThread.sceneTag == 7 || ttmThread.sceneTag == 8 || ttmThread.sceneTag == 10 {
+						match = true
+					}
+				}
+				if match {
+					adsStopScene(i, keepAsDecoration)
+				}
 			}
 		}
 	}
@@ -750,8 +764,14 @@ func adsPlay(adsName string, adsTag uint16) {
 					// Managing the numPlays which was indicated in ADD_SCENE arg3 (postive value)
 					if ttmThreads[i].sceneIterations != 0 {
 						ttmThreads[i].sceneIterations--
-						ttmThreads[i].isRunning = 1
-						ttmThreads[i].ip = ttmFindTag(&ttmSlots[ttmThreads[i].sceneSlot], ttmThreads[i].sceneTag)
+						offset := ttmFindTag(&ttmSlots[ttmThreads[i].sceneSlot], ttmThreads[i].sceneTag)
+						if offset == 0xffffffff {
+							ttmThreads[i].isRunning = 2
+							ttmThreads[i].ip = 0
+						} else {
+							ttmThreads[i].isRunning = 1
+							ttmThreads[i].ip = offset
+						}
 					} else { // Is there one (or more) IF_LASTPLAYED matching the terminated thread ?
 						adsStopScene(i, true)
 						if adsStopRequested == 0 {
