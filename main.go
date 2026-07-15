@@ -84,6 +84,7 @@ func runOptionsWindow() {
 	startTime := config.StartTime
 	useMesa := config.UseMesa
 	multiInstance := config.MultiInstance
+	widescreen := config.Widescreen
 
 	// Load Windows native fonts for gorgeous anti-aliased text
 	var font rl.Font
@@ -177,8 +178,10 @@ func runOptionsWindow() {
 		rl.DrawRectangleLines(255, 54, 20, 12, rl.Gray)
 		drawText("v", 261, 51, 12, rl.Black)
 
+		// --- COLUMN 1 (x=30) ---
+
 		// Load Background Checkbox
-		bgHover := mousePos.X >= 30 && mousePos.X <= 550 && mousePos.Y >= 90 && mousePos.Y <= 120
+		bgHover := mousePos.X >= 30 && mousePos.X <= 280 && mousePos.Y >= 90 && mousePos.Y <= 125
 		rl.DrawRectangle(30, 95, 18, 18, rl.White)
 		rl.DrawRectangleLines(30, 95, 18, 18, rl.Gray)
 		if background {
@@ -190,49 +193,63 @@ func runOptionsWindow() {
 		}
 
 		// Password Checkbox
-		passHover := mousePos.X >= 30 && mousePos.X <= 550 && mousePos.Y >= 140 && mousePos.Y <= 170
-		rl.DrawRectangle(30, 145, 18, 18, rl.White)
-		rl.DrawRectangleLines(30, 145, 18, 18, rl.Gray)
+		passHover := mousePos.X >= 30 && mousePos.X <= 280 && mousePos.Y >= 150 && mousePos.Y <= 185
+		rl.DrawRectangle(30, 155, 18, 18, rl.White)
+		rl.DrawRectangleLines(30, 155, 18, 18, rl.Gray)
 		if password {
-			rl.DrawRectangle(34, 149, 10, 10, rl.GetColor(0x0078d7ff))
+			rl.DrawRectangle(34, 159, 10, 10, rl.GetColor(0x0078d7ff))
 		}
-		drawText("Password Protection", 60, 146, 16, rl.Black)
+		drawText("Password Protection", 60, 156, 16, rl.Black)
 		if passHover && click {
 			password = !password
 		}
 
 		// Sounds Checkbox
-		sndHover := mousePos.X >= 30 && mousePos.X <= 550 && mousePos.Y >= 190 && mousePos.Y <= 220
-		rl.DrawRectangle(30, 195, 18, 18, rl.White)
-		rl.DrawRectangleLines(30, 195, 18, 18, rl.Gray)
+		sndHover := mousePos.X >= 30 && mousePos.X <= 280 && mousePos.Y >= 210 && mousePos.Y <= 245
+		rl.DrawRectangle(30, 215, 18, 18, rl.White)
+		rl.DrawRectangleLines(30, 215, 18, 18, rl.Gray)
 		if sounds {
-			rl.DrawRectangle(34, 199, 10, 10, rl.GetColor(0x0078d7ff))
+			rl.DrawRectangle(34, 219, 10, 10, rl.GetColor(0x0078d7ff))
 		}
-		drawText("Sounds", 60, 196, 16, rl.Black)
+		drawText("Sounds", 60, 216, 16, rl.Black)
 		if sndHover && click {
 			sounds = !sounds
 		}
 
-		// Software OpenGL Checkbox
-		swHover := mousePos.X >= 30 && mousePos.X <= 550 && mousePos.Y >= 240 && mousePos.Y <= 270
-		rl.DrawRectangle(30, 245, 18, 18, rl.White)
-		rl.DrawRectangleLines(30, 245, 18, 18, rl.Gray)
-		if useMesa {
-			rl.DrawRectangle(34, 249, 10, 10, rl.GetColor(0x0078d7ff))
+		// --- COLUMN 2 (x=320) ---
+
+		// Widescreen Checkbox
+		wsHover := mousePos.X >= 320 && mousePos.X <= 570 && mousePos.Y >= 90 && mousePos.Y <= 125
+		rl.DrawRectangle(320, 95, 18, 18, rl.White)
+		rl.DrawRectangleLines(320, 95, 18, 18, rl.Gray)
+		if widescreen {
+			rl.DrawRectangle(324, 99, 10, 10, rl.GetColor(0x0078d7ff))
 		}
-		drawText("Use Software OpenGL (Mesa)", 60, 246, 16, rl.Black)
+		drawText("Widescreen", 350, 96, 16, rl.Black)
+		if wsHover && click {
+			widescreen = !widescreen
+		}
+
+		// Software OpenGL Checkbox
+		swHover := mousePos.X >= 320 && mousePos.X <= 570 && mousePos.Y >= 150 && mousePos.Y <= 185
+		rl.DrawRectangle(320, 155, 18, 18, rl.White)
+		rl.DrawRectangleLines(320, 155, 18, 18, rl.Gray)
+		if useMesa {
+			rl.DrawRectangle(324, 159, 10, 10, rl.GetColor(0x0078d7ff))
+		}
+		drawText("Use Software OpenGL (Mesa)", 350, 156, 16, rl.Black)
 		if swHover && click {
 			useMesa = !useMesa
 		}
 
 		// Independent instances checkbox
-		miHover := mousePos.X >= 30 && mousePos.X <= 550 && mousePos.Y >= 290 && mousePos.Y <= 320
-		rl.DrawRectangle(30, 295, 18, 18, rl.White)
-		rl.DrawRectangleLines(30, 295, 18, 18, rl.Gray)
+		miHover := mousePos.X >= 320 && mousePos.X <= 570 && mousePos.Y >= 210 && mousePos.Y <= 245
+		rl.DrawRectangle(320, 215, 18, 18, rl.White)
+		rl.DrawRectangleLines(320, 215, 18, 18, rl.Gray)
 		if multiInstance {
-			rl.DrawRectangle(34, 299, 10, 10, rl.GetColor(0x0078d7ff))
+			rl.DrawRectangle(324, 219, 10, 10, rl.GetColor(0x0078d7ff))
 		}
-		drawText("Independent instances per monitor", 60, 296, 16, rl.Black)
+		drawText("Independent instances", 350, 216, 16, rl.Black)
 		if miHover && click {
 			multiInstance = !multiInstance
 		}
@@ -275,6 +292,7 @@ func runOptionsWindow() {
 				config.StartTime = startTime
 				config.UseMesa = useMesa
 				config.MultiInstance = multiInstance
+				config.Widescreen = widescreen
 				cfgFileWrite(&config)
 				break
 			}

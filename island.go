@@ -108,14 +108,14 @@ func islandInit(ttmThread *TTtmThread) {
 		cloudNo := rand.Int() % 3
 		switch cloudNo {
 		case 0:
-			cloudX = uint16(rand.Int() % (640 - 129))
+			cloudX = uint16(rand.Int() % (virtualWidth - 129))
 			cloudY = uint16(rand.Int()%(100-36) + 25)
 
 		case 1:
-			cloudX = uint16(rand.Int() % (640 - 192))
+			cloudX = uint16(rand.Int() % (virtualWidth - 192))
 			cloudY = uint16(rand.Int()%(100-57) + 25)
 		case 2:
-			cloudX = uint16(rand.Int() % (640 - 264))
+			cloudX = uint16(rand.Int() % (virtualWidth - 264))
 			cloudY = uint16(rand.Int()%(100-76) + 25)
 		}
 		islandState.clouds.windSpeed[i] = int32(rand.Int()%2 + 1)
@@ -242,10 +242,10 @@ func islandAnimateClouds(ttmThread *TTtmThread) {
 			cloudX := islandState.clouds.xPos[i]
 			cloudY := islandState.clouds.yPos[i]
 
-			if cloudX > 640+264 {
+			if cloudX > int32(virtualWidth)+264 {
 				cloudX = -264
 			} else if cloudX < -264 {
-				cloudX = 640 + 264
+				cloudX = int32(virtualWidth) + 264
 			} else {
 				if islandState.clouds.windDirection > 0 {
 					cloudX -= islandState.clouds.windSpeed[i]

@@ -27,6 +27,7 @@ type TConfig struct {
 	StartTime     int
 	UseMesa       bool
 	MultiInstance bool
+	Widescreen    bool
 }
 
 const (
@@ -39,6 +40,7 @@ const (
 	StartTimeKey     = "startTime="
 	UseMesaKey       = "useMesa="
 	MultiInstanceKey = "multiInstance="
+	WidescreenKey    = "widescreen="
 )
 
 func cfgFullPath() string {
@@ -72,6 +74,7 @@ func cfgFileWrite(cfg *TConfig) {
 	_, _ = fmt.Fprintf(f, "%s%d\n", StartTimeKey, cfg.StartTime)
 	_, _ = fmt.Fprintf(f, "%s%t\n", UseMesaKey, cfg.UseMesa)
 	_, _ = fmt.Fprintf(f, "%s%t\n", MultiInstanceKey, cfg.MultiInstance)
+	_, _ = fmt.Fprintf(f, "%s%t\n", WidescreenKey, cfg.Widescreen)
 }
 
 func cfgFileRead(cfg *TConfig) {
@@ -85,6 +88,7 @@ func cfgFileRead(cfg *TConfig) {
 	cfg.StartTime = 900
 	cfg.UseMesa = false
 	cfg.MultiInstance = false
+	cfg.Widescreen = false
 
 	f, err := os.Open(cfgFullPath())
 	if err != nil {
@@ -127,6 +131,8 @@ func cfgFileRead(cfg *TConfig) {
 			cfg.UseMesa = line[len(UseMesaKey):] == "true"
 		} else if strings.HasPrefix(line, MultiInstanceKey) {
 			cfg.MultiInstance = line[len(MultiInstanceKey):] == "true"
+		} else if strings.HasPrefix(line, WidescreenKey) {
+			cfg.Widescreen = line[len(WidescreenKey):] == "true"
 		}
 	}
 

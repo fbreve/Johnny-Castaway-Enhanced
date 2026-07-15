@@ -154,6 +154,11 @@ var (
 	grBackgroundSur   *rl.RenderTexture2D
 	grSavedZonesLayer *rl.RenderTexture2D
 
+	// widescreen variables
+	virtualWidth      = 640
+	virtualHeight     = 480
+	widescreenOffsetX = int16(0)
+
 	// r.c. debug instrumentation - tracks nil transitions of grSavedZonesLayer
 	// for logging in grUpdateDisplay
 	lastSavedZonesLayerWasNil = true
@@ -281,7 +286,7 @@ func grPutPixel(sur *rl.RenderTexture2D, x, y uint16, c uint8) {
 		defer rl.EndScissorMode()
 	}
 
-	if x < 640 && y < 480 {
+	if x < uint16(virtualWidth) && y < 480 {
 		rl.DrawPixel(int32(x), int32(y), clr)
 	}
 }
@@ -303,6 +308,32 @@ func graphicsInit() {
 	// todo more stuff
 	grLoadPalette(&palResources[0])
 
+	// Calculate virtual width and height
+	if activeConfig.Widescreen {
+		var aspect float32 = 4.0 / 3.0
+		if len(monitorRects) > 0 {
+			aspect = monitorRects[0].W / monitorRects[0].H
+		} else {
+			aspect = float32(rl.GetScreenWidth()) / float32(rl.GetScreenHeight())
+		}
+		if aspect > 4.0/3.0 {
+			virtualHeight = 480
+			virtualWidth = int(float32(virtualHeight) * aspect)
+			if virtualWidth%2 == 1 {
+				virtualWidth++
+			}
+			widescreenOffsetX = int16((virtualWidth - 640) / 2)
+		} else {
+			virtualHeight = 480
+			virtualWidth = 640
+			widescreenOffsetX = 0
+		}
+	} else {
+		virtualHeight = 480
+		virtualWidth = 640
+		widescreenOffsetX = 0
+	}
+
 	// Initialize state path and clean up stale shared files
 	initSharedState()
 	if files, err := filepath.Glob(filepath.Join(os.TempDir(), "johnny_state_*.json")); err == nil {
@@ -320,7 +351,7 @@ func graphicsInit() {
 	// Mouse position is captured after a few frames in grUpdateDisplay to avoid startup fluctuations
 	screenSaverPos = rl.Vector2Zero()
 
-	rt := rl.LoadRenderTexture(640, 480)
+	rt := rl.LoadRenderTexture(int32(virtualWidth), int32(virtualHeight))
 	grFinalRenderSur = &rt
 }
 
@@ -356,7 +387,7 @@ func grUpdateDisplay(
 		offsetX, offsetY, renderW, renderH float32
 	}
 
-	targetAspect := float32(4.0) / 3.0
+	targetAspect := float32(virtualWidth) / float32(virtualHeight)
 
 	computeLetterbox := func(w, h float32) (rw, rh, ox, oy float32) {
 		aspect := w / h
@@ -723,7 +754,7 @@ func grUpdateDisplay(
 }
 
 func grNewLayer() *rl.RenderTexture2D {
-	rt := rl.LoadRenderTexture(screenWidth, screenHeight)
+	rt := rl.LoadRenderTexture(int32(virtualWidth), int32(virtualHeight))
 	rl.BeginTextureMode(rt)
 	rl.ClearBackground(rl.Blank)
 	rl.EndTextureMode()
@@ -755,6 +786,11 @@ func grSetClipZone(sur *rl.RenderTexture2D, x1, y1, x2, y2 int16) {
 	y1 += int16(grDy)
 	x2 += int16(grDx)
 	y2 += int16(grDy)
+
+	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
+		x1 += widescreenOffsetX
+		x2 += widescreenOffsetX
+	}
 
 	w := x2 - x1
 	h := y2 - y1
@@ -959,6 +995,10 @@ func grCopyZoneToBg(sur *rl.RenderTexture2D, x, y, width, height uint16) {
 	x += uint16(grDx)
 	y += uint16(grDy)
 
+	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
+		x += uint16(widescreenOffsetX)
+	}
+
 	// Invert Y for the source rectangle since RenderTexture is flipped vertically in memory.
 	srcRect := rl.NewRectangle(float32(x), float32(screenHeight-int(y)), float32(width+2), -float32(height))
 	dstRect := rl.NewRectangle(float32(x), float32(y), float32(width+2), float32(height))
@@ -1025,6 +1065,11 @@ func grRestoreZone(sur *rl.RenderTexture2D, x, y, width, height uint16) {
 func grDrawPixel(sur *rl.RenderTexture2D, x, y int16, clr uint8) {
 	x += int16(grDx)
 	y += int16(grDy)
+
+	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
+		x += widescreenOffsetX
+	}
+
 	grPutPixel(sur, uint16(x), uint16(y), clr)
 }
 
@@ -1033,6 +1078,11 @@ func grDrawLine(sur *rl.RenderTexture2D, x1, y1, x2, y2 int16, colorIdx uint8) {
 	y1 += int16(grDy)
 	x2 += int16(grDx)
 	y2 += int16(grDy)
+
+	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
+		x1 += widescreenOffsetX
+		x2 += widescreenOffsetX
+	}
 
 	clr := ttmPalette[colorIdx&0x0f]
 	c := color.RGBA{
@@ -1067,14 +1117,23 @@ func grDrawHorizontalLine(sur *rl.RenderTexture2D, x1, x2, y int16, color uint8)
 		x2 = 639
 	}
 
+	shift := int16(0)
+	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
+		shift = widescreenOffsetX
+	}
+
 	for x := x1; x < x2; x++ {
-		grPutPixel(sur, uint16(x), uint16(y), color)
+		grPutPixel(sur, uint16(x+shift), uint16(y), color)
 	}
 }
 
 func grDrawRect(sur *rl.RenderTexture2D, x, y int16, width, height uint16, colorIdx uint8) {
 	x += int16(grDx)
 	y += int16(grDy)
+
+	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
+		x += widescreenOffsetX
+	}
 
 	// r.c. testing this out, not ready yet.
 
@@ -1102,6 +1161,10 @@ func grDrawRect(sur *rl.RenderTexture2D, x, y int16, width, height uint16, color
 func grDrawCircle(sur *rl.RenderTexture2D, x1, y1 int16, width, height uint16, fgColor, bgColor uint8) {
 	x1 += int16(grDx)
 	y1 += int16(grDy)
+
+	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
+		x1 += widescreenOffsetX
+	}
 
 	// We can only draw regular circles
 	if width != height {
@@ -1250,6 +1313,10 @@ func grDrawSprite(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, sprite
 	x += int16(grDx)
 	y += int16(grDy)
 
+	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
+		x += widescreenOffsetX
+	}
+
 	srcSurface := ttmSlot.sprites[imageNo][spriteNo]
 
 	rl.BeginTextureMode(*sur)
@@ -1291,6 +1358,10 @@ func grDrawSpriteFlip(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, sp
 
 	x += int16(grDx)
 	y += int16(grDy)
+
+	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
+		x += widescreenOffsetX
+	}
 
 	srcSurface := ttmSlot.sprites[imageNo][spriteNo]
 	//x += int16(srcSurface.Width) - 1 // In original C, but NOT NEEDED, in Raylib.
@@ -1394,14 +1465,45 @@ func grLoadScreen(screenName string) {
 
 	spriteImg := rl.NewImage(pixelData, int32(width), int32(height), 1, rl.UncompressedR8g8b8a8)
 	spriteTexture := rl.LoadTextureFromImage(spriteImg)
+	defer rl.UnloadTexture(spriteTexture)
 
-	rt := rl.LoadRenderTexture(int32(width), int32(height))
+	rt := rl.LoadRenderTexture(int32(virtualWidth), int32(virtualHeight))
 	grBackgroundSur = &rt
 
 	rl.BeginTextureMode(rt)
 	defer rl.EndTextureMode()
 
-	rl.DrawTexture(spriteTexture, 0, 0, rl.White)
+	rl.ClearBackground(rl.Black)
+	rl.DrawTexture(spriteTexture, int32(widescreenOffsetX), 0, rl.White)
+
+	if activeConfig.Widescreen && widescreenOffsetX > 0 {
+		for lx := int32(widescreenOffsetX) - 640; lx > -640; lx -= 640 {
+			dist := (int32(widescreenOffsetX) - lx) / 640
+			flipHorizontal := (dist % 2) != 0
+
+			if flipHorizontal {
+				// Skip column 0 to align checkerboard dithering
+				src := rl.NewRectangle(1, 0, -float32(width-1), float32(height))
+				dst := rl.NewRectangle(float32(lx+1), 0, float32(width-1), float32(height))
+				rl.DrawTexturePro(spriteTexture, src, dst, rl.Vector2Zero(), 0, rl.White)
+			} else {
+				rl.DrawTexture(spriteTexture, lx, 0, rl.White)
+			}
+		}
+		for rx := int32(widescreenOffsetX) + 640; rx < int32(virtualWidth); rx += 640 {
+			dist := (rx - int32(widescreenOffsetX)) / 640
+			flipHorizontal := (dist % 2) != 0
+
+			if flipHorizontal {
+				// Skip column 639 to align checkerboard dithering
+				src := rl.NewRectangle(0, 0, -float32(width-1), float32(height))
+				dst := rl.NewRectangle(float32(rx), 0, float32(width-1), float32(height))
+				rl.DrawTexturePro(spriteTexture, src, dst, rl.Vector2Zero(), 0, rl.White)
+			} else {
+				rl.DrawTexture(spriteTexture, rx, 0, rl.White)
+			}
+		}
+	}
 }
 
 func grInitEmptyBackground() {
@@ -1413,7 +1515,7 @@ func grInitEmptyBackground() {
 		grReleaseSavedLayer()
 	}
 
-	rt := rl.LoadRenderTexture(screenWidth, screenHeight)
+	rt := rl.LoadRenderTexture(int32(virtualWidth), int32(virtualHeight))
 	grBackgroundSur = &rt
 
 	rl.BeginTextureMode(*grBackgroundSur)
@@ -1529,7 +1631,7 @@ func drawCircularIris(radiusVal int, regionX, regionY, regionW, regionH float32)
 	cx := regionX + regionW/2.0
 	cy := regionY + regionH/2.0
 
-	targetAspect := float32(4.0) / 3.0
+	targetAspect := float32(virtualWidth) / float32(virtualHeight)
 	currentAspect := regionW / regionH
 
 	var renderH float32
