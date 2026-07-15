@@ -57,8 +57,11 @@ Here are the enhancements and fixes implemented in this version:
   * Corrected coconut scale inside bounding boxes in `grDrawCircle`.
   * Resolved sub-scene mismatches on the central island setup.
   * Corrected walk transition coordinate offsets (`ttmDx`/`ttmDy`) in `storyPlay` so that transitions between island halves (e.g. returning from water to the left side of the island) render Johnny at the correct offset immediately.
+  * Corrected custom test mode coordinate positioning so that scenes with `LEFT_ISLAND` flags (like the plane visitor) load the background screen and center offsets shifted left correctly, preventing characters from walking on water.
+  * Scaled horizontal coordinates of screen-spanning elements (like the biplane flyby in `GJVIS3.TTM` and `GJVIS5.TTM`, the tanker in `GJVIS6.TTM`, and rescue boats in `WOULDBE.TTM`/`THEEND.TTM`) across the full widescreen viewport width when widescreen mode is enabled.
 
 ### ⚙️ Engine, Scripts, and RNG
+* **Plane Visitor Duplicate Rendering**: Resolved a race condition where Johnny would duplicate/ghost in the plane visitor scene (`VISITOR.ADS` tag 5) by updating the interpreter's active thread tag (`ttmThread.sceneTag`) dynamically upon hitting tag markers (`0x1111` or `0x1101`), and stopping active walk/stand threads (`tag 7`, `8`, or `10`) concurrently.
 * **TIMER Opcode RNG**: Fixed the `TIMER` opcode (`0x2022`) to sample uniformly from the target range `[args[0], args[1]]` (instead of taking the static average), restoring the natural jitter/timing variation of the original screensaver.
 * **Script Comment & Opcode Corrections**: Verified and fixed several script interpreter assumptions against real `.TTM`/`.ADS` streams (e.g., `SAVE_IMAGE1`, `:TAG` labels for jump routing, mismatch of tag counts, and redundant duplicate scene additions).
 * **Local Trigger Chaining (`IF_LASTPLAYED_LOCAL` gating)**: Fixed a bug in `adsPlayTriggeredChunks` where having any local chunk pending globally blocked general/global chunk dispatches. The fallback general dispatch now properly fires for all unrelated scenes and tags while local triggers remain active.
