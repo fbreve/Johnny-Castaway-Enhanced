@@ -238,6 +238,10 @@ type TTtmThread struct {
 	lastDrawImageNo  uint16
 	lastDrawFlipped  bool
 
+	hasScaleOffset bool
+	scaleOffsetX   int16
+
+
 	// r.c. - same idea as lastDraw above, but for DRAW_RECT. GJVIS6.TTM
 	// (VISITOR.ADS tag 3 - the red tanker passing close in front of the
 	// island) draws its hull's flat midsection not as a sprite bitmap but
@@ -1859,7 +1863,19 @@ func grDrawSprite(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, sprite
 
 	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
 		if isScreenSpanningDraw(sur, ttmSlot) && shouldScaleSprite(ttmSlot, imageNo) {
-			x = int16(float32(x) * (float32(virtualWidth) / 640.0))
+			thread := getThreadByLayer(sur)
+			if thread != nil {
+				if !thread.hasScaleOffset {
+					scaledX := int16(float32(x) * (float32(virtualWidth) / 640.0))
+					thread.scaleOffsetX = scaledX - x
+					thread.hasScaleOffset = true
+					x = scaledX
+				} else {
+					x += thread.scaleOffsetX
+				}
+			} else {
+				x = int16(float32(x) * (float32(virtualWidth) / 640.0))
+			}
 		} else {
 			x += widescreenOffsetX
 		}
@@ -1909,7 +1925,19 @@ func grDrawSpriteFlip(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, sp
 
 	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
 		if isScreenSpanningDraw(sur, ttmSlot) && shouldScaleSprite(ttmSlot, imageNo) {
-			x = int16(float32(x) * (float32(virtualWidth) / 640.0))
+			thread := getThreadByLayer(sur)
+			if thread != nil {
+				if !thread.hasScaleOffset {
+					scaledX := int16(float32(x) * (float32(virtualWidth) / 640.0))
+					thread.scaleOffsetX = scaledX - x
+					thread.hasScaleOffset = true
+					x = scaledX
+				} else {
+					x += thread.scaleOffsetX
+				}
+			} else {
+				x = int16(float32(x) * (float32(virtualWidth) / 640.0))
+			}
 		} else {
 			x += widescreenOffsetX
 		}

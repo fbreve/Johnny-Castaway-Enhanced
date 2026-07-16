@@ -302,5 +302,7 @@ func ttmPlay(ttmThread *TTtmThread) {
 		}
 	}
 
+	ttmThread.hasScaleOffset = false
 	ttmThread.ip = offset
 }
+
