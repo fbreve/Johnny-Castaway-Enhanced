@@ -224,8 +224,16 @@ func ttmPlay(ttmThread *TTtmThread) {
 			grSetClipZone(ttmThread.ttmLayer, int16(args[0]), int16(args[1]), int16(args[2]), int16(args[3]))
 		case 0x4204:
 			debugPrintf("\tCOPY_ZONE_TO_BG: x:%d, y:%d, w:%d, h:%d\n", args[0], args[1], args[2], args[3])
-			if grTryRedrawLastSpriteToBg(ttmThread, int16(args[0]), int16(args[1]), args[2], args[3]) {
-				debugPrintln("\t  (redrew original sprite instead of copying rendered pixels)")
+			var handled bool
+			if ttmThread.lastOpWasRect {
+				handled = grTryRedrawLastRectToBg(ttmThread, int16(args[0]), int16(args[1]), args[2], args[3]) ||
+					grTryRedrawLastSpriteToBg(ttmThread, int16(args[0]), int16(args[1]), args[2], args[3])
+			} else {
+				handled = grTryRedrawLastSpriteToBg(ttmThread, int16(args[0]), int16(args[1]), args[2], args[3]) ||
+					grTryRedrawLastRectToBg(ttmThread, int16(args[0]), int16(args[1]), args[2], args[3])
+			}
+			if handled {
+				debugPrintln("\t  (redrew original draw instead of copying rendered pixels)")
 			} else {
 				grCopyZoneToBg(ttmThread.ttmLayer, args[0], args[1], args[2], args[3])
 			}
@@ -255,7 +263,8 @@ func ttmPlay(ttmThread *TTtmThread) {
 			grDrawLine(ttmThread.ttmLayer, int16(args[0]), int16(args[1]), int16(args[2]), int16(args[3]), ttmThread.fgColor)
 		case 0xA104:
 			debugPrintf("\tDRAW_RECT %d %d %d %d\n", args[0], args[1], args[2], args[3])
-			grDrawRect(ttmThread.ttmLayer, int16(args[0]), int16(args[1]), args[2], args[3], ttmThread.fgColor)
+			trackLastRect(ttmThread, int16(args[0]), int16(args[1]), args[2], args[3], ttmThread.fgColor)
+			grDrawRect(ttmThread.ttmLayer, ttmThread.ttmSlot, int16(args[0]), int16(args[1]), args[2], args[3], ttmThread.fgColor)
 		case 0xA404:
 			debugPrintf("\tDRAW_CIRCLE %d %d %d %d\n", args[0], args[1], args[2], args[3])
 			grDrawCircle(ttmThread.ttmLayer, int16(args[0]), int16(args[1]), args[2], args[3], ttmThread.fgColor, ttmThread.bgColor)

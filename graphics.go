@@ -238,6 +238,47 @@ type TTtmThread struct {
 	lastDrawImageNo  uint16
 	lastDrawFlipped  bool
 
+	// r.c. - same idea as lastDraw above, but for DRAW_RECT. GJVIS6.TTM
+	// (VISITOR.ADS tag 3 - the red tanker passing close in front of the
+	// island) draws its hull's flat midsection not as a sprite bitmap but
+	// as a sequence of solid-color DRAW_RECT strips, each one immediately
+	// frozen with its own COPY_ZONE_TO_BG using the exact same rect args.
+	// That freeze hit the same same-tick-readback unreliability as sprite
+	// freezes, except there was no lastDraw match to redraw from instead
+	// (DRAW_RECT never populated it) - the raw copy fell through and
+	// often froze a blank/transparent strip, matching the reported bug:
+	// the ship's bow and top show fine (drawn via DRAW_SPRITE, covered by
+	// lastDraw above), but its side is missing.
+	hasLastRect   bool
+	lastRectX     int16
+	lastRectY     int16
+	lastRectW     uint16
+	lastRectH     uint16
+	lastRectColor uint8
+
+	// r.c. - whichever of DRAW_SPRITE/DRAW_SPRITE_FLIP or DRAW_RECT ran
+	// most recently on this thread. GJVIS6.TTM's hull strips draw two
+	// small bow-cap sprites *and* the wide hull rect in the same tick,
+	// right before COPY_ZONE_TO_BG - and the bow sprite's bounding box
+	// sometimes falls within the matching tolerance of the (much wider)
+	// rect zone too. Checking sprite-match unconditionally before
+	// rect-match then occasionally redraws just the small bow sprite
+	// instead of the full hull strip, leaving a thin unpainted gap on the
+	// persistent layer for that one strip - exactly the vertical seam
+	// reported (island/palm tree visible through a hairline gap). Always
+	// trying whichever was drawn last, first, avoids that.
+	lastOpWasRect bool
+
+	// r.c. - tracks the right edge of the last rect this thread actually
+	// froze onto grSavedZonesLayer (as opposed to lastRect* above, which
+	// just tracks the most recent DRAW_RECT call regardless of whether it
+	// got frozen). Used to bridge tiny authoring gaps between consecutive
+	// strips - see grTryRedrawLastRectToBg.
+	hasFrozenRect    bool
+	frozenRectRight  int16
+	frozenRectTop    int16
+	frozenRectBottom int16
+
 	// r.c. - some animations settle into a final position and then cycle
 	// between a few frames there (e.g. the ship: a one-time "sails
 	// catching wind" frame on arrival, then loops on a "sails full" idle
@@ -1207,6 +1248,78 @@ func grTryRedrawLastSpriteToBg(ttmThread *TTtmThread, x, y int16, width, height 
 	return true
 }
 
+// grTryRedrawLastRectToBg is the DRAW_RECT counterpart to
+// grTryRedrawLastSpriteToBg above: if the requested COPY_ZONE_TO_BG rect
+// matches the rect most recently filled with DRAW_RECT on this thread,
+// redraw that same solid-color rect directly onto the persistent layer
+// instead of reading ttmLayer back.
+func grTryRedrawLastRectToBg(ttmThread *TTtmThread, x, y int16, width, height uint16) bool {
+	if !ttmThread.hasLastRect {
+		return false
+	}
+
+	const tolerance = 8
+
+	rectLeft := int(ttmThread.lastRectX)
+	rectTop := int(ttmThread.lastRectY)
+	rectRight := rectLeft + int(ttmThread.lastRectW)
+	rectBottom := rectTop + int(ttmThread.lastRectH)
+
+	zoneLeft := int(x)
+	zoneTop := int(y)
+	zoneRight := zoneLeft + int(width)
+	zoneBottom := zoneTop + int(height)
+
+	matched := (rectLeft >= zoneLeft-tolerance) &&
+		(rectTop >= zoneTop-tolerance) &&
+		(rectRight <= zoneRight+tolerance) &&
+		(rectBottom <= zoneBottom+tolerance)
+
+	if !matched {
+		return false
+	}
+
+	if grSavedZonesLayer == nil {
+		grSavedZonesLayer = grNewLayer()
+	}
+
+	drawX := ttmThread.lastRectX
+	drawWidth := ttmThread.lastRectW
+
+	// r.c. - GJVIS6.TTM (the tanker passing in front of the island,
+	// VISITOR.ADS tag 3) has a genuine 2px gap in its own original data
+	// between two of its ~28 hull strips (one ends at x=477, the next
+	// starts at x=479 - confirmed via debug log, every strip otherwise
+	// tiles exactly edge-to-edge). Once each strip is correctly frozen
+	// (as opposed to the previous same-tick-readback bug masking
+	// everything), that authoring gap becomes a permanent hairline hole
+	// in the persistent background showing whatever was behind it. Bridge
+	// any such small gap by extending this strip leftward to butt up
+	// against the previous one, as long as they're on the same row.
+	const maxBridgeGap = 8
+	if ttmThread.hasFrozenRect &&
+		ttmThread.frozenRectTop == ttmThread.lastRectY &&
+		ttmThread.frozenRectBottom == ttmThread.lastRectY+int16(ttmThread.lastRectH) {
+		gap := int(drawX) - int(ttmThread.frozenRectRight)
+		if gap > 0 && gap <= maxBridgeGap {
+			debugPrintf("*** bridging %dpx gap before rect freeze (prev right edge %d, this strip started at %d) ***\n",
+				gap, ttmThread.frozenRectRight, drawX)
+			drawWidth += uint16(gap)
+			drawX = ttmThread.frozenRectRight
+		}
+	}
+
+	debugPrintf("*** COPY_ZONE_TO_BG matched last rect: redrawing rect at (%d,%d,%d,%d) color=%d ***\n",
+		drawX, ttmThread.lastRectY, drawWidth, ttmThread.lastRectH, ttmThread.lastRectColor)
+	grDrawRect(grSavedZonesLayer, ttmThread.ttmSlot, drawX, ttmThread.lastRectY, drawWidth, ttmThread.lastRectH, ttmThread.lastRectColor)
+
+	ttmThread.hasFrozenRect = true
+	ttmThread.frozenRectRight = drawX + int16(drawWidth)
+	ttmThread.frozenRectTop = ttmThread.lastRectY
+	ttmThread.frozenRectBottom = ttmThread.lastRectY + int16(ttmThread.lastRectH)
+	return true
+}
+
 // grRedrawLastSpriteToBg unconditionally redraws whatever sprite this
 // thread most recently drew, directly onto the persistent layer - no
 // coordinate matching, no render-texture read-back. Used for the explicit
@@ -1455,13 +1568,38 @@ func grDrawHorizontalLine(sur *rl.RenderTexture2D, x1, x2, y int16, color uint8)
 	}
 }
 
-func grDrawRect(sur *rl.RenderTexture2D, x, y int16, width, height uint16, colorIdx uint8) {
+func grDrawRect(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, width, height uint16, colorIdx uint8) {
+	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
+		if isScreenSpanningDraw(sur, ttmSlot) {
+			// r.c. - grDrawSprite/grDrawSpriteFlip already scale x for
+			// these TTMs (GJVIS6.TTM among them) so a bitmap sprite drawn
+			// off the left edge in the original 640-wide script reaches
+			// the true corner of a wider virtual canvas. DRAW_RECT never
+			// got the same treatment, so the tanker's hull (built from a
+			// long row of solid-color DRAW_RECT strips) only ever started
+			// filling in from the classic 4:3 window's left border, never
+			// reaching the actual widescreen edge - while its bow sprite
+			// (drawn via DRAW_SPRITE) correctly did. Scale the left and
+			// right edges independently (not x and width separately) and
+			// derive width from the difference: scaling x and width each
+			// on their own rounds differently strip to strip, opening a
+			// ~1px seam at every single boundary once spread over a wider
+			// canvas - scaling the edges keeps two strips that shared an
+			// exact boundary in the original 640-wide data (right edge of
+			// one == left edge of the next) sharing an exact boundary
+			// after scaling too.
+			scale := float32(virtualWidth) / 640.0
+			scaledLeft := int16(float32(x) * scale)
+			scaledRight := int16(float32(int(x)+int(width)) * scale)
+			x = scaledLeft
+			width = uint16(scaledRight - scaledLeft)
+		} else {
+			x += widescreenOffsetX
+		}
+	}
+
 	x += int16(grDx)
 	y += int16(grDy)
-
-	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
-		x += widescreenOffsetX
-	}
 
 	// r.c. testing this out, not ready yet.
 
@@ -1591,6 +1729,19 @@ func trackLastDraw(ttmThread *TTtmThread, x, y int16, spriteNo, imageNo uint16, 
 	ttmThread.lastDrawSpriteNo = spriteNo
 	ttmThread.lastDrawImageNo = imageNo
 	ttmThread.lastDrawFlipped = flipped
+	ttmThread.lastOpWasRect = false
+}
+
+// trackLastRect is the DRAW_RECT counterpart to trackLastDraw above - see
+// the comment on hasLastRect for why this is needed.
+func trackLastRect(ttmThread *TTtmThread, x, y int16, width, height uint16, colorIdx uint8) {
+	ttmThread.hasLastRect = true
+	ttmThread.lastRectX = x
+	ttmThread.lastRectY = y
+	ttmThread.lastRectW = width
+	ttmThread.lastRectH = height
+	ttmThread.lastRectColor = colorIdx
+	ttmThread.lastOpWasRect = true
 }
 
 func trackThreadMovement(ttmThread *TTtmThread, x, y int16) {
