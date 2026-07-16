@@ -289,6 +289,10 @@ func adsAddScene(ttmSlotNo, ttmTag, arg3 uint16) {
 	ttmThread.moveMinY, ttmThread.moveMaxY = 0, 0
 	ttmThread.drawCount = 0
 	ttmThread.hasLastDraw = false
+	ttmThread.hasScaleOffset = false
+	ttmThread.scaleOffsetX = 0
+	ttmThread.maxScaledWidth = 0
+	ttmThread.maxScaledX = 0
 	ttmThread.settledEntryCount = 0
 	ttmThread.settledX = 0
 	ttmThread.settledY = 0

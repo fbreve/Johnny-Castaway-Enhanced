@@ -240,6 +240,9 @@ type TTtmThread struct {
 
 	hasScaleOffset bool
 	scaleOffsetX   int16
+	maxScaledWidth int
+	maxScaledX     int16
+
 
 
 	// r.c. - same idea as lastDraw above, but for DRAW_RECT. GJVIS6.TTM
@@ -1525,8 +1528,22 @@ func grDrawLine(sur *rl.RenderTexture2D, x1, y1, x2, y2 int16, colorIdx uint8) {
 	y2 += int16(grDy)
 
 	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
-		x1 += widescreenOffsetX
-		x2 += widescreenOffsetX
+		thread := getThreadByLayer(sur)
+		if thread != nil && isScreenSpanningDraw(sur, thread.ttmSlot) {
+			if thread.hasScaleOffset {
+				x1 += thread.scaleOffsetX
+				x2 += thread.scaleOffsetX
+			} else {
+				scaledX1 := int16(float32(x1) * (float32(virtualWidth) / 640.0))
+				thread.scaleOffsetX = scaledX1 - x1
+				thread.hasScaleOffset = true
+				x1 = scaledX1
+				x2 = int16(float32(x2) * (float32(virtualWidth) / 640.0))
+			}
+		} else {
+			x1 += widescreenOffsetX
+			x2 += widescreenOffsetX
+		}
 	}
 
 	clr := ttmPalette[colorIdx&0x0f]
@@ -1575,28 +1592,19 @@ func grDrawHorizontalLine(sur *rl.RenderTexture2D, x1, x2, y int16, color uint8)
 func grDrawRect(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, width, height uint16, colorIdx uint8) {
 	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
 		if isScreenSpanningDraw(sur, ttmSlot) {
-			// r.c. - grDrawSprite/grDrawSpriteFlip already scale x for
-			// these TTMs (GJVIS6.TTM among them) so a bitmap sprite drawn
-			// off the left edge in the original 640-wide script reaches
-			// the true corner of a wider virtual canvas. DRAW_RECT never
-			// got the same treatment, so the tanker's hull (built from a
-			// long row of solid-color DRAW_RECT strips) only ever started
-			// filling in from the classic 4:3 window's left border, never
-			// reaching the actual widescreen edge - while its bow sprite
-			// (drawn via DRAW_SPRITE) correctly did. Scale the left and
-			// right edges independently (not x and width separately) and
-			// derive width from the difference: scaling x and width each
-			// on their own rounds differently strip to strip, opening a
-			// ~1px seam at every single boundary once spread over a wider
-			// canvas - scaling the edges keeps two strips that shared an
-			// exact boundary in the original 640-wide data (right edge of
-			// one == left edge of the next) sharing an exact boundary
-			// after scaling too.
-			scale := float32(virtualWidth) / 640.0
-			scaledLeft := int16(float32(x) * scale)
-			scaledRight := int16(float32(int(x)+int(width)) * scale)
-			x = scaledLeft
-			width = uint16(scaledRight - scaledLeft)
+			thread := getThreadByLayer(sur)
+			if thread != nil {
+				if thread.hasScaleOffset {
+					x += thread.scaleOffsetX
+				} else {
+					scaledX := int16(float32(x) * (float32(virtualWidth) / 640.0))
+					thread.scaleOffsetX = scaledX - x
+					thread.hasScaleOffset = true
+					x = scaledX
+				}
+			} else {
+				x = int16(float32(x) * (float32(virtualWidth) / 640.0))
+			}
 		} else {
 			x += widescreenOffsetX
 		}
@@ -1865,13 +1873,19 @@ func grDrawSprite(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, sprite
 		if isScreenSpanningDraw(sur, ttmSlot) && shouldScaleSprite(ttmSlot, imageNo) {
 			thread := getThreadByLayer(sur)
 			if thread != nil {
-				if !thread.hasScaleOffset {
+				w := ttmSlot.sprites[imageNo][spriteNo].Width
+				if int(w) > thread.maxScaledWidth {
+					thread.maxScaledWidth = int(w)
+					thread.maxScaledX = x
+				}
+
+				if thread.hasScaleOffset {
+					x += thread.scaleOffsetX
+				} else {
 					scaledX := int16(float32(x) * (float32(virtualWidth) / 640.0))
 					thread.scaleOffsetX = scaledX - x
 					thread.hasScaleOffset = true
 					x = scaledX
-				} else {
-					x += thread.scaleOffsetX
 				}
 			} else {
 				x = int16(float32(x) * (float32(virtualWidth) / 640.0))
@@ -1927,13 +1941,19 @@ func grDrawSpriteFlip(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, sp
 		if isScreenSpanningDraw(sur, ttmSlot) && shouldScaleSprite(ttmSlot, imageNo) {
 			thread := getThreadByLayer(sur)
 			if thread != nil {
-				if !thread.hasScaleOffset {
+				w := ttmSlot.sprites[imageNo][spriteNo].Width
+				if int(w) > thread.maxScaledWidth {
+					thread.maxScaledWidth = int(w)
+					thread.maxScaledX = x
+				}
+
+				if thread.hasScaleOffset {
+					x += thread.scaleOffsetX
+				} else {
 					scaledX := int16(float32(x) * (float32(virtualWidth) / 640.0))
 					thread.scaleOffsetX = scaledX - x
 					thread.hasScaleOffset = true
 					x = scaledX
-				} else {
-					x += thread.scaleOffsetX
 				}
 			} else {
 				x = int16(float32(x) * (float32(virtualWidth) / 640.0))

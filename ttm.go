@@ -302,7 +302,17 @@ func ttmPlay(ttmThread *TTtmThread) {
 		}
 	}
 
-	ttmThread.hasScaleOffset = false
+	if ttmThread.maxScaledWidth > 0 {
+		scale := float32(virtualWidth) / 640.0
+		scaledX := int16(float32(ttmThread.maxScaledX) * scale)
+		ttmThread.scaleOffsetX = scaledX - ttmThread.maxScaledX
+		ttmThread.hasScaleOffset = true
+	} else {
+		ttmThread.hasScaleOffset = false
+	}
+	ttmThread.maxScaledWidth = 0
+	ttmThread.maxScaledX = 0
+
 	ttmThread.ip = offset
 }
 
