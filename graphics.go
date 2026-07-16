@@ -1822,6 +1822,35 @@ func isScreenSpanningDraw(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot) bool {
 	return false
 }
 
+func shouldScaleSprite(ttmSlot *TTtmSlot, imageNo uint16) bool {
+	if ttmSlot == nil {
+		return false
+	}
+	name := strings.ToUpper(ttmSlot.ResName)
+	switch name {
+	case "GJVIS3.TTM":
+		// Only the boat (GJVIS3.BMP, slot 2) spans the screen.
+		// Johnny (slots 0 and 1) and the palm tree trunk (slot 3) are static.
+		return imageNo == 2
+	case "GJVIS6.TTM":
+		// Tanker parts (slots 1, 2, 3, 4) span the screen.
+		// Johnny (slot 0) is static on the island.
+		return imageNo != 0
+	case "WOULDBE.TTM":
+		// Boat and passengers (slots 2, 4) span the screen.
+		// Johnny (slots 0, 3), Trunk (slot 1), and Litebulb (slot 5) are static.
+		return imageNo == 2 || imageNo == 4
+	case "THEEND.TTM":
+		// Credits cover the whole screen.
+		return true
+	case "GJVIS5.TTM":
+		// Tag 9 plane is slot 2.
+		return imageNo == 2
+	default:
+		return false
+	}
+}
+
 func grDrawSprite(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, spriteNo, imageNo uint16) {
 	if int(spriteNo) >= ttmSlot.numSprites[imageNo] {
 		fmt.Printf("Warning : grDrawSprite(): less than %d sprites loaded in slot %d\n", imageNo, spriteNo)
@@ -1829,7 +1858,7 @@ func grDrawSprite(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, sprite
 	}
 
 	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
-		if isScreenSpanningDraw(sur, ttmSlot) {
+		if isScreenSpanningDraw(sur, ttmSlot) && shouldScaleSprite(ttmSlot, imageNo) {
 			x = int16(float32(x) * (float32(virtualWidth) / 640.0))
 		} else {
 			x += widescreenOffsetX
@@ -1879,7 +1908,7 @@ func grDrawSpriteFlip(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, sp
 	}
 
 	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
-		if isScreenSpanningDraw(sur, ttmSlot) {
+		if isScreenSpanningDraw(sur, ttmSlot) && shouldScaleSprite(ttmSlot, imageNo) {
 			x = int16(float32(x) * (float32(virtualWidth) / 640.0))
 		} else {
 			x += widescreenOffsetX
