@@ -1849,9 +1849,9 @@ func shouldScaleSprite(ttmSlot *TTtmSlot, imageNo uint16) bool {
 		// Johnny (slot 0) is static on the island.
 		return imageNo != 0
 	case "WOULDBE.TTM":
-		// Boat and passengers (slots 2, 4) span the screen.
-		// Johnny (slots 0, 3), Trunk (slot 1), and Litebulb (slot 5) are static.
-		return imageNo == 2 || imageNo == 4
+		// Boat, passengers, Johnny, and the ladder must all scale to align correctly.
+		// Trunk (slot 1) is the static island palm tree trunk and stays shifted.
+		return imageNo != 1
 	case "THEEND.TTM":
 		// Credits cover the whole screen.
 		return true
