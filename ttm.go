@@ -86,6 +86,7 @@ func ttmInitSlot(ttmSlot *TTtmSlot) {
 	for i := 0; i < MaxBMPSlots; i++ {
 		ttmSlot.data = nil
 		ttmSlot.numSprites[i] = 0
+		ttmSlot.bmpNames[i] = ""
 	}
 }
 

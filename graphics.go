@@ -183,6 +183,7 @@ type TTtmSlot struct {
 	numSprites [MaxBMPSlots]int
 	sprites    [MaxBMPSlots][MaxSpritesPerBMP]*rl.Texture2D
 	ResName    string
+	bmpNames   [MaxBMPSlots]string
 }
 
 type TTtmTag struct { // TODO : rename, used for ADS too
@@ -1849,9 +1850,20 @@ func shouldScaleSprite(ttmSlot *TTtmSlot, imageNo uint16) bool {
 		// Johnny (slot 0) is static on the island.
 		return imageNo != 0
 	case "WOULDBE.TTM":
-		// Boat, passengers, Johnny, and the ladder must all scale to align correctly.
-		// Trunk (slot 1) is the static island palm tree trunk and stays shifted.
-		return imageNo != 1
+		// Boat and passengers (slots 2, 4) and the ladder (slot 5) must scale to align.
+		// Johnny swimming/climbing (slot 3, JOHNWOUL.BMP) must scale.
+		// Johnny walking/diving (slot 0, JOHNWALK.BMP), drunk Johnny (slot 3, DRUNKJON.BMP), 
+		// and tree trunk (slot 1, TRUNK.BMP) must remain static (not scaled).
+		if imageNo == 1 {
+			return false
+		}
+		if imageNo == 0 {
+			return false
+		}
+		if imageNo == 3 {
+			return ttmSlot.bmpNames[3] == "JOHNWOUL.BMP"
+		}
+		return true
 	case "THEEND.TTM":
 		// Credits cover the whole screen.
 		return true
@@ -2144,6 +2156,7 @@ func grLoadBmp(ttmSlot *TTtmSlot, slotNo uint16, name string) {
 	bmpResource := findBMPResource(name)
 
 	ttmSlot.numSprites[slotNo] = int(bmpResource.NumImages)
+	ttmSlot.bmpNames[slotNo] = strings.ToUpper(name)
 
 	data := bmpResource.UncompressedData
 	dataOffset := 0 // dataOffset is where each bmp sprites data begins
@@ -2216,6 +2229,7 @@ func grReleaseBmp(ttmSlot *TTtmSlot, bmpSlotNo uint16) {
 	}
 
 	ttmSlot.numSprites[bmpSlotNo] = 0
+	ttmSlot.bmpNames[bmpSlotNo] = ""
 }
 
 func grFadeOut() {
