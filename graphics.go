@@ -183,7 +183,6 @@ type TTtmSlot struct {
 	numSprites [MaxBMPSlots]int
 	sprites    [MaxBMPSlots][MaxSpritesPerBMP]*rl.Texture2D
 	ResName    string
-	bmpNames   [MaxBMPSlots]string
 }
 
 type TTtmTag struct { // TODO : rename, used for ADS too
@@ -206,6 +205,27 @@ type TTtmThread struct {
 	fgColor         uint8
 	bgColor         uint8
 	ttmLayer        *rl.RenderTexture2D
+
+	// r.c. - widescreen scale anchor. Proportional scaling (x * virtualWidth/640)
+	// applied independently to each sprite stretches the gaps *between*
+	// sprites that are supposed to stay a fixed distance apart (e.g. a boat
+	// hull, its passengers, and a towed water-skier) - the further a sprite's
+	// x is from 0, the more it gets pushed, so a group that's tightly spaced
+	// near the boat visibly spreads apart, on the order of 15-20px at a
+	// typical 16:9 ratio. Confirmed empirically against WOULDBE.TTM tag 9
+	// ("they drive off"): the boat/passenger gap grows by ~20px.
+	//
+	// The fix: compute the proportional scale ONCE from the FIRST
+	// screen-spanning sprite drawn in a frame (the "anchor"), then apply
+	// that SAME delta additively to every other screen-spanning sprite
+	// drawn in that same frame, preserving their relative spacing. Reset
+	// at every frame boundary (the UPDATE opcode) so the anchor is always
+	// fresh - unlike the old version of this mechanism, which computed the
+	// delta from whichever sprite happened to be widest in the *previous*
+	// frame and reused it a frame late, causing the boat to visibly step
+	// backward whenever its motion pattern changed (e.g. stop/restart).
+	hasScaleOffset bool
+	scaleOffsetX   int16
 
 	// r.c. - tracks the bounding span of all DRAW_SPRITE/DRAW_SPRITE_FLIP
 	// positions issued on this thread during its lifetime. Used to decide,
@@ -238,12 +258,6 @@ type TTtmThread struct {
 	lastDrawSpriteNo uint16
 	lastDrawImageNo  uint16
 	lastDrawFlipped  bool
-
-	hasScaleOffset bool
-	scaleOffsetX   int16
-	maxScaledWidth int
-	maxScaledX     int16
-
 
 
 	// r.c. - same idea as lastDraw above, but for DRAW_RECT. GJVIS6.TTM
@@ -842,6 +856,15 @@ func grUpdateDisplay(
 					break
 				}
 			}
+
+			onTopIdx := -1
+			for i := 0; i < MaxTTMThreads; i++ {
+				if ttmThreads[i].isRunning != 0 && isAlwaysOnTopThread(ttmThreads[i].sceneSlot, ttmThreads[i].sceneTag) {
+					onTopIdx = i
+					break
+				}
+			}
+
 			{
 				activeSummary := ""
 				for i := 0; i < MaxTTMThreads; i++ {
@@ -850,11 +873,22 @@ func grUpdateDisplay(
 					}
 				}
 				if activeSummary != "" {
-					debugPrintf("*** compositing: johnnyIdx=%d active=%s***\n", johnnyIdx, activeSummary)
+					debugPrintf("*** compositing: johnnyIdx=%d onTopIdx=%d active=%s***\n", johnnyIdx, onTopIdx, activeSummary)
 				}
 			}
 
-			if johnnyIdx >= 0 {
+			if onTopIdx >= 0 {
+				for i := 0; i < MaxTTMThreads; i++ {
+					if ttmThreads[i].isRunning != 0 && !isAlwaysOnTopThread(ttmThreads[i].sceneSlot, ttmThreads[i].sceneTag) {
+						drawTextureToFinal(ttmThreads[i].ttmLayer, ModeFlipped)
+					}
+				}
+				for i := 0; i < MaxTTMThreads; i++ {
+					if ttmThreads[i].isRunning != 0 && isAlwaysOnTopThread(ttmThreads[i].sceneSlot, ttmThreads[i].sceneTag) {
+						drawTextureToFinal(ttmThreads[i].ttmLayer, ModeFlipped)
+					}
+				}
+			} else if johnnyIdx >= 0 {
 				for i := 0; i < MaxTTMThreads; i++ {
 					if ttmThreads[i].isRunning != 0 && !isJohnnyThread(ttmThreads[i].sceneSlot, ttmThreads[i].sceneTag) && ttmThreads[i].lastDrawFlipped {
 						drawTextureToFinal(ttmThreads[i].ttmLayer, ModeFlipped)
@@ -1531,6 +1565,11 @@ func grDrawLine(sur *rl.RenderTexture2D, x1, y1, x2, y2 int16, colorIdx uint8) {
 	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
 		thread := getThreadByLayer(sur)
 		if thread != nil && isScreenSpanningDraw(sur, thread.ttmSlot) {
+			// r.c. - see grDrawSprite() for the per-frame anchor rationale.
+			// Both endpoints of this line get the SAME delta as every other
+			// screen-spanning draw this frame (not each independently
+			// proportionally scaled), so a line stays attached to whatever
+			// sprite it's meant to connect to.
 			if thread.hasScaleOffset {
 				x1 += thread.scaleOffsetX
 				x2 += thread.scaleOffsetX
@@ -1539,7 +1578,7 @@ func grDrawLine(sur *rl.RenderTexture2D, x1, y1, x2, y2 int16, colorIdx uint8) {
 				thread.scaleOffsetX = scaledX1 - x1
 				thread.hasScaleOffset = true
 				x1 = scaledX1
-				x2 = int16(float32(x2) * (float32(virtualWidth) / 640.0))
+				x2 += thread.scaleOffsetX
 			}
 		} else {
 			x1 += widescreenOffsetX
@@ -1593,6 +1632,7 @@ func grDrawHorizontalLine(sur *rl.RenderTexture2D, x1, x2, y int16, color uint8)
 func grDrawRect(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, width, height uint16, colorIdx uint8) {
 	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
 		if isScreenSpanningDraw(sur, ttmSlot) {
+			// r.c. - see grDrawSprite() for the per-frame anchor rationale.
 			thread := getThreadByLayer(sur)
 			if thread != nil {
 				if thread.hasScaleOffset {
@@ -1850,20 +1890,9 @@ func shouldScaleSprite(ttmSlot *TTtmSlot, imageNo uint16) bool {
 		// Johnny (slot 0) is static on the island.
 		return imageNo != 0
 	case "WOULDBE.TTM":
-		// Boat and passengers (slots 2, 4) and the ladder (slot 5) must scale to align.
-		// Johnny swimming/climbing (slot 3, JOHNWOUL.BMP) must scale.
-		// Johnny walking/diving (slot 0, JOHNWALK.BMP), drunk Johnny (slot 3, DRUNKJON.BMP), 
-		// and tree trunk (slot 1, TRUNK.BMP) must remain static (not scaled).
-		if imageNo == 1 {
-			return false
-		}
-		if imageNo == 0 {
-			return false
-		}
-		if imageNo == 3 {
-			return ttmSlot.bmpNames[3] == "JOHNWOUL.BMP"
-		}
-		return true
+		// Boat and passengers (slots 2, 4) span the screen.
+		// Johnny (slots 0, 3), Trunk (slot 1), and Litebulb (slot 5) are static.
+		return imageNo == 2 || imageNo == 4
 	case "THEEND.TTM":
 		// Credits cover the whole screen.
 		return true
@@ -1885,12 +1914,6 @@ func grDrawSprite(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, sprite
 		if isScreenSpanningDraw(sur, ttmSlot) && shouldScaleSprite(ttmSlot, imageNo) {
 			thread := getThreadByLayer(sur)
 			if thread != nil {
-				w := ttmSlot.sprites[imageNo][spriteNo].Width
-				if int(w) > thread.maxScaledWidth {
-					thread.maxScaledWidth = int(w)
-					thread.maxScaledX = x
-				}
-
 				if thread.hasScaleOffset {
 					x += thread.scaleOffsetX
 				} else {
@@ -1951,14 +1974,10 @@ func grDrawSpriteFlip(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, sp
 
 	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
 		if isScreenSpanningDraw(sur, ttmSlot) && shouldScaleSprite(ttmSlot, imageNo) {
+			// r.c. - see grDrawSprite() above for the per-frame anchor
+			// rationale.
 			thread := getThreadByLayer(sur)
 			if thread != nil {
-				w := ttmSlot.sprites[imageNo][spriteNo].Width
-				if int(w) > thread.maxScaledWidth {
-					thread.maxScaledWidth = int(w)
-					thread.maxScaledX = x
-				}
-
 				if thread.hasScaleOffset {
 					x += thread.scaleOffsetX
 				} else {
@@ -2156,7 +2175,6 @@ func grLoadBmp(ttmSlot *TTtmSlot, slotNo uint16, name string) {
 	bmpResource := findBMPResource(name)
 
 	ttmSlot.numSprites[slotNo] = int(bmpResource.NumImages)
-	ttmSlot.bmpNames[slotNo] = strings.ToUpper(name)
 
 	data := bmpResource.UncompressedData
 	dataOffset := 0 // dataOffset is where each bmp sprites data begins
@@ -2229,7 +2247,6 @@ func grReleaseBmp(ttmSlot *TTtmSlot, bmpSlotNo uint16) {
 	}
 
 	ttmSlot.numSprites[bmpSlotNo] = 0
-	ttmSlot.bmpNames[bmpSlotNo] = ""
 }
 
 func grFadeOut() {

@@ -56,7 +56,37 @@ var (
 		"BUILDING.ADS:1:55": true,
 		"BUILDING.ADS:1:56": true,
 	}
+
+	// r.c. - WALKSTUF.ADS (WOULDBE.TTM) runs Johnny's own reaction
+	// (sitting under the tree / startled / watching) as one thread
+	// CONCURRENTLY with a second thread for the boat+girl, for tags
+	// 1, 2, 6 and 14 (confirmed via a live trace: "ADD_SCENE 1 <tag>"
+	// followed by "*** compositing: ... active=[#N tag=<johnny tag>]
+	// [#M tag=<boat tag>] ***"). Because adsAddScene always picks the
+	// lowest free thread slot, and Johnny's thread happens to be
+	// allocated first in this scene, Johnny's thread consistently ends
+	// up at a LOWER array index than the boat/girl thread - and plain
+	// array-index compositing in grUpdateDisplay draws higher indices
+	// on top, so the girl/boat rendered in front of Johnny every time,
+	// regardless of how the sprites are ordered inside WOULDBE.TTM's own
+	// script (which does correctly draw Johnny after/on top of the girl
+	// - that's just irrelevant once they're on separate layers).
+	// Unlike the BUILDING.ADS plane-chase case, there's no direction-
+	// dependent front/behind here - Johnny should simply always be on
+	// top - so this uses its own simple always-on-top pass rather than
+	// the flip-aware 3-pass logic below.
+	alwaysOnTopThreadTags = map[string]bool{
+		"WALKSTUF.ADS:1:1":  true,
+		"WALKSTUF.ADS:1:2":  true,
+		"WALKSTUF.ADS:1:6":  true,
+		"WALKSTUF.ADS:1:14": true,
+	}
 )
+
+func isAlwaysOnTopThread(ttmSlotNo, ttmTag uint16) bool {
+	key := fmt.Sprintf("%s:%d:%d", currentAdsName, ttmSlotNo, ttmTag)
+	return alwaysOnTopThreadTags[key]
+}
 
 func isJohnnyThread(ttmSlotNo, ttmTag uint16) bool {
 	key := fmt.Sprintf("%s:%d:%d", currentAdsName, ttmSlotNo, ttmTag)
@@ -289,10 +319,6 @@ func adsAddScene(ttmSlotNo, ttmTag, arg3 uint16) {
 	ttmThread.moveMinY, ttmThread.moveMaxY = 0, 0
 	ttmThread.drawCount = 0
 	ttmThread.hasLastDraw = false
-	ttmThread.hasScaleOffset = false
-	ttmThread.scaleOffsetX = 0
-	ttmThread.maxScaledWidth = 0
-	ttmThread.maxScaledX = 0
 	ttmThread.settledEntryCount = 0
 	ttmThread.settledX = 0
 	ttmThread.settledY = 0

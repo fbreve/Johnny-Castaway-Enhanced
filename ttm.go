@@ -86,7 +86,6 @@ func ttmInitSlot(ttmSlot *TTtmSlot) {
 	for i := 0; i < MaxBMPSlots; i++ {
 		ttmSlot.data = nil
 		ttmSlot.numSprites[i] = 0
-		ttmSlot.bmpNames[i] = ""
 	}
 }
 
@@ -102,6 +101,71 @@ func ttmResetSlot(ttmSlot *TTtmSlot) {
 	}
 }
 
+// primaryAnchorImageNo returns which imageNo slot should be used as the
+// stable widescreen-scale anchor for a given TTM, if any. For WOULDBE.TTM
+// that's the boat hull (imageNo 4, BOAT.BMP) - it's present and drawn every
+// frame throughout the boat-encounter tags, and unlike the passengers/girl
+// (imageNo 2, WOULDBE.BMP, which include swim-splash and idle-wave frames
+// that aren't always at a "representative" x), its x is exactly the boat's
+// true position. Using it as a fixed reference avoids the anchor silently
+// changing to a different sprite frame-to-frame (which happened when the
+// anchor was just "whichever screen-spanning sprite is drawn first" -
+// confirmed via trace: the boat's OWN raw script x is constant at 134
+// throughout WOULDBE.TTM tag 8 and at 165 throughout tag 11, yet with a
+// first-sprite-wins anchor its resolved on-screen x wobbled by up to 40px,
+// because the first sprite drawn some frames was a passenger/splash sprite
+// instead of the boat).
+func primaryAnchorImageNo(ttmSlot *TTtmSlot) (uint16, bool) {
+	if ttmSlot.ResName == "WOULDBE.TTM" {
+		return 4, true
+	}
+	return 0, false
+}
+
+// ttmScanForAnchor looks ahead from offset (without executing anything)
+// through the upcoming opcodes of the CURRENT frame only, searching for a
+// DRAW_SPRITE/DRAW_SPRITE_FLIP using wantImageNo. Stops cleanly at the next
+// UPDATE (end of this frame) or at GOTO_TAG (script control flow changes,
+// so a linear scan can no longer safely predict what executes next -
+// TTM scripts have no other branching, only ADS scripts do). Returns the
+// sprite's raw (unscaled) x if found.
+func ttmScanForAnchor(ttmSlot *TTtmSlot, startOffset uint32, wantImageNo uint16) (int16, bool) {
+	data := ttmSlot.data
+	offset := startOffset
+	var args [10]uint16
+
+	for offset < ttmSlot.dataSize {
+		opCode := peekUint16(data, &offset)
+		numArgs := uint8(opCode) & 0x000f
+
+		if numArgs == 0x0f {
+			strStart := offset
+			for offset < ttmSlot.dataSize && data[offset] != 0 {
+				offset++
+			}
+			strLen := offset - strStart
+			offset++ // skip null terminator
+			if (strLen+1)&0x01 == 0x01 {
+				offset++
+			}
+		} else {
+			peekUint16Block(data, &offset, args[:], int(numArgs))
+		}
+
+		switch opCode {
+		case 0x0FF0: // UPDATE - end of this frame, stop
+			return 0, false
+		case 0x1201: // GOTO_TAG - control flow changes, can't safely scan further
+			return 0, false
+		case 0xA504, 0xA524: // DRAW_SPRITE / DRAW_SPRITE_FLIP
+			if args[3] == wantImageNo {
+				return int16(args[0]), true
+			}
+		}
+	}
+	return 0, false
+}
+
 func ttmPlay(ttmThread *TTtmThread) {
 	var (
 		offset       uint32
@@ -114,6 +178,20 @@ func ttmPlay(ttmThread *TTtmThread) {
 
 	grDx = ttmDx
 	grDy = ttmDy
+
+	// r.c. - fresh anchor every frame; see the hasScaleOffset field comment
+	// on TTtmThread for why. Prefer a stable, known anchor sprite (found via
+	// lookahead) over whichever spanning sprite happens to be drawn first.
+	ttmThread.hasScaleOffset = false
+	if activeConfig.Widescreen {
+		if wantImageNo, ok := primaryAnchorImageNo(ttmThread.ttmSlot); ok {
+			if anchorX, found := ttmScanForAnchor(ttmThread.ttmSlot, ttmThread.ip, wantImageNo); found {
+				scaledX := int16(float32(anchorX) * (float32(virtualWidth) / 640.0))
+				ttmThread.scaleOffsetX = scaledX - anchorX
+				ttmThread.hasScaleOffset = true
+			}
+		}
+	}
 
 	ttmSlot := ttmThread.ttmSlot
 	offset = ttmThread.ip
@@ -302,17 +380,6 @@ func ttmPlay(ttmThread *TTtmThread) {
 			continueLoop = false
 		}
 	}
-
-	if ttmThread.maxScaledWidth > 0 {
-		scale := float32(virtualWidth) / 640.0
-		scaledX := int16(float32(ttmThread.maxScaledX) * scale)
-		ttmThread.scaleOffsetX = scaledX - ttmThread.maxScaledX
-		ttmThread.hasScaleOffset = true
-	} else {
-		ttmThread.hasScaleOffset = false
-	}
-	ttmThread.maxScaledWidth = 0
-	ttmThread.maxScaledX = 0
 
 	ttmThread.ip = offset
 }
