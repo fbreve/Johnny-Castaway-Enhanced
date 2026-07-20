@@ -1900,31 +1900,10 @@ func shouldScaleSprite(ttmSlot *TTtmSlot, spriteNo, imageNo uint16) bool {
 		if imageNo == 2 || imageNo == 4 {
 			return true
 		}
-		// Slot 3 is Johnny, but holds different BMPs and sprite ranges with very
-		// different on-screen roles:
-		//
-		// JOHNWOUL.BMP:
-		//   sprites 0-5   → Johnny standing/staggering on island shore (island-static)
-		//   sprites 6-16  → Johnny swimming toward & reaching the boat ladder (follows boat anchor)
-		//   sprites 13-16 are Johnny clinging to / touching the ladder at x≈154-169,
-		//   matching the boat hull anchor at x=134 - they must scale with the boat.
-		//
-		// DRUNKJON.BMP:
-		//   sprites 0-15  → drunk Johnny staggering back on the island (island-static)
-		//   sprites 16-22 → Johnny climbing the boat ladder (follows boat anchor)
-		//   sprites 17-23 → firecrackers / celebration on island shore (island-static)
-		//
-		// Only the two ranges that are physically adjacent to the boat need to
-		// scale with the boat anchor; everything else stays on the island.
-		if imageNo == 3 && imageNo < MaxBMPSlots {
-			bmpName := ttmSlot.slotBmpNames[imageNo]
-			if bmpName == "JOHNWOUL.BMP" && spriteNo >= 6 && spriteNo <= 16 {
-				return true
-			}
-			if bmpName == "DRUNKJON.BMP" && spriteNo >= 16 && spriteNo <= 22 {
-				return true
-			}
-		}
+		// Slot 3 (Johnny) is handled separately by computeBlendedOffset(), which
+		// smoothly interpolates between island and boat anchors across the swimming
+		// and ladder-climbing sprite ranges instead of hard-switching. Returning
+		// false here causes both draw functions to fall through to that path.
 		return false
 	case "THEEND.TTM":
 		// Credits cover the whole screen.
@@ -1937,6 +1916,62 @@ func shouldScaleSprite(ttmSlot *TTtmSlot, spriteNo, imageNo uint16) bool {
 	}
 }
 
+// computeBlendedOffset returns a smoothly interpolated widescreen x offset for
+// WOULDBE.TTM slot 3 (Johnny) sprites that transition between the island shore
+// and the boat. Using a hard island/boat switch at sprite range boundaries
+// produces a visible 50+ px position jump; this function eliminates it by
+// lerping the offset across the swimming and ladder sequences.
+//
+// Returns (blendedOffset, true) when the sprite is in a transition range.
+// Returns (0, false) to fall through to the normal scale/island logic.
+func computeBlendedOffset(ttmSlot *TTtmSlot, thread *TTtmThread, spriteNo, imageNo uint16) (int16, bool) {
+	if ttmSlot == nil || strings.ToUpper(ttmSlot.ResName) != "WOULDBE.TTM" {
+		return 0, false
+	}
+	if imageNo != 3 || imageNo >= MaxBMPSlots {
+		return 0, false
+	}
+	if thread == nil || !thread.hasScaleOffset {
+		// Boat anchor not yet established for this frame; fall back to island-static.
+		return 0, false
+	}
+
+	bmpName := ttmSlot.slotBmpNames[imageNo]
+	boatOff := thread.scaleOffsetX
+	islandOff := widescreenOffsetX
+
+	lerp := func(from, to int16, t float32) int16 {
+		return from + int16(t*float32(to-from))
+	}
+
+	switch bmpName {
+	case "JOHNWOUL.BMP":
+		// Sprites 6-12: Johnny swimming from the island shore toward the boat.
+		// Lerp island→boat: t=0 at sprite 6 (still at island) → t=1 at sprite 12 (arrived).
+		// This removes the leftward jump when the swim begins at sprite 6.
+		if spriteNo >= 6 && spriteNo <= 12 {
+			t := float32(spriteNo-6) / float32(12-6)
+			return lerp(islandOff, boatOff, t), true
+		}
+		// Sprites 13-16: Johnny clinging to / touching the boat ladder.
+		// The lerp is already complete at sprite 12, so hold at full boat offset
+		// so that Johnny is already aligned with the ladder when the climb starts.
+		if spriteNo >= 13 && spriteNo <= 16 {
+			return boatOff, true
+		}
+	case "DRUNKJON.BMP":
+		// Sprites 19-22: Johnny on the boat ladder (fully boat-scaled).
+		if spriteNo >= 19 && spriteNo <= 22 {
+			return boatOff, true
+		}
+		// Sprites 0-14: drunk Johnny staggering on the island. The swim-back is
+		// not animated in the sprite data (Johnny just appears on the island), so
+		// there is no in-water transition to lerp across. Return (0, false) so
+		// these sprites fall through to the normal island-static offset.
+	}
+	return 0, false
+}
+
 func grDrawSprite(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, spriteNo, imageNo uint16) {
 	if int(spriteNo) >= ttmSlot.numSprites[imageNo] {
 		fmt.Printf("Warning : grDrawSprite(): less than %d sprites loaded in slot %d\n", imageNo, spriteNo)
@@ -1944,19 +1979,26 @@ func grDrawSprite(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, sprite
 	}
 
 	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
-		if isScreenSpanningDraw(sur, ttmSlot) && shouldScaleSprite(ttmSlot, spriteNo, imageNo) {
+		if isScreenSpanningDraw(sur, ttmSlot) {
 			thread := getThreadByLayer(sur)
-			if thread != nil {
-				if thread.hasScaleOffset {
-					x += thread.scaleOffsetX
+			// Check first for a smoothly interpolated offset (WOULDBE.TTM swimming transitions).
+			if blended, hasBlend := computeBlendedOffset(ttmSlot, thread, spriteNo, imageNo); hasBlend {
+				x += blended
+			} else if shouldScaleSprite(ttmSlot, spriteNo, imageNo) {
+				if thread != nil {
+					if thread.hasScaleOffset {
+						x += thread.scaleOffsetX
+					} else {
+						scaledX := int16(float32(x) * (float32(virtualWidth) / 640.0))
+						thread.scaleOffsetX = scaledX - x
+						thread.hasScaleOffset = true
+						x = scaledX
+					}
 				} else {
-					scaledX := int16(float32(x) * (float32(virtualWidth) / 640.0))
-					thread.scaleOffsetX = scaledX - x
-					thread.hasScaleOffset = true
-					x = scaledX
+					x = int16(float32(x) * (float32(virtualWidth) / 640.0))
 				}
 			} else {
-				x = int16(float32(x) * (float32(virtualWidth) / 640.0))
+				x += widescreenOffsetX
 			}
 		} else {
 			x += widescreenOffsetX
@@ -2006,21 +2048,27 @@ func grDrawSpriteFlip(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, sp
 	}
 
 	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
-		if isScreenSpanningDraw(sur, ttmSlot) && shouldScaleSprite(ttmSlot, spriteNo, imageNo) {
-			// r.c. - see grDrawSprite() above for the per-frame anchor
-			// rationale.
+		if isScreenSpanningDraw(sur, ttmSlot) {
+			// r.c. - see grDrawSprite() above for the per-frame anchor rationale and
+			// the computeBlendedOffset() interpolation logic.
 			thread := getThreadByLayer(sur)
-			if thread != nil {
-				if thread.hasScaleOffset {
-					x += thread.scaleOffsetX
+			if blended, hasBlend := computeBlendedOffset(ttmSlot, thread, spriteNo, imageNo); hasBlend {
+				x += blended
+			} else if shouldScaleSprite(ttmSlot, spriteNo, imageNo) {
+				if thread != nil {
+					if thread.hasScaleOffset {
+						x += thread.scaleOffsetX
+					} else {
+						scaledX := int16(float32(x) * (float32(virtualWidth) / 640.0))
+						thread.scaleOffsetX = scaledX - x
+						thread.hasScaleOffset = true
+						x = scaledX
+					}
 				} else {
-					scaledX := int16(float32(x) * (float32(virtualWidth) / 640.0))
-					thread.scaleOffsetX = scaledX - x
-					thread.hasScaleOffset = true
-					x = scaledX
+					x = int16(float32(x) * (float32(virtualWidth) / 640.0))
 				}
 			} else {
-				x = int16(float32(x) * (float32(virtualWidth) / 640.0))
+				x += widescreenOffsetX
 			}
 		} else {
 			x += widescreenOffsetX
