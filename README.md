@@ -19,7 +19,7 @@ Here are the enhancements and fixes implemented in this version:
   * **Space**: Toggle pause / resume (displays a yellow `[PAUSED]` overlay).
   * **Enter**: Advance exactly one frame when paused.
   * **M**: Toggle maximum speed mode (displays a yellow `[MAX SPEED]` overlay and disables logical delay).
-  * **Left Shift**: Toggle the debug text overlay.
+  * **Left Shift**: Toggle the debug text overlay (and `debug.log` writing; now correctly requires `-k`, matching the rest of this hotkey group).
   * **Escape**: Exit the screensaver/application cleanly.
 * **Render Benchmark Mode (`/b` or `-b`)**: Ported the performance test logic from the original `bench.c` in `jc_reborn`. It executes three timed passes of 3 seconds each to benchmark rendering 1, 4, and 8 concurrent compositing sprite layers on screen. Benchmark results are printed to the console, saved to `bench.log`, and rendered directly on screen across all active display viewports.
 * **Default Launch Mode (No flags)**: When double-clicked or run without command-line flags, the screensaver now defaults to screensaver mode (spanning all monitors), but ignores general key presses to prevent accidental exits. In this default watch mode, only the **Escape** key (and mouse movement/clicks) will close the screensaver. Standard Windows screensaver launches using **`/s`** retain the normal "any key exits" screensaver behavior.

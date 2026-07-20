@@ -727,17 +727,17 @@ func grUpdateDisplay(
 	}
 
 	draw := func() {
-		shiftDown := isKeyDownGlobally(0x10) // VK_SHIFT
-		if shiftDown && !prevShiftDown {
-			debugEnabled = !debugEnabled
-		}
-		prevShiftDown = shiftDown
-
 		// --- Debug hot-keys (only when explicitly enabled) ---
 		// Works in both normal and screensaver mode; when active, keys are
 		// consumed here and the screensaver any-key-exits check below is skipped.
 		if hotKeysEnabled {
 			readSharedState()
+
+			shiftDown := isKeyDownGlobally(0x10) // VK_SHIFT
+			if shiftDown && !prevShiftDown {
+				debugEnabled = !debugEnabled
+			}
+			prevShiftDown = shiftDown
 
 			spaceDown := isKeyDownGlobally(0x20) // VK_SPACE
 			if spaceDown && !prevSpaceDown {
