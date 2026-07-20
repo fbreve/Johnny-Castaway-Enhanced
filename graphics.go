@@ -183,6 +183,11 @@ type TTtmSlot struct {
 	numSprites [MaxBMPSlots]int
 	sprites    [MaxBMPSlots][MaxSpritesPerBMP]*rl.Texture2D
 	ResName    string
+	// r.c. - tracks which BMP is currently loaded in each slot. A single slot
+	// can be reloaded mid-TTM (e.g. WOULDBE.TTM reloads slot 3 from JOHNWOUL.BMP
+	// to DRUNKJON.BMP partway through tag 11). shouldScaleSprite uses this to
+	// classify slot 3 Johnny poses as boat-scaled vs island-static.
+	slotBmpNames [MaxBMPSlots]string
 }
 
 type TTtmTag struct { // TODO : rename, used for ADS too
@@ -1875,7 +1880,7 @@ func isScreenSpanningDraw(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot) bool {
 	return false
 }
 
-func shouldScaleSprite(ttmSlot *TTtmSlot, imageNo uint16) bool {
+func shouldScaleSprite(ttmSlot *TTtmSlot, spriteNo, imageNo uint16) bool {
 	if ttmSlot == nil {
 		return false
 	}
@@ -1890,9 +1895,37 @@ func shouldScaleSprite(ttmSlot *TTtmSlot, imageNo uint16) bool {
 		// Johnny (slot 0) is static on the island.
 		return imageNo != 0
 	case "WOULDBE.TTM":
-		// Boat and passengers (slots 2, 4) span the screen.
-		// Johnny (slots 0, 3), Trunk (slot 1), and Litebulb (slot 5) are static.
-		return imageNo == 2 || imageNo == 4
+		// Boat hull (slot 4) and all boat passengers/parts (slot 2) scale with
+		// the boat anchor across all arrival, parked, and drive-off tags.
+		if imageNo == 2 || imageNo == 4 {
+			return true
+		}
+		// Slot 3 is Johnny, but holds different BMPs and sprite ranges with very
+		// different on-screen roles:
+		//
+		// JOHNWOUL.BMP:
+		//   sprites 0-5   → Johnny standing/staggering on island shore (island-static)
+		//   sprites 6-16  → Johnny swimming toward & reaching the boat ladder (follows boat anchor)
+		//   sprites 13-16 are Johnny clinging to / touching the ladder at x≈154-169,
+		//   matching the boat hull anchor at x=134 - they must scale with the boat.
+		//
+		// DRUNKJON.BMP:
+		//   sprites 0-15  → drunk Johnny staggering back on the island (island-static)
+		//   sprites 16-22 → Johnny climbing the boat ladder (follows boat anchor)
+		//   sprites 17-23 → firecrackers / celebration on island shore (island-static)
+		//
+		// Only the two ranges that are physically adjacent to the boat need to
+		// scale with the boat anchor; everything else stays on the island.
+		if imageNo == 3 && imageNo < MaxBMPSlots {
+			bmpName := ttmSlot.slotBmpNames[imageNo]
+			if bmpName == "JOHNWOUL.BMP" && spriteNo >= 6 && spriteNo <= 16 {
+				return true
+			}
+			if bmpName == "DRUNKJON.BMP" && spriteNo >= 16 && spriteNo <= 22 {
+				return true
+			}
+		}
+		return false
 	case "THEEND.TTM":
 		// Credits cover the whole screen.
 		return true
@@ -1911,7 +1944,7 @@ func grDrawSprite(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, sprite
 	}
 
 	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
-		if isScreenSpanningDraw(sur, ttmSlot) && shouldScaleSprite(ttmSlot, imageNo) {
+		if isScreenSpanningDraw(sur, ttmSlot) && shouldScaleSprite(ttmSlot, spriteNo, imageNo) {
 			thread := getThreadByLayer(sur)
 			if thread != nil {
 				if thread.hasScaleOffset {
@@ -1973,7 +2006,7 @@ func grDrawSpriteFlip(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, sp
 	}
 
 	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
-		if isScreenSpanningDraw(sur, ttmSlot) && shouldScaleSprite(ttmSlot, imageNo) {
+		if isScreenSpanningDraw(sur, ttmSlot) && shouldScaleSprite(ttmSlot, spriteNo, imageNo) {
 			// r.c. - see grDrawSprite() above for the per-frame anchor
 			// rationale.
 			thread := getThreadByLayer(sur)
@@ -2171,6 +2204,10 @@ func grLoadBmp(ttmSlot *TTtmSlot, slotNo uint16, name string) {
 	if ttmSlot.numSprites[slotNo] != 0 {
 		grReleaseBmp(ttmSlot, slotNo)
 	}
+
+	// r.c. - record which BMP is currently in this slot so that
+	// shouldScaleSprite can classify slot 3 Johnny poses correctly.
+	ttmSlot.slotBmpNames[slotNo] = strings.ToUpper(name)
 
 	bmpResource := findBMPResource(name)
 
