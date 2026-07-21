@@ -1923,7 +1923,7 @@ func isScreenSpanningDraw(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot) bool {
 		return false
 	}
 	name := strings.ToUpper(ttmSlot.ResName)
-	if name == "GJVIS3.TTM" || name == "GJVIS6.TTM" || name == "WOULDBE.TTM" || name == "THEEND.TTM" {
+	if name == "GJVIS3.TTM" || name == "GJVIS6.TTM" || name == "WOULDBE.TTM" {
 		return true
 	}
 	if name == "GJVIS5.TTM" {
@@ -1978,9 +1978,6 @@ func shouldScaleSprite(ttmSlot *TTtmSlot, spriteNo, imageNo uint16) bool {
 		// and ladder-climbing sprite ranges instead of hard-switching. Returning
 		// false here causes both draw functions to fall through to that path.
 		return false
-	case "THEEND.TTM":
-		// Credits cover the whole screen.
-		return true
 	case "GJVIS5.TTM":
 		// Tag 9 plane is slot 2.
 		return imageNo == 2
