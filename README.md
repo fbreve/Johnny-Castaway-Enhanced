@@ -70,6 +70,7 @@ Here are the enhancements and fixes implemented in this version:
 * **TIMER Opcode RNG**: Fixed the `TIMER` opcode (`0x2022`) to sample uniformly from the target range `[args[0], args[1]]` (instead of taking the static average), restoring the natural jitter/timing variation of the original screensaver.
 * **Script Comment & Opcode Corrections**: Verified and fixed several script interpreter assumptions against real `.TTM`/`.ADS` streams (e.g., `SAVE_IMAGE1`, `:TAG` labels for jump routing, mismatch of tag counts, and redundant duplicate scene additions).
 * **Local Trigger Chaining (`IF_LASTPLAYED_LOCAL` gating)**: Fixed a bug in `adsPlayTriggeredChunks` where having any local chunk pending globally blocked general/global chunk dispatches. The fallback general dispatch now properly fires for all unrelated scenes and tags while local triggers remain active.
+* **Anti-aliased Config Screen Typography**: Upgraded Setup UI font rendering in `runOptionsWindow()` to load Windows system fonts (`Segoe UI` / `Arial`) as a high-resolution 64pt TTF atlas with bilinear texture filtering (`rl.FilterBilinear`) and zero character spacing, producing crisp, smooth, anti-aliased text across all setup options and dropdown menus.
 
 ### 💾 Memory & Resource Optimization
 * **VRAM Texture Leaks**: Fixed a memory leak in sprite loading (`graphics.go` / `grLoadBmp`) where CPU-side Image data was never unloaded after uploading to GPU VRAM.

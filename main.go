@@ -107,7 +107,8 @@ func runOptionsWindow() {
 	}
 	for _, fontPath := range fontPaths {
 		if _, err := os.Stat(fontPath); err == nil {
-			font = rl.LoadFontEx(fontPath, 36, nil, 0)
+			font = rl.LoadFontEx(fontPath, 64, nil, 0)
+			rl.SetTextureFilter(font.Texture, rl.FilterBilinear)
 			fontLoaded = true
 			break
 		}
@@ -118,7 +119,7 @@ func runOptionsWindow() {
 
 	drawText := func(text string, x, y int32, size float32, col rl.Color) {
 		if fontLoaded {
-			rl.DrawTextEx(font, text, rl.Vector2{X: float32(x), Y: float32(y)}, size, 1, col)
+			rl.DrawTextEx(font, text, rl.Vector2{X: float32(x), Y: float32(y)}, size, 0, col)
 		} else {
 			rl.DrawText(text, x, y, int32(size), col)
 		}
@@ -126,7 +127,7 @@ func runOptionsWindow() {
 
 	measureText := func(text string, size float32) float32 {
 		if fontLoaded {
-			vec := rl.MeasureTextEx(font, text, size, 1)
+			vec := rl.MeasureTextEx(font, text, size, 0)
 			return vec.X
 		}
 		return float32(rl.MeasureText(text, int32(size)))
