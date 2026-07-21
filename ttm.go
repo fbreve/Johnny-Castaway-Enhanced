@@ -299,8 +299,17 @@ func ttmPlay(ttmThread *TTtmThread) {
 			ttmThread.delay = val
 			ttmThread.timer = val
 		case 0x4004:
-			debugPrintf("\tSET_CLIP_ZONE: %d %d %d %d\n", args[0], args[1], args[2], args[3])
+			resName := "?"
+			if ttmThread.ttmSlot != nil {
+				resName = ttmThread.ttmSlot.ResName
+			}
+			debugPrintf("\tSET_CLIP_ZONE [%s tag=%d]: raw=(%d,%d,%d,%d)\n", resName, ttmThread.sceneTag, args[0], args[1], args[2], args[3])
 			grSetClipZone(ttmThread.ttmLayer, int16(args[0]), int16(args[1]), int16(args[2]), int16(args[3]))
+			if rect, ok := activeClipZones[ttmThread.ttmLayer]; ok {
+				debugPrintf("\t  -> final scissor rect: (%.0f,%.0f,%.0f,%.0f) virtualWidth=%d widescreenOffsetX=%d grDx=%d\n", rect.X, rect.Y, rect.Width, rect.Height, virtualWidth, widescreenOffsetX, grDx)
+			} else {
+				debugPrintf("\t  -> clip zone cleared (full-screen reset)\n")
+			}
 		case 0x4204:
 			debugPrintf("\tCOPY_ZONE_TO_BG: x:%d, y:%d, w:%d, h:%d\n", args[0], args[1], args[2], args[3])
 			var handled bool

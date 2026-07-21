@@ -1198,6 +1198,25 @@ func grSetClipZone(sur *rl.RenderTexture2D, x1, y1, x2, y2 int16) {
 	// (e.g. later stages of the BUILDING.ADS tag 2 sandcastle animation).
 	isFullScreenReset := x1 <= 0 && y1 <= 0 && x2 >= int16(screenWidth-1) && y2 >= int16(screenHeight-1)
 
+	// r.c. - many TTM scripts use SET_CLIP_ZONE to restrict a scene only
+	// vertically (e.g. keep drawing above/below a horizon line) while
+	// leaving x1=0 and/or x2=639 to mean "no horizontal restriction" - in
+	// the original fixed-640-wide engine that was a no-op since nothing
+	// could be drawn past those x values anyway. Confirmed via resource
+	// dump: this pattern (x1<=0 or x2>=639, but not a full-screen reset)
+	// appears in FISHWALK/MJFISHC/MJFISH/GJDIVE/MJDIVE/MJSAND/GJNAT1/
+	// SJGLIMPS/SBREAKUP/SJLEAVES/GJCATCH2.TTM. Naively shifting both edges
+	// by widescreenOffsetX (like every other coordinate) turns "no
+	// restriction" into "still only ~640px wide, just recentered",
+	// visibly scissoring anything meant to use the extra widescreen width
+	// - e.g. MJFISHC.TTM tag 17's shark-drag sequence disappearing at the
+	// old 4:3 edge instead of continuing off the real, wider screen.
+	// Pin edges that touch the original screen bounds to the actual
+	// canvas edge instead of shifting them; must be checked on the raw
+	// (pre-grDx) args for the same reason isFullScreenReset is above.
+	touchesLeftEdge := x1 <= 0
+	touchesRightEdge := x2 >= int16(screenWidth-1)
+
 	x1 += int16(grDx)
 	y1 += int16(grDy)
 	x2 += int16(grDx)
@@ -1206,6 +1225,14 @@ func grSetClipZone(sur *rl.RenderTexture2D, x1, y1, x2, y2 int16) {
 	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
 		x1 += widescreenOffsetX
 		x2 += widescreenOffsetX
+		if !isFullScreenReset {
+			if touchesLeftEdge {
+				x1 = 0
+			}
+			if touchesRightEdge {
+				x2 = int16(virtualWidth) - 1
+			}
+		}
 	}
 
 	w := x2 - x1
@@ -1562,6 +1589,25 @@ func grDrawPixel(sur *rl.RenderTexture2D, x, y int16, clr uint8) {
 }
 
 func grDrawLine(sur *rl.RenderTexture2D, x1, y1, x2, y2 int16, colorIdx uint8) {
+	// r.c. - many TTM scripts draw lines (fishing line, boat wake, etc.)
+	// with an endpoint literally at x=639 or x=0 to mean "runs off the
+	// edge of the screen" - in the original fixed-640-wide engine that
+	// was the real edge. Confirmed via resource dump: MJFISHC.TTM's
+	// shark-drag sequence (tag 42) repeatedly draws DRAW_LINE calls whose
+	// second endpoint is exactly 639 as the shark pulls the line further
+	// off-screen. Since this TTM isn't (and, given it has 25+ different
+	// catch-scenario tags, can't reasonably be) on the isScreenSpanningDraw
+	// whitelist, these endpoints only get the fixed widescreenOffsetX shift
+	// and never reach the real, wider edge - the line (and the sprite
+	// anchored to its tip) visibly stops short instead of continuing off
+	// the actual widescreen edge. Pin endpoints that touch the original
+	// screen bounds to the actual canvas edge, checked on the raw
+	// (pre-grDx) args for the same reason grSetClipZone does.
+	touchesLeftEdge1 := x1 <= 0
+	touchesRightEdge1 := x1 >= int16(screenWidth-1)
+	touchesLeftEdge2 := x2 <= 0
+	touchesRightEdge2 := x2 >= int16(screenWidth-1)
+
 	x1 += int16(grDx)
 	y1 += int16(grDy)
 	x2 += int16(grDx)
@@ -1588,6 +1634,16 @@ func grDrawLine(sur *rl.RenderTexture2D, x1, y1, x2, y2 int16, colorIdx uint8) {
 		} else {
 			x1 += widescreenOffsetX
 			x2 += widescreenOffsetX
+			if touchesLeftEdge1 {
+				x1 = 0
+			} else if touchesRightEdge1 {
+				x1 = int16(virtualWidth) - 1
+			}
+			if touchesLeftEdge2 {
+				x2 = 0
+			} else if touchesRightEdge2 {
+				x2 = int16(virtualWidth) - 1
+			}
 		}
 	}
 
@@ -1879,6 +1935,23 @@ func isScreenSpanningDraw(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot) bool {
 	}
 	return false
 }
+
+// r.c. - a per-coordinate proportional-stretch mode (x * virtualWidth/640)
+// was tried here for MJFISHC.TTM's catch/shark-drag scenes, to make the
+// fishing line's far endpoint genuinely reach the real widescreen edge
+// instead of just the old 639 boundary. Reverted: it broke rigid
+// attachments - Johnny's position desynced from the (unscaled) palm tree,
+// and the line's near endpoint visibly separated from the rod tip baked
+// into Johnny's sprite bitmap, since a sprite's on-screen geometry doesn't
+// stretch (raylib draws it at native size) even though its anchor x does.
+// Confirmed this isn't fixable by simply excluding the tree: this TTM
+// reuses image slots for different, unrelated elements across its 25+
+// tags (e.g. imageNo 2 is the tree in some frames but a completely
+// different, independently-positioned sprite in others), so there's no
+// static per-slot rule that holds file-wide. Left as an edge-pinning fix
+// only (see grDrawLine/grSetClipZone) - reaches the true edge on the
+// specific frames whose script coordinates touch the old 639/0 boundary,
+// without touching anything else's positioning.
 
 func shouldScaleSprite(ttmSlot *TTtmSlot, spriteNo, imageNo uint16) bool {
 	if ttmSlot == nil {
