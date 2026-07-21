@@ -960,6 +960,22 @@ func adsReleaseIsland() {
 	ttmBackgroundThread.isRunning = 0
 	ttmResetSlot(&ttmBackgroundSlot)
 
+	// r.c. - this used to leave ttmCloudsThread running: adsInitIsland()
+	// turns clouds on (isRunning=3) whenever an ISLAND scene starts, but
+	// nothing ever turned them back off again when leaving one. Since the
+	// next scene picked by storyPlay() can easily be a non-ISLAND FINAL
+	// scene (e.g. JOHNNY.ADS tag 6/1, the day-10/day-11 endings), those
+	// scenes would inherit clouds still drifting from whatever island
+	// scene came before, even though their own TTM script never draws or
+	// wants clouds. Stop them symmetrically with the background thread.
+	if ttmCloudsThread.isRunning != 0 {
+		ttmCloudsThread.isRunning = 0
+		if ttmCloudsThread.ttmLayer != nil {
+			grFreeLayer(ttmCloudsThread.ttmLayer)
+			ttmCloudsThread.ttmLayer = nil
+		}
+	}
+
 	if ttmHolidayThread.isRunning != 0 {
 		ttmHolidayThread.isRunning = 0
 		grFreeLayer(ttmHolidayThread.ttmLayer)
@@ -969,6 +985,31 @@ func adsReleaseIsland() {
 func adsNoIsland() {
 	grDx = 0
 	grDy = 0
+
+	// r.c. - this used to only clear the background, leaving the
+	// background(wave)/clouds/holiday threads exactly as whatever state
+	// they were left in by the last ISLAND scene. Confirmed via a
+	// disassembly of THEEND.TTM (JOHNNY.ADS tag 1, "The End"): its own
+	// script never draws clouds or shoreline waves - so any seen during
+	// that scene are these leftover global threads, not part of the
+	// scene itself. Explicitly stop all three here so a non-ISLAND FINAL
+	// scene always starts from a clean slate, regardless of how it was
+	// reached (adsReleaseIsland() above now handles the normal transition,
+	// but this is the actual state adsNoIsland() puts us into, so it
+	// shouldn't rely on the previous scene having released cleanly).
+	ttmBackgroundThread.isRunning = 0
+	if ttmCloudsThread.isRunning != 0 {
+		ttmCloudsThread.isRunning = 0
+		if ttmCloudsThread.ttmLayer != nil {
+			grFreeLayer(ttmCloudsThread.ttmLayer)
+			ttmCloudsThread.ttmLayer = nil
+		}
+	}
+	if ttmHolidayThread.isRunning != 0 {
+		ttmHolidayThread.isRunning = 0
+		grFreeLayer(ttmHolidayThread.ttmLayer)
+	}
+
 	grInitEmptyBackground()
 }
 

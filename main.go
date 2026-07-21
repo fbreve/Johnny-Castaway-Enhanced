@@ -698,15 +698,16 @@ func runTestMode(testAdsName string, testTagNo int) {
 	islandState.xPos = 0
 	islandState.yPos = 0
 	islandState.lowTide = 1 // Ensure low tide so they match the walk paths
+
+	// Find the scene in storyScenes to get its flags (e.g. LEFT_ISLAND, ISLAND)
+	var scene TStoryScene
+	found := false
 	if testAdsName != "" && testTagNo > 0 {
 		testAdsName = strings.ToUpper(testAdsName)
 		if !strings.HasSuffix(testAdsName, ".ADS") {
 			testAdsName += ".ADS"
 		}
 
-		// Find the scene in storyScenes to get its flags (e.g. LEFT_ISLAND)
-		var scene TStoryScene
-		found := false
 		for _, s := range storyScenes {
 			if strings.ToUpper(s.adsName) == testAdsName && int(s.adsTagNo) == testTagNo {
 				scene = s
@@ -735,7 +736,17 @@ func runTestMode(testAdsName string, testTagNo int) {
 		}
 	}
 
-	adsInitIsland()
+	// r.c. - previously called unconditionally, which meant testing any
+	// non-ISLAND FINAL scene (JOHNNY.ADS tag 1 "The End", tag 6) via -t
+	// always started the background wave thread and clouds thread even
+	// though those scenes' own TTM scripts never draw either one, and
+	// storyPlay() would never call adsInitIsland() for them either. Mirror
+	// storyPlay()'s own choice here so test mode matches real playback.
+	if !found || scene.flags&ISLAND == ISLAND {
+		adsInitIsland()
+	} else {
+		adsNoIsland()
+	}
 
 	if testAdsName != "" && testTagNo > 0 {
 		fmt.Printf("Running custom test mode for scene: %s tag %d (LEFT_ISLAND=%v, xPos=%d)\n", testAdsName, testTagNo, islandState.xPos == -272, islandState.xPos)
