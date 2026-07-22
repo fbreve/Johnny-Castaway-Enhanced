@@ -7,7 +7,6 @@ import (
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
-
 const (
 	MaxRandomOps      = 10
 	MaxAdsChunks      = 100
@@ -268,7 +267,7 @@ func adsAddScene(ttmSlotNo, ttmTag, arg3 uint16) {
 		ttmThread := &ttmThreads[i]
 
 		if ttmThread.isRunning != 0 {
-			if ttmThread.sceneSlot == ttmSlotNo && ttmThread.sceneTag == ttmTag {
+			if ttmThread.sceneSlot == ttmSlotNo && ttmThread.sceneRootTag == ttmTag {
 				fmt.Printf("WARN: (%d,%d) thread is already running - didn't add extra one\n", ttmSlotNo, ttmTag)
 				return
 			}
@@ -285,6 +284,7 @@ func adsAddScene(ttmSlotNo, ttmTag, arg3 uint16) {
 	ttmThread.ttmSlot = &ttmSlots[ttmSlotNo]
 	ttmThread.isRunning = 1
 	ttmThread.sceneSlot = ttmSlotNo
+	ttmThread.sceneRootTag = ttmTag
 	ttmThread.sceneTag = ttmTag
 	ttmThread.sceneTimer = 0
 	ttmThread.sceneIterations = 0
@@ -327,7 +327,7 @@ func adsAddScene(ttmSlotNo, ttmTag, arg3 uint16) {
 
 func adsStopScene(sceneNo int, keepAsDecoration bool) {
 	_ = keepAsDecoration
-	if shouldFreezeOnStop(ttmThreads[sceneNo].sceneSlot, ttmThreads[sceneNo].sceneTag) {
+	if shouldFreezeOnStop(ttmThreads[sceneNo].sceneSlot, ttmThreads[sceneNo].sceneRootTag) {
 		// r.c. - TEMP: -t test mode keeps landing on a run where the ship's
 		// thread only ever draws sprtNo:8 (confirmed wrong via screenshot)
 		// before completing, so the settled-position histogram never gets a
@@ -335,7 +335,7 @@ func adsStopScene(sceneNo int, keepAsDecoration bool) {
 		// longer story-mode run - looped ~50x). Bypassing the histogram to
 		// test sprtNo:9 directly instead of picking whatever this run
 		// happened to observe.
-		if ttmThreads[sceneNo].sceneSlot == 1 && ttmThreads[sceneNo].sceneTag == 35 {
+		if ttmThreads[sceneNo].sceneSlot == 1 && ttmThreads[sceneNo].sceneRootTag == 35 {
 			if grSavedZonesLayer == nil {
 				grSavedZonesLayer = grNewLayer()
 			}
@@ -355,9 +355,9 @@ func adsStopSceneByTtmTag(ttmSlotNo, ttmTag uint16, keepAsDecoration bool) {
 		ttmThread := &ttmThreads[i]
 		if ttmThread.isRunning != 0 {
 			if ttmThread.sceneSlot == ttmSlotNo {
-				match := ttmThread.sceneTag == ttmTag
+				match := ttmThread.sceneRootTag == ttmTag
 				if ttmSlotNo == 5 && ttmTag == 10 {
-					if ttmThread.sceneTag == 7 || ttmThread.sceneTag == 8 || ttmThread.sceneTag == 10 {
+					if ttmThread.sceneRootTag == 7 || ttmThread.sceneRootTag == 8 || ttmThread.sceneRootTag == 10 {
 						match = true
 					}
 				}
@@ -374,7 +374,7 @@ func isSceneRunning(ttmSlotNo, ttmTag uint16) int {
 		ttmThread := &ttmThreads[i]
 		if ttmThread.isRunning != 0 &&
 			ttmThread.sceneSlot == ttmSlotNo &&
-			ttmThread.sceneTag == ttmTag {
+			ttmThread.sceneRootTag == ttmTag {
 			return 1
 		}
 	}
@@ -794,18 +794,19 @@ func adsPlay(adsName string, adsTag uint16) {
 					// Managing the numPlays which was indicated in ADD_SCENE arg3 (postive value)
 					if ttmThreads[i].sceneIterations != 0 {
 						ttmThreads[i].sceneIterations--
-						offset := ttmFindTag(&ttmSlots[ttmThreads[i].sceneSlot], ttmThreads[i].sceneTag)
+						offset := ttmFindTag(&ttmSlots[ttmThreads[i].sceneSlot], ttmThreads[i].sceneRootTag)
 						if offset == 0xffffffff {
 							ttmThreads[i].isRunning = 2
 							ttmThreads[i].ip = 0
 						} else {
 							ttmThreads[i].isRunning = 1
+							ttmThreads[i].sceneTag = ttmThreads[i].sceneRootTag
 							ttmThreads[i].ip = offset
 						}
 					} else { // Is there one (or more) IF_LASTPLAYED matching the terminated thread ?
 						adsStopScene(i, true)
 						if adsStopRequested == 0 {
-							adsPlayTriggeredChunks(data, dataSize, ttmThreads[i].sceneSlot, ttmThreads[i].sceneTag)
+							adsPlayTriggeredChunks(data, dataSize, ttmThreads[i].sceneSlot, ttmThreads[i].sceneRootTag)
 						}
 					}
 				}
@@ -889,7 +890,6 @@ benchDone:
 	ttmResetSlot(&ttmSlots[0])
 	return results
 }
-
 
 func adsPlayIntro() {
 	grLoadScreen("INTRO.SCR")

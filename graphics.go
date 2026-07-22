@@ -164,7 +164,7 @@ var (
 	// r.c. debug instrumentation - tracks nil transitions of grSavedZonesLayer
 	// for logging in grUpdateDisplay
 	lastSavedZonesLayerWasNil = true
-	grFinalRenderSur  *rl.RenderTexture2D
+	grFinalRenderSur          *rl.RenderTexture2D
 )
 
 var activeClipZones = make(map[*rl.RenderTexture2D]rl.Rectangle)
@@ -199,6 +199,7 @@ type TTtmThread struct {
 	ttmSlot         *TTtmSlot
 	isRunning       int
 	sceneSlot       uint16
+	sceneRootTag    uint16
 	sceneTag        uint16
 	sceneTimer      int16
 	sceneIterations uint16
@@ -264,7 +265,6 @@ type TTtmThread struct {
 	lastDrawImageNo  uint16
 	lastDrawFlipped  bool
 
-
 	// r.c. - same idea as lastDraw above, but for DRAW_RECT. GJVIS6.TTM
 	// (VISITOR.ADS tag 3 - the red tanker passing close in front of the
 	// island) draws its hull's flat midsection not as a sprite bitmap but
@@ -318,7 +318,7 @@ type TTtmThread struct {
 	// sprite at the final settled position is what we want.
 	settledX          int16
 	settledY          int16
-	settledEntries     [maxSettledEntries]settledSpriteEntry
+	settledEntries    [maxSettledEntries]settledSpriteEntry
 	settledEntryCount int
 }
 
@@ -917,8 +917,6 @@ func grUpdateDisplay(
 				}
 			}
 
-
-
 			// Finally, blit the holiday layer
 			if ttmHolidayThread != nil {
 				if ttmHolidayThread.isRunning != 0 {
@@ -1300,10 +1298,10 @@ func grTryRedrawLastSpriteToBg(ttmThread *TTtmThread, x, y int16, width, height 
 	rectRight := rectLeft + int(width)
 	rectBottom := rectTop + int(height)
 
-	matched := (spriteLeft >= rectLeft - tolerance) &&
-		(spriteTop >= rectTop - tolerance) &&
-		(spriteRight <= rectRight + tolerance) &&
-		(spriteBottom <= rectBottom + tolerance)
+	matched := (spriteLeft >= rectLeft-tolerance) &&
+		(spriteTop >= rectTop-tolerance) &&
+		(spriteRight <= rectRight+tolerance) &&
+		(spriteBottom <= rectBottom+tolerance)
 
 	if !matched {
 		return false
@@ -1792,7 +1790,6 @@ func grDrawCircle(sur *rl.RenderTexture2D, x1, y1 int16, width, height uint16, f
 		rl.DrawCircleLines(centerX, centerY, radius, fgClr)
 	}
 }
-
 
 func trackLastDraw(ttmThread *TTtmThread, x, y int16, spriteNo, imageNo uint16, flipped bool) {
 	if int(spriteNo) >= ttmThread.ttmSlot.numSprites[imageNo] {
