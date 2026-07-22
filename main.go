@@ -695,11 +695,15 @@ func runTestMode(testAdsName string, testTagNo int) {
 	defer unloadSfx()
 
 	adsInit()
+	storyCurrentDay = activeConfig.CurrentDay
 	islandState.xPos = 0
 	islandState.yPos = 0
-	islandState.lowTide = 1 // Ensure low tide so they match the walk paths
+	islandState.lowTide = 0
+	islandState.raft = 0
 
-	// Find the scene in storyScenes to get its flags (e.g. LEFT_ISLAND, ISLAND)
+	// Find the scene in storyScenes so test mode can mirror its actual story-day,
+	// raft stage, tide eligibility, and island positioning instead of using a
+	// generic hardcoded island setup.
 	var scene TStoryScene
 	found := false
 	if testAdsName != "" && testTagNo > 0 {
@@ -717,20 +721,26 @@ func runTestMode(testAdsName string, testTagNo int) {
 		}
 
 		if found {
-			if scene.flags&LEFT_ISLAND == LEFT_ISLAND {
-				islandState.xPos = -272
-				islandState.yPos = 0
-				ttmDx = 0
-				ttmDy = 0
+			if scene.dayNo != 0 {
+				storyCurrentDay = scene.dayNo
+			}
+			storyCalculateIslandFromScene(&scene)
+			if scene.flags&ISLAND == ISLAND {
+				xOffset := 0
+				if scene.flags&LEFT_ISLAND == LEFT_ISLAND {
+					xOffset = 272
+				}
+				ttmDx = islandState.xPos + xOffset
+				ttmDy = islandState.yPos
 			} else {
-				islandState.xPos = 0
-				islandState.yPos = 0
 				ttmDx = 0
 				ttmDy = 0
 			}
 		} else {
 			islandState.xPos = 0
 			islandState.yPos = 0
+			islandState.lowTide = 0
+			islandState.raft = 0
 			ttmDx = 0
 			ttmDy = 0
 		}

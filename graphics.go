@@ -183,6 +183,7 @@ type TTtmSlot struct {
 	numSprites [MaxBMPSlots]int
 	sprites    [MaxBMPSlots][MaxSpritesPerBMP]*rl.Texture2D
 	ResName    string
+	baseBmpNames [MaxBMPSlots]string
 	// r.c. - tracks which BMP is currently loaded in each slot. A single slot
 	// can be reloaded mid-TTM (e.g. WOULDBE.TTM reloads slot 3 from JOHNWOUL.BMP
 	// to DRUNKJON.BMP partway through tag 11). shouldScaleSprite uses this to
@@ -2176,6 +2177,25 @@ func grDrawSpriteFlip(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, sp
 	rl.DrawTexturePro(*srcSurface, src, dst, rl.Vector2Zero(), 0.0, rl.White) //rl.Red)
 }
 
+func grRestoreBmpSlot(ttmSlot *TTtmSlot, bmpSlotNo uint16) {
+	if int(bmpSlotNo) >= len(ttmSlot.numSprites) {
+		return
+	}
+
+	baseName := ttmSlot.baseBmpNames[bmpSlotNo]
+	if baseName == "" {
+		debugPrintf("*** CLEAR_IMGSLOT skipped: slot %d has no base image ***\n", bmpSlotNo)
+		return
+	}
+
+	if ttmSlot.slotBmpNames[bmpSlotNo] == baseName {
+		return
+	}
+
+	debugPrintf("*** CLEAR_IMGSLOT restoring slot %d -> %s ***\n", bmpSlotNo, baseName)
+	grLoadBmp(ttmSlot, bmpSlotNo, baseName)
+}
+
 func grClearScreen(sur *rl.RenderTexture2D) {
 	// NOTE: The clip zone is intentionally NOT cleared here. The original game
 	// sets a clip zone once with SET_CLIP_ZONE and expects it to persist across
@@ -2322,7 +2342,11 @@ func grLoadBmp(ttmSlot *TTtmSlot, slotNo uint16, name string) {
 
 	// r.c. - record which BMP is currently in this slot so that
 	// shouldScaleSprite can classify slot 3 Johnny poses correctly.
-	ttmSlot.slotBmpNames[slotNo] = strings.ToUpper(name)
+	upperName := strings.ToUpper(name)
+	ttmSlot.slotBmpNames[slotNo] = upperName
+	if ttmSlot.baseBmpNames[slotNo] == "" {
+		ttmSlot.baseBmpNames[slotNo] = upperName
+	}
 
 	bmpResource := findBMPResource(name)
 
@@ -2399,6 +2423,7 @@ func grReleaseBmp(ttmSlot *TTtmSlot, bmpSlotNo uint16) {
 	}
 
 	ttmSlot.numSprites[bmpSlotNo] = 0
+	ttmSlot.slotBmpNames[bmpSlotNo] = ""
 }
 
 func grFadeOut() {

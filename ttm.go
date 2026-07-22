@@ -86,6 +86,8 @@ func ttmInitSlot(ttmSlot *TTtmSlot) {
 	for i := 0; i < MaxBMPSlots; i++ {
 		ttmSlot.data = nil
 		ttmSlot.numSprites[i] = 0
+		ttmSlot.baseBmpNames[i] = ""
+		ttmSlot.slotBmpNames[i] = ""
 	}
 }
 
@@ -98,6 +100,8 @@ func ttmResetSlot(ttmSlot *TTtmSlot) {
 		if ttmSlot.numSprites[i] != 0 {
 			//grReleaseBmp(ttmSlot, i)
 		}
+		ttmSlot.baseBmpNames[i] = ""
+		ttmSlot.slotBmpNames[i] = ""
 	}
 }
 
@@ -231,7 +235,8 @@ func ttmPlay(ttmThread *TTtmThread) {
 
 		switch opCode {
 		case 0x0080:
-			debugPrintln("\tDRAW BACKGROUND")
+			debugPrintln("\tCLEAR_IMGSLOT")
+			grRestoreBmpSlot(ttmSlot, uint16(ttmThread.selectedBmpSlot))
 		case 0x0110:
 			debugPrintln("\tPURGE")
 			if ttmThread.sceneTimer != 0 {
