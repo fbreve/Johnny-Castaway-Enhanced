@@ -6,7 +6,7 @@ echo.
 
 where go >nul 2>nul
 if %ERRORLEVEL% NEQ 0 set "PATH=C:\Program Files\Go\bin;%PATH%"
-set "PATH=D:\Tools\w64devkit-1.22.0\bin;%PATH%"
+set "PATH=D:\Tools\w64devkit-1.22.0\bin;E:\Tools\w64devkit-1.22.0\bin;%PATH%"
 
 echo [1/3] Building...
 for /f "usebackq tokens=*" %%a in (`powershell -Command "Get-Date -Format 'yyyy-MM-dd HH:mm:ss'"`) do set BUILD_TIME=%%a

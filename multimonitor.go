@@ -1,8 +1,26 @@
 package main
 
 import (
+	"runtime"
+	"syscall"
+
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
+
+// getMonitorCount returns the number of connected monitors.
+// On Windows it queries GetSystemMetrics(SM_CMONITORS) directly, avoiding
+// needing to initialize and destroy a dummy Raylib window beforehand.
+func getMonitorCount() int {
+	if runtime.GOOS == "windows" {
+		user32 := syscall.NewLazyDLL("user32.dll")
+		getSystemMetrics := user32.NewProc("GetSystemMetrics")
+		ret, _, _ := getSystemMetrics.Call(80) // SM_CMONITORS = 80
+		if ret > 0 {
+			return int(ret)
+		}
+	}
+	return rl.GetMonitorCount()
+}
 
 // TMonitorRect describes one connected monitor's region within the single
 // application window, in window-local coordinates (i.e. already offset so

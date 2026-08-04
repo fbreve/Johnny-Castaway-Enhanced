@@ -538,11 +538,7 @@ func runStory() {
 	cfgFileRead(&config)
 
 	if config.MultiInstance && !hasMonitorIndex && isScreensaverMode {
-		// Initialize a tiny hidden window to query monitors
-		rl.SetConfigFlags(rl.FlagWindowHidden)
-		rl.InitWindow(1, 1, "Johnny Parent")
-		monitorCount := rl.GetMonitorCount()
-		rl.CloseWindow()
+		monitorCount := getMonitorCount()
 
 		if monitorCount > 1 {
 			// Spawn child processes for each monitor
