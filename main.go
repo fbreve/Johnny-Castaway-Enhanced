@@ -479,6 +479,7 @@ func main() {
 
 func setupApp() {
 	cfgFileRead(&activeConfig)
+	startHDRWatchdog()
 
 	// Enable 4x MSAA, undecorated, and resizable window flags before initialization to ensure window focus
 	rl.SetConfigFlags(rl.FlagMsaa4xHint | rl.FlagWindowUndecorated | rl.FlagWindowResizable)
