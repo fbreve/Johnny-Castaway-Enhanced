@@ -80,6 +80,9 @@ func soundPlay(id uint16) {
 	if !activeConfig.Sounds {
 		return
 	}
+	if isSilentTime() {
+		return
+	}
 	// Disable sound on secondary monitors to prevent overlapping audio
 	if hasMonitorIndex && runOnMonitorIndex != 0 {
 		return

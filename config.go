@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // r.c. This is not idiomatic Go, but a mostly direct C port of the original source.
@@ -30,6 +31,9 @@ type TConfig struct {
 	Widescreen    bool
 	FilterMode    int
 	Scanlines     bool
+	SilentTime    bool
+	SilentStart   int
+	SilentEnd     int
 }
 
 const (
@@ -45,6 +49,9 @@ const (
 	WidescreenKey    = "widescreen="
 	FilterModeKey    = "filterMode="
 	ScanlinesKey     = "scanlines="
+	SilentTimeKey    = "silentTime="
+	SilentStartKey   = "silentStart="
+	SilentEndKey     = "silentEnd="
 )
 
 func cfgFullPath() string {
@@ -81,6 +88,9 @@ func cfgFileWrite(cfg *TConfig) {
 	_, _ = fmt.Fprintf(f, "%s%t\n", WidescreenKey, cfg.Widescreen)
 	_, _ = fmt.Fprintf(f, "%s%d\n", FilterModeKey, cfg.FilterMode)
 	_, _ = fmt.Fprintf(f, "%s%t\n", ScanlinesKey, cfg.Scanlines)
+	_, _ = fmt.Fprintf(f, "%s%t\n", SilentTimeKey, cfg.SilentTime)
+	_, _ = fmt.Fprintf(f, "%s%d\n", SilentStartKey, cfg.SilentStart)
+	_, _ = fmt.Fprintf(f, "%s%d\n", SilentEndKey, cfg.SilentEnd)
 }
 
 func cfgFileRead(cfg *TConfig) {
@@ -97,6 +107,9 @@ func cfgFileRead(cfg *TConfig) {
 	cfg.Widescreen = false
 	cfg.FilterMode = 0
 	cfg.Scanlines = false
+	cfg.SilentTime = false
+	cfg.SilentStart = 2200
+	cfg.SilentEnd = 700
 
 	f, err := os.Open(cfgFullPath())
 	if err != nil {
@@ -148,10 +161,40 @@ func cfgFileRead(cfg *TConfig) {
 			}
 		} else if strings.HasPrefix(line, ScanlinesKey) {
 			cfg.Scanlines = line[len(ScanlinesKey):] == "true"
+		} else if strings.HasPrefix(line, SilentTimeKey) {
+			cfg.SilentTime = line[len(SilentTimeKey):] == "true"
+		} else if strings.HasPrefix(line, SilentStartKey) {
+			ss, err := strconv.Atoi(line[len(SilentStartKey):])
+			if err == nil {
+				cfg.SilentStart = ss
+			}
+		} else if strings.HasPrefix(line, SilentEndKey) {
+			se, err := strconv.Atoi(line[len(SilentEndKey):])
+			if err == nil {
+				cfg.SilentEnd = se
+			}
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
 		fmt.Fprintln(os.Stderr, "reading standard input:", err)
 	}
+}
+
+func isSilentTime() bool {
+	if !activeConfig.SilentTime {
+		return false
+	}
+	now := time.Now()
+	current := now.Hour()*100 + now.Minute()
+	start := activeConfig.SilentStart
+	end := activeConfig.SilentEnd
+
+	if start == end {
+		return true
+	}
+	if start < end {
+		return current >= start && current < end
+	}
+	return current >= start || current < end
 }

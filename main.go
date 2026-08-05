@@ -71,7 +71,7 @@ func adjustStartTime(val int, up bool) int {
 
 func runOptionsWindow() {
 	rl.SetConfigFlags(rl.FlagWindowHighdpi)
-	rl.InitWindow(600, 500, "ScreenAntics - Setup")
+	rl.InitWindow(600, 520, "ScreenAntics - Setup")
 	defer rl.CloseWindow()
 	rl.SetTargetFPS(60)
 
@@ -88,6 +88,9 @@ func runOptionsWindow() {
 	filterMode := config.FilterMode
 	filterDropdownOpen := false
 	scanlines := config.Scanlines
+	silentTime := config.SilentTime
+	silentStart := config.SilentStart
+	silentEnd := config.SilentEnd
 
 	// Load Windows native fonts for gorgeous anti-aliased text
 	var font rl.Font
@@ -140,10 +143,10 @@ func runOptionsWindow() {
 
 		// Intercept clicks if the dropdown is open
 		if filterDropdownOpen {
-			optionsHover := mousePos.X >= 140 && mousePos.X <= 310 && mousePos.Y >= 296 && mousePos.Y <= 296+7*26
+			optionsHover := mousePos.X >= 140 && mousePos.X <= 310 && mousePos.Y >= 316 && mousePos.Y <= 316+7*26
 			if click {
 				if optionsHover {
-					clickedIdx := int(mousePos.Y-296) / 26
+					clickedIdx := int(mousePos.Y-316) / 26
 					if clickedIdx >= 0 && clickedIdx < 7 {
 						filterMode = clickedIdx
 					}
@@ -158,7 +161,7 @@ func runOptionsWindow() {
 		rl.ClearBackground(rl.GetColor(0xf0f0f0ff)) // Standard Win32 light gray background
 
 		// Groupbox "Setup"
-		rl.DrawRectangleLines(15, 15, 570, 340, rl.Gray)
+		rl.DrawRectangleLines(15, 15, 570, 360, rl.Gray)
 		rl.DrawRectangle(25, 5, 65, 20, rl.GetColor(0xf0f0f0ff))
 		drawText("Setup", 30, 6, 16, rl.Black)
 
@@ -212,25 +215,25 @@ func runOptionsWindow() {
 		}
 
 		// Password Checkbox
-		passHover := mousePos.X >= 30 && mousePos.X <= 280 && mousePos.Y >= 150 && mousePos.Y <= 185
-		rl.DrawRectangle(30, 155, 18, 18, rl.White)
-		rl.DrawRectangleLines(30, 155, 18, 18, rl.Gray)
+		passHover := mousePos.X >= 30 && mousePos.X <= 280 && mousePos.Y >= 140 && mousePos.Y <= 175
+		rl.DrawRectangle(30, 145, 18, 18, rl.White)
+		rl.DrawRectangleLines(30, 145, 18, 18, rl.Gray)
 		if password {
-			rl.DrawRectangle(34, 159, 10, 10, rl.GetColor(0x0078d7ff))
+			rl.DrawRectangle(34, 149, 10, 10, rl.GetColor(0x0078d7ff))
 		}
-		drawText("Password Protection", 60, 156, 16, rl.Black)
+		drawText("Password Protection", 60, 146, 16, rl.Black)
 		if passHover && click {
 			password = !password
 		}
 
 		// Sounds Checkbox
-		sndHover := mousePos.X >= 30 && mousePos.X <= 280 && mousePos.Y >= 210 && mousePos.Y <= 245
-		rl.DrawRectangle(30, 215, 18, 18, rl.White)
-		rl.DrawRectangleLines(30, 215, 18, 18, rl.Gray)
+		sndHover := mousePos.X >= 30 && mousePos.X <= 280 && mousePos.Y >= 190 && mousePos.Y <= 225
+		rl.DrawRectangle(30, 195, 18, 18, rl.White)
+		rl.DrawRectangleLines(30, 195, 18, 18, rl.Gray)
 		if sounds {
-			rl.DrawRectangle(34, 219, 10, 10, rl.GetColor(0x0078d7ff))
+			rl.DrawRectangle(34, 199, 10, 10, rl.GetColor(0x0078d7ff))
 		}
-		drawText("Sounds", 60, 216, 16, rl.Black)
+		drawText("Sounds", 60, 196, 16, rl.Black)
 		if sndHover && click {
 			sounds = !sounds
 		}
@@ -250,31 +253,106 @@ func runOptionsWindow() {
 		}
 
 		// Software OpenGL Checkbox
-		swHover := mousePos.X >= 320 && mousePos.X <= 570 && mousePos.Y >= 150 && mousePos.Y <= 185
-		rl.DrawRectangle(320, 155, 18, 18, rl.White)
-		rl.DrawRectangleLines(320, 155, 18, 18, rl.Gray)
+		swHover := mousePos.X >= 320 && mousePos.X <= 570 && mousePos.Y >= 140 && mousePos.Y <= 175
+		rl.DrawRectangle(320, 145, 18, 18, rl.White)
+		rl.DrawRectangleLines(320, 145, 18, 18, rl.Gray)
 		if useMesa {
-			rl.DrawRectangle(324, 159, 10, 10, rl.GetColor(0x0078d7ff))
+			rl.DrawRectangle(324, 149, 10, 10, rl.GetColor(0x0078d7ff))
 		}
-		drawText("Use Software OpenGL (Mesa)", 350, 156, 16, rl.Black)
+		drawText("Use Software OpenGL (Mesa)", 350, 146, 16, rl.Black)
 		if swHover && click {
 			useMesa = !useMesa
 		}
 
 		// Independent instances checkbox
-		miHover := mousePos.X >= 320 && mousePos.X <= 570 && mousePos.Y >= 210 && mousePos.Y <= 245
-		rl.DrawRectangle(320, 215, 18, 18, rl.White)
-		rl.DrawRectangleLines(320, 215, 18, 18, rl.Gray)
+		miHover := mousePos.X >= 320 && mousePos.X <= 570 && mousePos.Y >= 190 && mousePos.Y <= 225
+		rl.DrawRectangle(320, 195, 18, 18, rl.White)
+		rl.DrawRectangleLines(320, 195, 18, 18, rl.Gray)
 		if multiInstance {
-			rl.DrawRectangle(324, 219, 10, 10, rl.GetColor(0x0078d7ff))
+			rl.DrawRectangle(324, 199, 10, 10, rl.GetColor(0x0078d7ff))
 		}
-		drawText("Independent instances", 350, 216, 16, rl.Black)
+		drawText("Independent instances", 350, 196, 16, rl.Black)
 		if miHover && click {
 			multiInstance = !multiInstance
 		}
 
-		// Scaling Filter Option
-		drawText("Scaling Filter:", 30, 275, 16, rl.Black)
+		// --- SILENT TIME ROW (y=240) ---
+		stHover := mousePos.X >= 30 && mousePos.X <= 145 && mousePos.Y >= 235 && mousePos.Y <= 265
+		rl.DrawRectangle(30, 240, 18, 18, rl.White)
+		rl.DrawRectangleLines(30, 240, 18, 18, rl.Gray)
+		if silentTime {
+			rl.DrawRectangle(34, 244, 10, 10, rl.GetColor(0x0078d7ff))
+		}
+		drawText("Silent Time", 60, 241, 16, rl.Black)
+		if stHover && click {
+			silentTime = !silentTime
+		}
+
+		// Silent Time From/To interval selectors
+		drawText("From:", 155, 241, 16, rl.Black)
+		rl.DrawRectangle(200, 236, 95, 26, rl.White)
+		rl.DrawRectangleLines(200, 236, 95, 26, rl.Gray)
+		drawText(formatStartTime(silentStart), 205, 240, 15, rl.Black)
+
+		// SilentStart Up button
+		ssUpHover := mousePos.X >= 295 && mousePos.X <= 313 && mousePos.Y >= 236 && mousePos.Y <= 248
+		ssUpCol := rl.GetColor(0xe1e1e1ff)
+		if ssUpHover {
+			ssUpCol = rl.GetColor(0xd1d1d1ff)
+			if click {
+				silentStart = adjustStartTime(silentStart, true)
+			}
+		}
+		rl.DrawRectangle(295, 236, 18, 12, ssUpCol)
+		rl.DrawRectangleLines(295, 236, 18, 12, rl.Gray)
+		drawText("^", 300, 239, 14, rl.Black)
+
+		// SilentStart Down button
+		ssDownHover := mousePos.X >= 295 && mousePos.X <= 313 && mousePos.Y >= 250 && mousePos.Y <= 262
+		ssDownCol := rl.GetColor(0xe1e1e1ff)
+		if ssDownHover {
+			ssDownCol = rl.GetColor(0xd1d1d1ff)
+			if click {
+				silentStart = adjustStartTime(silentStart, false)
+			}
+		}
+		rl.DrawRectangle(295, 250, 18, 12, ssDownCol)
+		rl.DrawRectangleLines(295, 250, 18, 12, rl.Gray)
+		drawText("v", 301, 247, 12, rl.Black)
+
+		drawText("To:", 325, 241, 16, rl.Black)
+		rl.DrawRectangle(355, 236, 95, 26, rl.White)
+		rl.DrawRectangleLines(355, 236, 95, 26, rl.Gray)
+		drawText(formatStartTime(silentEnd), 360, 240, 15, rl.Black)
+
+		// SilentEnd Up button
+		seUpHover := mousePos.X >= 450 && mousePos.X <= 468 && mousePos.Y >= 236 && mousePos.Y <= 248
+		seUpCol := rl.GetColor(0xe1e1e1ff)
+		if seUpHover {
+			seUpCol = rl.GetColor(0xd1d1d1ff)
+			if click {
+				silentEnd = adjustStartTime(silentEnd, true)
+			}
+		}
+		rl.DrawRectangle(450, 236, 18, 12, seUpCol)
+		rl.DrawRectangleLines(450, 236, 18, 12, rl.Gray)
+		drawText("^", 455, 239, 14, rl.Black)
+
+		// SilentEnd Down button
+		seDownHover := mousePos.X >= 450 && mousePos.X <= 468 && mousePos.Y >= 250 && mousePos.Y <= 262
+		seDownCol := rl.GetColor(0xe1e1e1ff)
+		if seDownHover {
+			seDownCol = rl.GetColor(0xd1d1d1ff)
+			if click {
+				silentEnd = adjustStartTime(silentEnd, false)
+			}
+		}
+		rl.DrawRectangle(450, 250, 18, 12, seDownCol)
+		rl.DrawRectangleLines(450, 250, 18, 12, rl.Gray)
+		drawText("v", 456, 247, 12, rl.Black)
+
+		// Scaling Filter Option (y=290)
+		drawText("Scaling Filter:", 30, 295, 16, rl.Black)
 
 		// Filter display box
 		filterNames := []string{
@@ -288,29 +366,29 @@ func runOptionsWindow() {
 		}
 
 		// Draw header box
-		rl.DrawRectangle(140, 270, 170, 26, rl.White)
-		rl.DrawRectangleLines(140, 270, 170, 26, rl.Gray)
-		drawText(filterNames[filterMode], 148, 274, 16, rl.Black)
+		rl.DrawRectangle(140, 290, 170, 26, rl.White)
+		rl.DrawRectangleLines(140, 290, 170, 26, rl.Gray)
+		drawText(filterNames[filterMode], 148, 294, 16, rl.Black)
 
 		// Draw small down arrow box on the right
-		rl.DrawRectangle(290, 271, 19, 24, rl.GetColor(0xe1e1e1ff))
-		rl.DrawLine(290, 270, 290, 296, rl.Gray)
-		drawText("v", 296, 277, 12, rl.Black)
+		rl.DrawRectangle(290, 291, 19, 24, rl.GetColor(0xe1e1e1ff))
+		rl.DrawLine(290, 290, 290, 316, rl.Gray)
+		drawText("v", 296, 297, 12, rl.Black)
 
-		headerHover := mousePos.X >= 140 && mousePos.X <= 310 && mousePos.Y >= 270 && mousePos.Y <= 296
+		headerHover := mousePos.X >= 140 && mousePos.X <= 310 && mousePos.Y >= 290 && mousePos.Y <= 316
 		if headerHover && click {
 			filterDropdownOpen = !filterDropdownOpen
 			click = false // Consume the click
 		}
 
 		// Scanlines Checkbox (Column 2, aligned with Scaling Filter)
-		slHover := mousePos.X >= 320 && mousePos.X <= 570 && mousePos.Y >= 270 && mousePos.Y <= 305
-		rl.DrawRectangle(320, 275, 18, 18, rl.White)
-		rl.DrawRectangleLines(320, 275, 18, 18, rl.Gray)
+		slHover := mousePos.X >= 320 && mousePos.X <= 570 && mousePos.Y >= 290 && mousePos.Y <= 325
+		rl.DrawRectangle(320, 295, 18, 18, rl.White)
+		rl.DrawRectangleLines(320, 295, 18, 18, rl.Gray)
 		if scanlines {
-			rl.DrawRectangle(324, 279, 10, 10, rl.GetColor(0x0078d7ff))
+			rl.DrawRectangle(324, 299, 10, 10, rl.GetColor(0x0078d7ff))
 		}
-		drawText("Scanlines", 350, 276, 16, rl.Black)
+		drawText("Scanlines", 350, 296, 16, rl.Black)
 		if slHover && click {
 			scanlines = !scanlines
 		}
@@ -320,7 +398,7 @@ func runOptionsWindow() {
 		brandSize := float32(16)
 		brandWidth := measureText(brandText, brandSize)
 		brandX := int32((600 - brandWidth) / 2)
-		brandY := int32(375)
+		brandY := int32(395)
 
 		brandHover := mousePos.X >= float32(brandX) && mousePos.X <= float32(brandX)+brandWidth &&
 			mousePos.Y >= float32(brandY-4) && mousePos.Y <= float32(brandY+18)
@@ -342,7 +420,7 @@ func runOptionsWindow() {
 		}
 
 		// OK Button
-		okHover := mousePos.X >= 180 && mousePos.X <= 280 && mousePos.Y >= 410 && mousePos.Y <= 450
+		okHover := mousePos.X >= 180 && mousePos.X <= 280 && mousePos.Y >= 430 && mousePos.Y <= 470
 		okCol := rl.GetColor(0xe1e1e1ff)
 		if okHover {
 			okCol = rl.GetColor(0xd1d1d1ff)
@@ -356,16 +434,19 @@ func runOptionsWindow() {
 				config.Widescreen = widescreen
 				config.FilterMode = filterMode
 				config.Scanlines = scanlines
+				config.SilentTime = silentTime
+				config.SilentStart = silentStart
+				config.SilentEnd = silentEnd
 				cfgFileWrite(&config)
 				break
 			}
 		}
-		rl.DrawRectangle(180, 410, 100, 40, okCol)
-		rl.DrawRectangleLines(180, 410, 100, 40, rl.Gray)
-		drawText("OK", 218, 419, 16, rl.Black)
+		rl.DrawRectangle(180, 430, 100, 40, okCol)
+		rl.DrawRectangleLines(180, 430, 100, 40, rl.Gray)
+		drawText("OK", 218, 439, 16, rl.Black)
 
 		// Cancel Button
-		cancelHover := mousePos.X >= 320 && mousePos.X <= 420 && mousePos.Y >= 410 && mousePos.Y <= 450
+		cancelHover := mousePos.X >= 320 && mousePos.X <= 420 && mousePos.Y >= 430 && mousePos.Y <= 470
 		cancelCol := rl.GetColor(0xe1e1e1ff)
 		if cancelHover {
 			cancelCol = rl.GetColor(0xd1d1d1ff)
@@ -373,26 +454,26 @@ func runOptionsWindow() {
 				break
 			}
 		}
-		rl.DrawRectangle(320, 410, 100, 40, cancelCol)
-		rl.DrawRectangleLines(320, 410, 100, 40, rl.Gray)
-		drawText("Cancel", 342, 419, 16, rl.Black)
+		rl.DrawRectangle(320, 430, 100, 40, cancelCol)
+		rl.DrawRectangleLines(320, 430, 100, 40, rl.Gray)
+		drawText("Cancel", 342, 439, 16, rl.Black)
 
 		// Build Time stamp
 		buildText := "Build: " + buildTime
 		buildSize := float32(14)
 		buildWidth := measureText(buildText, buildSize)
 		buildX := int32((600 - buildWidth) / 2)
-		buildY := int32(465)
+		buildY := int32(485)
 		drawText(buildText, buildX, buildY, buildSize, rl.GetColor(0x444444ff))
 
 		// Draw dropdown options overlay if open
 		if filterDropdownOpen {
 			// Draw dropdown background shadow/borders
-			rl.DrawRectangle(140, 296, 170, 7*26, rl.White)
-			rl.DrawRectangleLines(140, 296, 170, 7*26, rl.Gray)
+			rl.DrawRectangle(140, 316, 170, 7*26, rl.White)
+			rl.DrawRectangleLines(140, 316, 170, 7*26, rl.Gray)
 
 			for i := 0; i < 7; i++ {
-				optY := int32(296 + i*26)
+				optY := int32(316 + i*26)
 				optHover := mousePos.X >= 140 && mousePos.X <= 310 && mousePos.Y >= float32(optY) && mousePos.Y <= float32(optY+26)
 
 				if optHover {
