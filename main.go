@@ -26,6 +26,7 @@ var (
 	fadeInVal         = float32(255.0)
 	runOnMonitorIndex int
 	hasMonitorIndex   bool
+	isChildProcess    bool
 	buildTime         = "Developer Build"
 	isRun             = false
 )
@@ -523,10 +524,24 @@ func main() {
 		} else if strings.HasPrefix(argLower, "/k") || strings.HasPrefix(argLower, "-k") {
 			// -k enables debug hotkeys: Space=pause, M=max-speed, Enter=advance, Esc=quit
 			hotKeysEnabled = true
-		} else if strings.HasPrefix(argLower, "/m") || strings.HasPrefix(argLower, "-m") {
-			if i+1 < len(os.Args) {
+		} else if argLower == "--child" || argLower == "-child" || argLower == "/child" {
+			isChildProcess = true
+		} else if argLower == "/1" || argLower == "-1" || argLower == "--1" ||
+			argLower == "/main" || argLower == "-main" || argLower == "--main" ||
+			argLower == "/single" || argLower == "-single" || argLower == "--single" ||
+			argLower == "/primary" || argLower == "-primary" || argLower == "--primary" {
+			hasMonitorIndex = true
+			runOnMonitorIndex = 0
+		} else if strings.HasPrefix(argLower, "/m") || strings.HasPrefix(argLower, "-m") || strings.HasPrefix(argLower, "--monitor") {
+			hasMonitorIndex = true
+			runOnMonitorIndex = 0
+			if strings.Contains(argLower, ":") || strings.Contains(argLower, "=") {
+				parts := strings.FieldsFunc(arg, func(r rune) bool { return r == ':' || r == '=' })
+				if len(parts) > 1 {
+					fmt.Sscanf(parts[1], "%d", &runOnMonitorIndex)
+				}
+			} else if i+1 < len(os.Args) && !strings.HasPrefix(os.Args[i+1], "-") && !strings.HasPrefix(os.Args[i+1], "/") {
 				fmt.Sscanf(os.Args[i+1], "%d", &runOnMonitorIndex)
-				hasMonitorIndex = true
 			}
 		}
 	}
@@ -630,7 +645,7 @@ func runStory() {
 			shouldExitChan := make(chan struct{}, monitorCount)
 
 			for i := 0; i < monitorCount; i++ {
-				args := []string{"-m", fmt.Sprintf("%d", i)}
+				args := []string{"--child", "-m", fmt.Sprintf("%d", i)}
 				if isRun {
 					args = append(args, "-s")
 				}
@@ -676,7 +691,7 @@ func runStory() {
 		}
 	}
 
-	if hasMonitorIndex {
+	if isChildProcess {
 		// Child process: listen to standard input to receive the exit signal from the parent.
 		// When the parent closes the stdin pipe, Read returns immediately, triggering clean exit.
 		go func() {
