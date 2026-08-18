@@ -1692,20 +1692,28 @@ func grDrawHorizontalLine(sur *rl.RenderTexture2D, x1, x2, y int16, color uint8)
 func grDrawRect(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, width, height uint16, colorIdx uint8) {
 	if activeConfig.Widescreen && sur != ttmCloudsThread.ttmLayer {
 		if isScreenSpanningDraw(sur, ttmSlot) {
-			// r.c. - see grDrawSprite() for the per-frame anchor rationale.
-			thread := getThreadByLayer(sur)
-			if thread != nil {
-				if thread.hasScaleOffset {
-					x += thread.scaleOffsetX
-				} else {
-					scaledX := int16(float32(x) * (float32(virtualWidth) / 640.0))
-					thread.scaleOffsetX = scaledX - x
-					thread.hasScaleOffset = true
-					x = scaledX
-				}
-			} else {
-				x = int16(float32(x) * (float32(virtualWidth) / 640.0))
-			}
+			// r.c. - grDrawSprite/grDrawSpriteFlip already scale x for
+			// these TTMs (GJVIS6.TTM among them) so a bitmap sprite drawn
+			// off the left edge in the original 640-wide script reaches
+			// the true corner of a wider virtual canvas. DRAW_RECT never
+			// got the same treatment, so the tanker's hull (built from a
+			// long row of solid-color DRAW_RECT strips) only ever started
+			// filling in from the classic 4:3 window's left border, never
+			// reaching the actual widescreen edge - while its bow sprite
+			// (drawn via DRAW_SPRITE) correctly did. Scale the left and
+			// right edges independently (not x and width separately) and
+			// derive width from the difference: scaling x and width each
+			// on their own rounds differently strip to strip, opening a
+			// ~1px seam at every single boundary once spread over a wider
+			// canvas - scaling the edges keeps two strips that shared an
+			// exact boundary in the original 640-wide data (right edge of
+			// one == left edge of the next) sharing an exact boundary
+			// after scaling too.
+			scale := float32(virtualWidth) / 640.0
+			scaledLeft := int16(float32(x) * scale)
+			scaledRight := int16(float32(int(x)+int(width)) * scale)
+			x = scaledLeft
+			width = uint16(scaledRight - scaledLeft)
 		} else {
 			x += widescreenOffsetX
 		}
