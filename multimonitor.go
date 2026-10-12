@@ -14,6 +14,18 @@ func getMonitorCount() int {
 	if ret := getMonitorCountWin32(); ret > 0 {
 		return ret
 	}
+	// On every other platform GLFW can only enumerate monitors while it
+	// is initialized, i.e. while a window exists. runStory() calls this
+	// BEFORE opening the real window (it must know the monitor count to
+	// decide between spawning per-monitor children and opening a single
+	// spanning window), so open a tiny throwaway window to initialize
+	// GLFW, count the monitors, and tear it down again. Without this the
+	// count silently comes back as <= 1 on Linux/BSD and multi-instance
+	// mode never spawns its children.
+	if !rl.IsWindowReady() {
+		rl.InitWindow(64, 64, "")
+		defer rl.CloseWindow()
+	}
 	return rl.GetMonitorCount()
 }
 
