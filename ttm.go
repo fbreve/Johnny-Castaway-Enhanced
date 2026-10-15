@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math/rand"
 )
 
@@ -49,37 +50,59 @@ func ttmLoadTTM(ttmSlot *TTtmSlot, name string) {
 	ttmSlot.numTags = int(ttmResource.NumTags)
 	ttmSlot.tags = make([]TTtmTag, ttmSlot.numTags)
 
-	// we have to bookmark every tag for later jumps
-	offset := uint32(0)
-	tagNo := 0
+	tags, err := scanTTMTags(ttmSlot.data, ttmSlot.dataSize, ttmSlot.numTags)
+	if err != nil {
+		panic(fmt.Errorf("TTM resource %s: %w", name, err))
+	}
+	ttmSlot.tags = tags
+	ttmSlot.numTags = len(tags)
+}
 
-	for offset < ttmSlot.dataSize {
-		opCode := peekUint16(ttmSlot.data, &offset)
-
-		if opCode == 0x1111 || opCode == 0x1101 {
-			arg := peekUint16(ttmSlot.data, &offset)
-			ttmSlot.tags[tagNo].id = arg
-			ttmSlot.tags[tagNo].offset = offset
-			tagNo++ // TODO
-		} else {
-			numArgs := uint8(opCode & 0x000f)
-
-			if numArgs == 0x0f {
-				for ttmSlot.data[offset] != 0 && ttmSlot.data[offset+1] != 0 {
-					offset += 2
-				}
-				offset += 2
-			} else {
-				offset += uint32(numArgs) << 1
-			}
-		}
+func scanTTMTags(data []byte, dataSize uint32, maxTags int) ([]TTtmTag, error) {
+	if uint64(dataSize) > uint64(len(data)) {
+		return nil, fmt.Errorf("declared data size %d exceeds buffer size %d", dataSize, len(data))
 	}
 
-	// Keep only real parsed :TAG/:LOCAL_TAG offsets. Leaving padded zero-offset
-	// entries in the active slice can make ttmFindPreviousTag() return 0,
-	// which incorrectly jumps timed loops back to file start.
-	ttmSlot.numTags = tagNo
-	ttmSlot.tags = ttmSlot.tags[:tagNo]
+	tags := make([]TTtmTag, 0, maxTags)
+	offset := uint32(0)
+	for offset < dataSize {
+		if dataSize-offset < 2 {
+			return nil, fmt.Errorf("truncated opcode at offset %d", offset)
+		}
+		opCode := peekUint16(data, &offset)
+		if opCode == 0x1111 || opCode == 0x1101 {
+			if dataSize-offset < 2 {
+				return nil, fmt.Errorf("truncated tag at offset %d", offset)
+			}
+			if len(tags) >= maxTags {
+				return nil, fmt.Errorf("more tags than declared (%d)", maxTags)
+			}
+			arg := peekUint16(data, &offset)
+			tags = append(tags, TTtmTag{id: arg, offset: offset})
+			continue
+		}
+
+		numArgs := uint8(opCode & 0x000f)
+		if numArgs == 0x0f {
+			for {
+				if dataSize-offset < 2 {
+					return nil, fmt.Errorf("unterminated string at offset %d", offset)
+				}
+				if data[offset] == 0 && data[offset+1] == 0 {
+					offset += 2
+					break
+				}
+				offset += 2
+			}
+		} else {
+			argBytes := uint32(numArgs) * 2
+			if argBytes > dataSize-offset {
+				return nil, fmt.Errorf("truncated arguments at offset %d", offset)
+			}
+			offset += argBytes
+		}
+	}
+	return tags, nil
 }
 
 func ttmInitSlot(ttmSlot *TTtmSlot) {
