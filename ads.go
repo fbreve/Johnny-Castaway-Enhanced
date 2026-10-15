@@ -1097,13 +1097,13 @@ func adsPlayWalk(fromSpot, fromHdg, toSpot, toHdg int) {
 
 	for ttmThreads[0].delay != 0 {
 		// Call each thread which timer reaches 0
-		if ttmBackgroundThread.timer == 0 {
+		if ttmBackgroundThread.isRunning != 0 && ttmBackgroundThread.timer == 0 {
 			debugPrintln("    ------> Animate bg")
 			ttmBackgroundThread.timer = ttmBackgroundThread.delay
 			islandAnimate(&ttmBackgroundThread)
 		}
 
-		if ttmCloudsThread.timer == 0 {
+		if ttmCloudsThread.isRunning != 0 && ttmCloudsThread.timer == 0 {
 			debugPrintln("    ------> Animate clouds")
 			ttmCloudsThread.timer = ttmCloudsThread.delay
 			islandAnimateClouds(&ttmCloudsThread)
@@ -1122,19 +1122,22 @@ func adsPlayWalk(fromSpot, fromHdg, toSpot, toHdg int) {
 			return
 		}
 
-		// Determine min timer from the two threads
-		mini := uint16(300)
-		if ttmBackgroundThread.timer < ttmThreads[0].timer {
+		// Determine the minimum timer among the walking thread and active background threads.
+		mini := ttmThreads[0].timer
+		if ttmBackgroundThread.isRunning != 0 && ttmBackgroundThread.timer < mini {
 			mini = ttmBackgroundThread.timer
-		} else if ttmCloudsThread.timer < ttmThreads[0].timer {
+		}
+		if ttmCloudsThread.isRunning != 0 && ttmCloudsThread.timer < mini {
 			mini = ttmCloudsThread.timer
-		} else {
-			mini = ttmThreads[0].timer
 		}
 
-		// Decrease all timers by the shortest one, and wait that amount of time
-		ttmBackgroundThread.timer -= mini
-		ttmCloudsThread.timer -= mini
+		// Decrease only active timers by the shortest one.
+		if ttmBackgroundThread.isRunning != 0 {
+			ttmBackgroundThread.timer -= mini
+		}
+		if ttmCloudsThread.isRunning != 0 {
+			ttmCloudsThread.timer -= mini
+		}
 		ttmThreads[0].timer -= mini
 
 		debugPrintf(" ******* WAIT: %d ticks *******\n", mini)
