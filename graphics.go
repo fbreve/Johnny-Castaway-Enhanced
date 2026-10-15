@@ -2348,6 +2348,23 @@ func grInitEmptyBackground() {
 	rl.EndTextureMode()
 }
 
+func validateBmpFrames(bmpResource *TBMPResource) error {
+	dataBytes := len(bmpResource.UncompressedData)
+	for img := 0; img < int(bmpResource.NumImages); img++ {
+		width := int(bmpResource.Widths[img])
+		height := int(bmpResource.Heights[img])
+		if width <= 0 || height <= 0 || width%2 != 0 {
+			return fmt.Errorf("image %d has unsupported dimensions %dx%d", img, width, height)
+		}
+		frameBytes := (width / 2) * height
+		if frameBytes <= 0 || frameBytes > dataBytes {
+			return fmt.Errorf("image %d requires %d bytes; %d remain", img, frameBytes, dataBytes)
+		}
+		dataBytes -= frameBytes
+	}
+	return nil
+}
+
 func grLoadBmp(ttmSlot *TTtmSlot, slotNo uint16, name string) {
 	if ttmSlot == nil || int(slotNo) >= len(ttmSlot.numSprites) {
 		debugPrintf("WARN: BMP slot %d out of range - didn't load %s\n", slotNo, name)
@@ -2357,35 +2374,23 @@ func grLoadBmp(ttmSlot *TTtmSlot, slotNo uint16, name string) {
 		grReleaseBmp(ttmSlot, slotNo)
 	}
 
-	// r.c. - record which BMP is currently in this slot so that
-	// shouldScaleSprite can classify slot 3 Johnny poses correctly.
-	upperName := strings.ToUpper(name)
-	ttmSlot.slotBmpNames[slotNo] = upperName
-	if ttmSlot.baseBmpNames[slotNo] == "" {
-		ttmSlot.baseBmpNames[slotNo] = upperName
-	}
-
 	bmpResource := findBMPResource(name)
 	if int(bmpResource.NumImages) > MaxSpritesPerBMP {
 		debugPrintf("WARN: BMP %s has %d images; maximum is %d - didn't load\n", name, bmpResource.NumImages, MaxSpritesPerBMP)
 		return
 	}
 
+	if err := validateBmpFrames(bmpResource); err != nil {
+		debugPrintf("WARN: BMP %s invalid: %v - didn't load\n", name, err)
+		return
+	}
+
 	data := bmpResource.UncompressedData
 	for img := 0; img < int(bmpResource.NumImages); img++ {
-		if (bmpResource.Widths[img] % 2) == 1 {
-			panic("grLoadBmp(): can't manage odd widths")
-		}
-
 		width := int(bmpResource.Widths[img])
 		height := int(bmpResource.Heights[img])
-		bytesPerRow := int(width) / 2
+		bytesPerRow := width / 2
 		frameBytes := bytesPerRow * height
-		if width <= 0 || height <= 0 || frameBytes <= 0 || frameBytes > len(data) {
-			debugPrintf("WARN: BMP %s image %d requires %d bytes; %d remain - didn't load\n", name, img, frameBytes, len(data))
-			grReleaseBmp(ttmSlot, slotNo)
-			return
-		}
 
 		pixelData := make([]byte, 4*width*height)
 
@@ -2436,6 +2441,14 @@ func grLoadBmp(ttmSlot *TTtmSlot, slotNo uint16, name string) {
 		spriteTexture := rl.LoadTextureFromImage(spriteImg)
 		ttmSlot.sprites[slotNo][img] = &spriteTexture
 		ttmSlot.numSprites[slotNo]++
+	}
+
+	// Record the slot metadata only after every frame loaded successfully.
+	// Failed/partial loads must not make CLEAR_IMGSLOT believe the BMP is present.
+	upperName := strings.ToUpper(name)
+	ttmSlot.slotBmpNames[slotNo] = upperName
+	if ttmSlot.baseBmpNames[slotNo] == "" {
+		ttmSlot.baseBmpNames[slotNo] = upperName
 	}
 }
 
