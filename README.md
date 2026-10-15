@@ -6,23 +6,6 @@ The ultimate goal of this fork is to add key enhancements, resolve bugs, and mak
 
 ---
 
-## 🐧 Linux Support (Wayland & X11)
-
-The project also builds and runs natively on Linux:
-
-```bash
-make build        # produces ./JohnnyCastaway2026 (requires Go and a C toolchain)
-./JohnnyCastaway2026
-```
-
-* **Build tags**: the Windows-only `user32.dll` calls (global key polling via `GetAsyncKeyState`, monitor counting via `GetSystemMetrics`) now live in `windows`/`!windows` build-tagged files. On Linux, key polling falls back to Raylib's window-focused input, and monitor counting uses Raylib's own enumeration.
-* **Wayland**: GLFW (bundled by raylib-go) prefers Wayland when a session is available. Since a Wayland client cannot position or span windows across outputs, the app maps its window first, then requests fullscreen on the target monitor (`-m N`) and letterboxes against the actual framebuffer size. Only one monitor is covered in default mode; the *Independent instances* option spawns one fullscreen instance per display instead.
-* **X11**: the original spanning behavior is preserved (a single window stretched over the whole virtual desktop, with one letterboxed copy of the scene per monitor).
-* **CLI**: the argument parser no longer matches flags against the executable path itself (`os.Args[0]`), which previously made the launch mode depend on where the binary was installed (e.g. a binary under `/tmp/...` accidentally triggered test mode).
-* **Screensaver / lock-screen integration**: a Wayland app cannot replace the compositor-owned lock screen, but it can run as the screensaver. On KDE Plasma this can be wired with `swayidle` (`ext-idle-notify-v1`, supported by KWin 5.27+): start Johnny Castaway after an idle timeout and let Plasma lock the session when activity resumes.
-
----
-
 ## 🚀 Improvements & Fixes in this Fork
 
 Here are the enhancements and fixes implemented in this version:
@@ -99,6 +82,23 @@ Here are the enhancements and fixes implemented in this version:
 * **VRAM Texture Leaks**: Fixed a memory leak in sprite loading (`graphics.go` / `grLoadBmp`) where CPU-side Image data was never unloaded after uploading to GPU VRAM.
 * **Optimized Cloud Animations**: Re-enabled the original animated clouds by loading the `BACKGRND.BMP` sprite sheet once at island initialization instead of reloading and re-uploading the entire texture to the GPU every few ticks. This restores the classic clouds with negligible performance overhead.
 * **Legacy Hardware & Software OpenGL Compatibility**: Supports preloading the system `opengl32.dll` to keep GPU hardware-acceleration default on modern systems, while allowing legacy/unsupported hardware (like Intel HD Graphics 3000 or virtual machines) to run via CPU-based Mesa Software Rendering (LLVMpipe) by ticking "Use Software OpenGL (Mesa)" in the Setup UI.
+
+---
+
+## 🐧 Linux Support (Wayland & X11)
+
+The project also builds and runs natively on Linux:
+
+```bash
+make build        # produces ./JohnnyCastaway2026 (requires Go and a C toolchain)
+./JohnnyCastaway2026
+```
+
+* **Build tags**: the Windows-only `user32.dll` calls (global key polling via `GetAsyncKeyState`, monitor counting via `GetSystemMetrics`) now live in `windows`/`!windows` build-tagged files. On Linux, key polling falls back to Raylib's window-focused input, and monitor counting uses Raylib's own enumeration.
+* **Wayland**: GLFW (bundled by raylib-go) prefers Wayland when a session is available. Since a Wayland client cannot position or span windows across outputs, the app maps its window first, then requests fullscreen on the target monitor (`-m N`) and letterboxes against the actual framebuffer size. Only one monitor is covered in default mode; the *Independent instances* option spawns one fullscreen instance per display instead.
+* **X11**: the original spanning behavior is preserved (a single window stretched over the whole virtual desktop, with one letterboxed copy of the scene per monitor).
+* **CLI**: the argument parser no longer matches flags against the executable path itself (`os.Args[0]`), which previously made the launch mode depend on where the binary was installed (e.g. a binary under `/tmp/...` accidentally triggered test mode).
+* **Screensaver / lock-screen integration**: a Wayland app cannot replace the compositor-owned lock screen, but it can run as the screensaver. On KDE Plasma this can be wired with `swayidle` (`ext-idle-notify-v1`, supported by KWin 5.27+): start Johnny Castaway after an idle timeout and let Plasma lock the session when activity resumes.
 
 ---
 
