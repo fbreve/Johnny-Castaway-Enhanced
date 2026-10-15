@@ -88,10 +88,17 @@ func TestDecodeTTMInstructionRejectsTooManyArgs(t *testing.T) {
 
 func TestValidSpriteIndexBounds(t *testing.T) {
 	var slot TTtmSlot
+	var sprite0, sprite1 rl.Texture2D
 	slot.numSprites[0] = 2
+	slot.sprites[0][0] = &sprite0
+	slot.sprites[0][1] = &sprite1
 
 	if !validSpriteIndex(&slot, 1, 0) {
 		t.Fatal("valid sprite index rejected")
+	}
+	slot.sprites[0][1] = nil
+	if validSpriteIndex(&slot, 1, 0) {
+		t.Fatal("nil sprite entry accepted")
 	}
 	if validSpriteIndex(&slot, 2, 0) {
 		t.Fatal("sprite index at count boundary accepted")
