@@ -64,16 +64,24 @@ func storyUpdateCurrentDay() {
 	fmt.Printf("The day of the story is: %d\n", storyCurrentDay)
 }
 
-func storyCalculateIslandFromDateAndTime() {
-	// Night ?
-	hour := getHour()
+func storyCalculateNightFromHour(hour int) {
+	// Always derive a fresh state from the current hour. Without the daytime
+	// assignment, a previous nighttime calculation could leave the island
+	// stuck at night after the clock crossed into daytime.
 	if hour < 6 || hour >= 18 {
 		islandState.night = 1
+	} else {
+		islandState.night = 0
 	}
+
 	// A forced day/night (-d/-n) overrides the hour-derived mode.
 	if forcedNight >= 0 {
 		islandState.night = forcedNight
 	}
+}
+
+func storyCalculateIslandFromDateAndTime() {
+	storyCalculateNightFromHour(getHour())
 
 	// Holidays ?
 	islandState.holiday = 0
