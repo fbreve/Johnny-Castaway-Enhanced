@@ -172,6 +172,9 @@ func decodeTTMInstruction(data []byte, dataSize uint32, offset *uint32, args *[1
 		}
 		return opCode, str, nil
 	}
+	if int(numArgs) > len(args) {
+		return 0, "", fmt.Errorf("too many arguments (%d) at offset %d", numArgs, *offset-2)
+	}
 	argBytes := uint32(numArgs) * 2
 	if argBytes > dataSize-*offset {
 		return 0, "", fmt.Errorf("truncated arguments at offset %d", *offset)

@@ -95,3 +95,22 @@ func TestAdsLookupTagMissing(t *testing.T) {
 		t.Fatalf("existing tag lookup = (%d, %v), want (2, true)", offset, ok)
 	}
 }
+
+
+func TestAdsRandomOpsCapacity(t *testing.T) {
+	adsRandomStart()
+	for i := 0; i < len(adsRandOps)+2; i++ {
+		adsRandomNop(1)
+	}
+	if adsNumRandOps != len(adsRandOps) {
+		t.Fatalf("adsNumRandOps = %d, want %d", adsNumRandOps, len(adsRandOps))
+	}
+}
+
+func TestAdsRandomPickOpZeroWeight(t *testing.T) {
+	adsRandomStart()
+	adsRandomNop(0)
+	if op := adsRandomPickOp(); op != nil {
+		t.Fatal("zero-weight random block unexpectedly returned an operation")
+	}
+}
