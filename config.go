@@ -129,14 +129,16 @@ func cfgFileRead(cfg *TConfig) {
 			currentDay, err := strconv.Atoi(line[len(CurrentDayKey):])
 			if err != nil {
 				fmt.Fprintln(os.Stderr, "failed to parse currentDay with err: ", err.Error())
+			} else {
+				cfg.CurrentDay = currentDay
 			}
-			cfg.CurrentDay = currentDay
 		} else if strings.HasPrefix(line, DateKey) {
 			d, err := strconv.Atoi(line[len(DateKey):])
 			if err != nil {
 				fmt.Fprintln(os.Stderr, "failed to parse date with err: ", err.Error())
+			} else {
+				cfg.CurrentDate = d
 			}
-			cfg.CurrentDate = d
 		} else if strings.HasPrefix(line, BackgroundKey) {
 			cfg.Background = line[len(BackgroundKey):] == "true"
 		} else if strings.HasPrefix(line, SoundsKey) {
