@@ -1789,8 +1789,15 @@ func grDrawCircle(sur *rl.RenderTexture2D, x1, y1 int16, width, height uint16, f
 	}
 }
 
+func validSpriteIndex(ttmSlot *TTtmSlot, spriteNo, imageNo uint16) bool {
+	if ttmSlot == nil || int(imageNo) >= len(ttmSlot.numSprites) {
+		return false
+	}
+	return int(spriteNo) < ttmSlot.numSprites[imageNo] && int(spriteNo) < len(ttmSlot.sprites[imageNo])
+}
+
 func trackLastDraw(ttmThread *TTtmThread, x, y int16, spriteNo, imageNo uint16, flipped bool) {
-	if int(spriteNo) >= ttmThread.ttmSlot.numSprites[imageNo] {
+	if ttmThread == nil || !validSpriteIndex(ttmThread.ttmSlot, spriteNo, imageNo) {
 		return
 	}
 
@@ -2038,7 +2045,7 @@ func computeBlendedOffset(ttmSlot *TTtmSlot, thread *TTtmThread, spriteNo, image
 }
 
 func grDrawSprite(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, spriteNo, imageNo uint16) {
-	if int(spriteNo) >= ttmSlot.numSprites[imageNo] {
+	if !validSpriteIndex(ttmSlot, spriteNo, imageNo) {
 		fmt.Printf("Warning : grDrawSprite(): less than %d sprites loaded in slot %d\n", imageNo, spriteNo)
 		return
 	}
@@ -2107,7 +2114,7 @@ func grDrawSprite(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, sprite
 }
 
 func grDrawSpriteFlip(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, spriteNo, imageNo uint16) {
-	if int(spriteNo) >= ttmSlot.numSprites[imageNo] {
+	if !validSpriteIndex(ttmSlot, spriteNo, imageNo) {
 		fmt.Printf("Warning : grDrawSprite(): less than %d sprites loaded in slot %d\n", imageNo, spriteNo)
 		return
 	}
