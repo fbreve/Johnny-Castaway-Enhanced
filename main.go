@@ -674,9 +674,19 @@ func runStory() {
 				cmd := exec.Command(os.Args[0], args...)
 				
 				pipe, err := cmd.StdinPipe()
-				if err == nil {
-					stdinPipes[i] = pipe
+				if err != nil {
+					fmt.Printf("Failed to create shutdown pipe for instance %d: %v\n", i, err)
+					// Do not start a child that the parent cannot shut down cleanly.
+					// Signal any children already started and wait for their teardown.
+					for _, startedPipe := range stdinPipes {
+						if startedPipe != nil {
+							_ = startedPipe.Close()
+						}
+					}
+					wg.Wait()
+					return
 				}
+				stdinPipes[i] = pipe
 				cmds[i] = cmd
 
 				wg.Add(1)
