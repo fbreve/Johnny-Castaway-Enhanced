@@ -33,3 +33,22 @@ func TestFormatConfigIncludesAllFields(t *testing.T) {
 		t.Fatalf("formatConfig() = %q, want %q", got, want)
 	}
 }
+
+
+func TestParseConfigBoolPreservesInvalidValue(t *testing.T) {
+	value := true
+	parseConfigBool("false", &value)
+	if value {
+		t.Fatal("valid false did not update destination")
+	}
+
+	parseConfigBool("true", &value)
+	if !value {
+		t.Fatal("valid true did not update destination")
+	}
+
+	parseConfigBool("not-a-bool", &value)
+	if !value {
+		t.Fatal("invalid boolean changed destination")
+	}
+}
