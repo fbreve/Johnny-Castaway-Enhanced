@@ -71,6 +71,45 @@ func TestUncompressRLERejectsLiteralOutputOverflow(t *testing.T) {
 	})
 }
 
+func pack9BitCodes(codes ...uint16) []byte {
+	var out []byte
+	var acc uint32
+	var bits uint
+	for _, code := range codes {
+		acc |= uint32(code&0x1FF) << bits
+		bits += 9
+		for bits >= 8 {
+			out = append(out, byte(acc))
+			acc >>= 8
+			bits -= 8
+		}
+	}
+	if bits > 0 {
+		out = append(out, byte(acc))
+	}
+	return out
+}
+
+func TestUncompressLZWValidLiteralSequence(t *testing.T) {
+	// Codes A, B, C. The decoder stops as soon as the requested output size
+	// is filled, so this exercises a valid LZW stream without proprietary assets.
+	in := pack9BitCodes('A', 'B', 'C')
+	got := uncompressLZW(bytes.NewReader(in), uint32(len(in)), 3)
+	if string(got) != "ABC" {
+		t.Fatalf("got %q, want %q", got, "ABC")
+	}
+}
+
+func TestUncompressLZWValidDictionaryReference(t *testing.T) {
+	// A, B creates dictionary entry 257 = "AB"; referring to 257 must
+	// therefore expand to AB, producing ABAB.
+	in := pack9BitCodes('A', 'B', 257)
+	got := uncompressLZW(bytes.NewReader(in), uint32(len(in)), 4)
+	if string(got) != "ABAB" {
+		t.Fatalf("got %q, want %q", got, "ABAB")
+	}
+}
+
 func TestUncompressLZWRejectsEmptyInput(t *testing.T) {
 	mustPanicContains(t, "truncated input", func() {
 		uncompressLZW(bytes.NewReader(nil), 0, 1)
