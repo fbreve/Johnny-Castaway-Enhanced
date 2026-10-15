@@ -76,8 +76,19 @@ func writeSharedState() {
 		AdvanceTrigger: lastAdvanceTrigger,
 	}
 	data, err := json.Marshal(state)
-	if err == nil {
-		_ = os.WriteFile(myStatePath, data, 0644)
+	if err != nil {
+		fmt.Printf("Warning: failed to encode shared state: %v\n", err)
+		return
+	}
+
+	tmpPath := myStatePath + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0644); err != nil {
+		fmt.Printf("Warning: failed to write shared state: %v\n", err)
+		return
+	}
+	if err := os.Rename(tmpPath, myStatePath); err != nil {
+		_ = os.Remove(tmpPath)
+		fmt.Printf("Warning: failed to publish shared state: %v\n", err)
 	}
 }
 
@@ -101,22 +112,24 @@ func readSharedState() {
 
 		lastTime, exists := lastReadTimes[file]
 		if !exists || fi.ModTime().After(lastTime) {
-			lastReadTimes[file] = fi.ModTime()
 			data, err := os.ReadFile(file)
-			if err == nil {
-				var state TSharedState
-				if json.Unmarshal(data, &state) == nil {
-					if state.Paused != isPaused {
-						isPaused = state.Paused
-					}
-					if state.MaxSpeed != isMaxSpeed {
-						isMaxSpeed = state.MaxSpeed
-					}
-					if state.AdvanceTrigger != lastAdvanceTrigger {
-						lastAdvanceTrigger = state.AdvanceTrigger
-						advanceOneFrame = true
-					}
-				}
+			if err != nil {
+				continue
+			}
+			var state TSharedState
+			if err := json.Unmarshal(data, &state); err != nil {
+				continue
+			}
+			lastReadTimes[file] = fi.ModTime()
+			if state.Paused != isPaused {
+				isPaused = state.Paused
+			}
+			if state.MaxSpeed != isMaxSpeed {
+				isMaxSpeed = state.MaxSpeed
+			}
+			if state.AdvanceTrigger != lastAdvanceTrigger {
+				lastAdvanceTrigger = state.AdvanceTrigger
+				advanceOneFrame = true
 			}
 		}
 	}
