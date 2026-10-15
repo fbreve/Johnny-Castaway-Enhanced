@@ -127,3 +127,13 @@ func TestBMPImageCountRuntimeCapacity(t *testing.T) {
 		t.Fatalf("MaxSpritesPerBMP = %d, sprite capacity = %d", MaxSpritesPerBMP, len((TTtmSlot{}).sprites[0]))
 	}
 }
+
+
+func TestADSResourceSlotCapacity(t *testing.T) {
+	if MaxTTMSlots != len(ttmSlots) {
+		t.Fatalf("MaxTTMSlots = %d, runtime slot capacity = %d", MaxTTMSlots, len(ttmSlots))
+	}
+	if MaxTTMSlots <= 0 {
+		t.Fatal("expected positive TTM slot capacity")
+	}
+}
