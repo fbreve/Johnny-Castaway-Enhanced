@@ -326,7 +326,11 @@ func grReleaseScreen() {
 }
 
 func grReleaseSavedLayer() {
+	if grSavedZonesLayer == nil {
+		return
+	}
 	debugPrintln("*** SAVED ZONES LAYER RELEASED ***")
+	grFreeLayer(grSavedZonesLayer)
 	grSavedZonesLayer = nil
 }
 
