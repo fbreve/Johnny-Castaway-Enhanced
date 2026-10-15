@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"testing"
+
+	rl "github.com/gen2brain/raylib-go/raylib"
+)
 
 func TestScanTTMTags(t *testing.T) {
 	tests := []struct {
