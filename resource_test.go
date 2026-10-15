@@ -69,3 +69,32 @@ func TestResourceEntryDataBounds(t *testing.T) {
 		}
 	}
 }
+
+
+func TestReadSizedBlockDoesNotCrossBoundary(t *testing.T) {
+	buf := bytes.NewReader([]byte{1, 2, 3, 4, 5})
+	block := readSizedBlock(buf, 3, "test")
+	if block.Len() != 3 || buf.Len() != 2 {
+		t.Fatalf("block len %d, parent len %d; want 3 and 2", block.Len(), buf.Len())
+	}
+}
+
+func TestReadSizedBlockRejectsOversize(t *testing.T) {
+	expectPanic(t, func() {
+		readSizedBlock(bytes.NewReader([]byte{1, 2}), 3, "test")
+	})
+}
+
+func TestADSResNameCannotConsumeNextBlock(t *testing.T) {
+	// A declared RES payload containing an ID and two non-NUL name bytes.
+	// The following SCR: bytes must remain outside the bounded sub-reader.
+	parent := bytes.NewReader([]byte{1, 0, 'A', 'B', 'S', 'C', 'R', ':'})
+	block := readSizedBlock(parent, 4, "ADS RES block")
+	_ = readUint16(block)
+	expectPanic(t, func() {
+		getString(block, block.Len())
+	})
+	if got := string(readUint8Block(parent, 4)); got != "SCR:" {
+		t.Fatalf("next block = %q, want SCR:", got)
+	}
+}
