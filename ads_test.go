@@ -1,0 +1,58 @@
+package main
+
+import "testing"
+
+func TestReadADSWordsBounds(t *testing.T) {
+	var dest [2]uint16
+	var offset uint32
+	data := []byte{0x34, 0x12, 0x78, 0x56}
+	if !readADSWords(data, uint32(len(data)), &offset, dest[:], 2) {
+		t.Fatal("readADSWords rejected valid data")
+	}
+	if dest != [2]uint16{0x1234, 0x5678} || offset != 4 {
+		t.Fatalf("readADSWords = %#v offset %d", dest, offset)
+	}
+
+	offset = 0
+	if readADSWords(data[:3], 3, &offset, dest[:], 2) {
+		t.Fatal("readADSWords accepted truncated words")
+	}
+	offset = 0
+	if readADSWords(data, 5, &offset, dest[:], 1) {
+		t.Fatal("readADSWords accepted dataSize larger than buffer")
+	}
+}
+
+func TestAdsLoadHandlesTruncatedData(t *testing.T) {
+	tests := []struct {
+		name string
+		data []byte
+		tags uint16
+	}{
+		{name: "truncated opcode", data: []byte{0x01}, tags: 0},
+		{name: "truncated arguments", data: []byte{0x50, 0x13, 0x01, 0x00}, tags: 0},
+		{name: "too many tags", data: []byte{0x01, 0x00}, tags: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var offset uint32
+			adsLoad(tt.data, uint32(len(tt.data)), tt.tags, 99, &offset)
+		})
+	}
+}
+
+func TestAdsLoadBookmarksTag(t *testing.T) {
+	data := []byte{
+		0x07, 0x00,       // tag 7
+		0x20, 0x14,       // AND, no arguments
+		0xff, 0xff,       // END
+	}
+	var offset uint32
+	adsLoad(data, uint32(len(data)), 1, 7, &offset)
+	if offset != 2 {
+		t.Fatalf("tag offset = %d, want 2", offset)
+	}
+	if adsNumTags != 1 || len(adsTags) != 1 || adsTags[0].id != 7 {
+		t.Fatalf("tags = %#v, adsNumTags = %d", adsTags, adsNumTags)
+	}
+}
