@@ -103,3 +103,15 @@ func TestValidSpriteIndexBounds(t *testing.T) {
 		t.Fatal("nil TTM slot accepted")
 	}
 }
+
+
+func TestBmpSlotBounds(t *testing.T) {
+	var slot TTtmSlot
+
+	// Graphics helpers must reject script-controlled invalid slots without
+	// touching fixed-size BMP arrays or requiring a graphics context.
+	grLoadBmp(&slot, MaxBMPSlots, "INVALID.BMP")
+	grReleaseBmp(&slot, MaxBMPSlots)
+	grLoadBmp(nil, 0, "INVALID.BMP")
+	grReleaseBmp(nil, 0)
+}
