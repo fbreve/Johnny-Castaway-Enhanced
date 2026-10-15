@@ -6,6 +6,23 @@ The ultimate goal of this fork is to add key enhancements, resolve bugs, and mak
 
 ---
 
+## 🐧 Linux Support (Wayland & X11)
+
+The project also builds and runs natively on Linux:
+
+```bash
+make build        # produces ./JohnnyCastaway2026 (requires Go and a C toolchain)
+./JohnnyCastaway2026
+```
+
+* **Build tags**: the Windows-only `user32.dll` calls (global key polling via `GetAsyncKeyState`, monitor counting via `GetSystemMetrics`) now live in `windows`/`!windows` build-tagged files. On Linux, key polling falls back to Raylib's window-focused input, and monitor counting uses Raylib's own enumeration.
+* **Wayland**: GLFW (bundled by raylib-go) prefers Wayland when a session is available. Since a Wayland client cannot position or span windows across outputs, the app maps its window first, then requests fullscreen on the target monitor (`-m N`) and letterboxes against the actual framebuffer size. Only one monitor is covered in default mode; the *Independent instances* option spawns one fullscreen instance per display instead.
+* **X11**: the original spanning behavior is preserved (a single window stretched over the whole virtual desktop, with one letterboxed copy of the scene per monitor).
+* **CLI**: the argument parser no longer matches flags against the executable path itself (`os.Args[0]`), which previously made the launch mode depend on where the binary was installed (e.g. a binary under `/tmp/...` accidentally triggered test mode).
+* **Screensaver / lock-screen integration**: a Wayland app cannot replace the compositor-owned lock screen, but it can run as the screensaver. On KDE Plasma this can be wired with `swayidle` (`ext-idle-notify-v1`, supported by KWin 5.27+): start Johnny Castaway after an idle timeout and let Plasma lock the session when activity resumes.
+
+---
+
 ## 🚀 Improvements & Fixes in this Fork
 
 Here are the enhancements and fixes implemented in this version:
@@ -15,6 +32,8 @@ Here are the enhancements and fixes implemented in this version:
 * **Silent Time Schedule**: Added a configurable "Silent Time" mode. Users can set a custom quiet hours interval (e.g. from 22:00 to 07:00). During silent time, the screensaver runs uninterrupted while automatically muting all sound effects. Supports intraday intervals as well as overnight schedules spanning midnight.
 * **Quiet Preview Mode (`/p`)**: Handled screensaver preview calls by exiting cleanly and quietly.
 * **Test Mode (`/t` or `-t` [<ADS_FILE>] [<TAG_NO>])**: Added a developer test mode that runs scene sequences sequentially on loop, allowing debugging of animations and behaviors in isolation. By default, it loops the palm tree climb/dive (`ACTIVITY.ADS` tag 4) and the water return (`JOHNNY.ADS` tag 3). You can optionally append a custom scene filename and tag number (e.g. `/t BUILDING.ADS 2` or `/t activity 4`) to run and inspect any specific sequence on loop. Custom scene playback now also derives story-day, raft progress, tide eligibility, island position, and left-island offsets from the matching `storyScenes` entry, so test mode aligns characters with the same scene prerequisites used during normal screensaver playback.
+* **Forced Holiday Mode (`/x`, `-x`, or `--holiday` <name|id>)**: Forces the island's holiday decoration regardless of the calendar date (the engine naturally switches to it around specific dates: Halloween on 29-31 October, St Patrick on 15-17 March, Christmas on 23-25 December, New Year on 29 December-1 January). Accepted values: `halloween` (1), `patrick` (2), `christmas` (3), `newyear` (4), or `none` to suppress calendar holidays entirely. Examples: `-x halloween`, `-x=christmas`, `-x 3`. The flag is propagated to the per-monitor child processes spawned by the Independent Instances option.
+* **Forced Day/Night Mode (`/d`, `-d`, `--day` / `/n`, `-n`, `--night`)**: Forces the island and sky to render in daytime or nighttime mode regardless of the wall clock (the engine naturally switches at 06:00 and 18:00). Useful for capturing screenshots of either mode at any hour. The flag is propagated to the per-monitor child processes.
 * **Independent Instances per Monitor**: Added an option (disabled by default) to run independent instances of Johnny Castaway on each connected monitor, enabling users to watch different scenes simultaneously. Spawns separate borderless window child processes positioned on each monitor. Moving the mouse or pressing any key on any monitor signals all instances to cleanly close immediately. Sound is automatically disabled on non-primary displays to prevent overlapping audio.
 * **Main Monitor Launch Mode (`/1`, `-1`, `/main`, `-main`, or `-m`)**: Added command-line arguments to restrict the screensaver/application window exclusively to the primary/main monitor instead of spanning across all connected displays or spawning child instances across multiple monitors. This makes video recording, screen sharing, and streaming significantly easier while keeping secondary displays completely free for work or other applications. You can also specify an exact monitor index (e.g. `-m 0` or `-m 1`).
 * **Interactive Debug Hotkeys (`/k` or `-k`)**: Added runtime hotkeys to pause/unpause, speed up, or single-step through animations. The controls utilize Windows global `GetAsyncKeyState` key polling, allowing them to work focus-free regardless of which monitor's window is active or if focus was temporarily lost.
