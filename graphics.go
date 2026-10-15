@@ -1793,7 +1793,9 @@ func validSpriteIndex(ttmSlot *TTtmSlot, spriteNo, imageNo uint16) bool {
 	if ttmSlot == nil || int(imageNo) >= len(ttmSlot.numSprites) {
 		return false
 	}
-	return int(spriteNo) < ttmSlot.numSprites[imageNo] && int(spriteNo) < len(ttmSlot.sprites[imageNo])
+	return int(spriteNo) < ttmSlot.numSprites[imageNo] &&
+		int(spriteNo) < len(ttmSlot.sprites[imageNo]) &&
+		ttmSlot.sprites[imageNo][spriteNo] != nil
 }
 
 func trackLastDraw(ttmThread *TTtmThread, x, y int16, spriteNo, imageNo uint16, flipped bool) {
