@@ -56,3 +56,42 @@ func TestAdsLoadBookmarksTag(t *testing.T) {
 		t.Fatalf("tags = %#v, adsNumTags = %d", adsTags, adsNumTags)
 	}
 }
+
+
+func TestDecodeADSInstructionBounds(t *testing.T) {
+	tests := []struct {
+		name    string
+		data    []byte
+		wantOp  uint16
+		wantArg uint16
+		wantErr bool
+	}{
+		{name: "valid", data: []byte{0x20, 0x30, 0x34, 0x12}, wantOp: 0x3020, wantArg: 0x1234},
+		{name: "truncated opcode", data: []byte{0x20}, wantErr: true},
+		{name: "truncated arguments", data: []byte{0x50, 0x13, 0x01, 0x00}, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var offset uint32
+			var args [10]uint16
+			op, err := decodeADSInstruction(tt.data, uint32(len(tt.data)), &offset, &args)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if !tt.wantErr && (op != tt.wantOp || args[0] != tt.wantArg) {
+				t.Fatalf("op = %04x arg = %04x", op, args[0])
+			}
+		})
+	}
+}
+
+func TestAdsLookupTagMissing(t *testing.T) {
+	adsTags = []TTtmTag{{id: 7, offset: 2}}
+	adsNumTags = 1
+	if offset, ok := adsLookupTag(99); ok || offset != 0 {
+		t.Fatalf("missing tag lookup = (%d, %v), want (0, false)", offset, ok)
+	}
+	if offset, ok := adsLookupTag(7); !ok || offset != 2 {
+		t.Fatalf("existing tag lookup = (%d, %v), want (2, true)", offset, ok)
+	}
+}
