@@ -191,6 +191,9 @@ func parseTTMResource(buf *bytes.Reader) TTTMResource {
 	}
 	tagBlock := readSizedBlock(buf, ttmResource.TagSize, "TAG block")
 	ttmResource.NumTags = readUint16(tagBlock)
+	if int(ttmResource.NumTags) > tagBlock.Len()/3 {
+		panic(fmt.Sprintf("TAG count %d cannot fit in %d bytes", ttmResource.NumTags, tagBlock.Len()))
+	}
 	ttmResource.Tags = make([]TTags, ttmResource.NumTags)
 	for i := range ttmResource.Tags {
 		if tagBlock.Len() < 3 {
@@ -225,6 +228,9 @@ func parseAdsResource(buf *bytes.Reader) TAdsResource {
 		panic(fmt.Sprintf("invalid ADS RES size: %d", res.ResSize))
 	}
 	resBlock := readSizedBlock(buf, res.ResSize-2, "ADS RES block")
+	if int(res.NumRes) > resBlock.Len()/3 {
+		panic(fmt.Sprintf("ADS RES count %d cannot fit in %d bytes", res.NumRes, resBlock.Len()))
+	}
 	res.Res = make([]TAdsRes, res.NumRes)
 	// In original Screen Antics resources, ADS RES entries are stored as
 	// (uint16 id + null-terminated name) with variable name length, not fixed
@@ -255,6 +261,9 @@ func parseAdsResource(buf *bytes.Reader) TAdsResource {
 	}
 	tagBlock := readSizedBlock(buf, res.TagSize, "TAG block")
 	res.NumTags = readUint16(tagBlock)
+	if int(res.NumTags) > tagBlock.Len()/3 {
+		panic(fmt.Sprintf("TAG count %d cannot fit in %d bytes", res.NumTags, tagBlock.Len()))
+	}
 	res.Tags = make([]TTags, res.NumTags)
 	for i := range res.Tags {
 		if tagBlock.Len() < 3 {
@@ -367,6 +376,9 @@ func parseMapFile(filename string) *TMapFile {
 	mapFile.resFilename = strings.TrimRight(string(tempFilename[0:12]), "\x00 ")
 
 	mapFile.numEntries = readUint16(buf)
+	if int(mapFile.numEntries) > buf.Len()/8 {
+		panic(fmt.Sprintf("invalid resource map entry count: %d exceeds %d available entries", mapFile.numEntries, buf.Len()/8))
+	}
 	mapFile.entries = make([]TMapFileEntry, int(mapFile.numEntries))
 	for i := 0; i < len(mapFile.entries); i++ {
 		mapFile.entries[i].length = readUint32(buf)
