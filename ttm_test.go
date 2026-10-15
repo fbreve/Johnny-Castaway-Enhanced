@@ -39,3 +39,37 @@ func TestScanTTMTagsRejectsOversizedDeclaration(t *testing.T) {
 		t.Fatal("scanTTMTags() accepted dataSize larger than buffer")
 	}
 }
+
+
+func TestDecodeTTMInstruction(t *testing.T) {
+	tests := []struct {
+		name    string
+		data    []byte
+		wantOp  uint16
+		wantStr string
+		wantArg uint16
+		wantErr bool
+	}{
+		{name: "word argument", data: []byte{0x01, 0x12, 0x34, 0x12}, wantOp: 0x1201, wantArg: 0x1234},
+		{name: "string", data: []byte{0x0f, 0xf0, 'A', 0, 0, 0}, wantOp: 0xf00f, wantStr: "A"},
+		{name: "truncated opcode", data: []byte{0x01}, wantErr: true},
+		{name: "truncated arguments", data: []byte{0x02, 0x12, 0, 0}, wantErr: true},
+		{name: "unterminated string", data: []byte{0x0f, 0xf0, 'A'}, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var args [10]uint16
+			var offset uint32
+			op, str, err := decodeTTMInstruction(tt.data, uint32(len(tt.data)), &offset, &args)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("decodeTTMInstruction() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr {
+				return
+			}
+			if op != tt.wantOp || str != tt.wantStr || args[0] != tt.wantArg {
+				t.Fatalf("decodeTTMInstruction() = op %#x str %q arg %#x", op, str, args[0])
+			}
+		})
+	}
+}
