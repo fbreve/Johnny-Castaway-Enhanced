@@ -155,26 +155,6 @@ func readSizedBlock(buf *bytes.Reader, size uint32, name string) *bytes.Reader {
 	return bytes.NewReader(readUint8Block(buf, int(size)))
 }
 
-func readTagEntries(buf *bytes.Reader, size uint32, count uint16) []TTags {
-	block := readSizedBlock(buf, size, "TAG block")
-	if block.Len() < 2 {
-		panic(fmt.Sprintf("invalid TAG block size: %d", size))
-	}
-	declared := readUint16(block)
-	if declared != count {
-		panic(fmt.Sprintf("TAG count mismatch: %d != %d", declared, count))
-	}
-	tags := make([]TTags, count)
-	for i := range tags {
-		if block.Len() < 3 {
-			panic(fmt.Sprintf("truncated TAG entry %d", i))
-		}
-		tags[i].ID = readUint16(block)
-		tags[i].Description = getString(block, 40)
-	}
-	return tags
-}
-
 func parseTTMResource(buf *bytes.Reader) TTTMResource {
 	ttmResource := TTTMResource{}
 
