@@ -120,7 +120,7 @@ func ttmResetSlot(ttmSlot *TTtmSlot) {
 	}
 	for i := 0; i < MaxBMPSlots; i++ {
 		if ttmSlot.numSprites[i] != 0 {
-			//grReleaseBmp(ttmSlot, i)
+			grReleaseBmp(ttmSlot, uint16(i))
 		}
 		ttmSlot.baseBmpNames[i] = ""
 		ttmSlot.slotBmpNames[i] = ""
