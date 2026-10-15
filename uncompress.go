@@ -17,15 +17,14 @@ type TCodeTableEntry struct {
 func getByte(buf *bytes.Reader) uint8 {
 	if inOffset >= maxInOffset {
 		return 0
-	} else {
-		inOffset++
-		b, err := buf.ReadByte()
-		if err != nil {
-			// Mimic (uint8)fgetc(f) when fgetc returns EOF (-1)
-			return 0xFF
-		}
-		return b
 	}
+	inOffset++
+	b, err := buf.ReadByte()
+	if err != nil {
+		// Mimic (uint8)fgetc(f) when fgetc returns EOF (-1)
+		return 0xFF
+	}
+	return b
 }
 
 func getBits(buf *bytes.Reader, n uint32) uint16 {
@@ -50,6 +49,13 @@ func getBits(buf *bytes.Reader, n uint32) uint16 {
 }
 
 func uncompressLZW(buf *bytes.Reader, inSize, outSize uint32) []byte {
+	if outSize == 0 {
+		panic("uncompressLZW(): can't uncompress to 0 bytes")
+	}
+	if inSize == 0 || uint64(inSize) > uint64(buf.Len()) {
+		panic("uncompressLZW(): truncated input")
+	}
+
 	outData := make([]byte, outSize)
 
 	stackPtr := uint32(0)
@@ -65,8 +71,12 @@ func uncompressLZW(buf *bytes.Reader, inSize, outSize uint32) []byte {
 		outOffset   uint32
 	)
 
-	if outSize == 0 {
-		panic("uncompressLZW() : can't uncompress to 0 bytes")
+	push := func(b uint8) {
+		if stackPtr >= uint32(len(decodeStack)) {
+			panic("uncompressLZW(): decode stack overflow")
+		}
+		decodeStack[stackPtr] = b
+		stackPtr++
 	}
 
 	maxInOffset = inSize
@@ -74,6 +84,9 @@ func uncompressLZW(buf *bytes.Reader, inSize, outSize uint32) []byte {
 	inOffset = 0
 	current = getByte(buf)
 	tmpBits := getBits(buf, uint32(nBits))
+	if tmpBits > 255 {
+		panic("uncompressLZW(): invalid initial code")
+	}
 	lastByte = tmpBits
 	oldCode = tmpBits
 
@@ -94,42 +107,35 @@ func uncompressLZW(buf *bytes.Reader, inSize, outSize uint32) []byte {
 		} else {
 			code := newCode
 
-			if uint32(code) >= freeEntry {
-				if stackPtr > 4095 {
-					break
-				}
-
-				decodeStack[stackPtr] = uint8(lastByte)
-				stackPtr++
+			if uint32(code) > freeEntry {
+				panic("uncompressLZW(): invalid code")
+			}
+			if uint32(code) == freeEntry {
+				push(uint8(lastByte))
 				code = oldCode
 			}
 
 			for code > 255 {
-				if code > 4095 {
-					break
+				if code >= uint16(len(codeTable)) || uint32(code) >= freeEntry {
+					panic("uncompressLZW(): invalid dictionary reference")
 				}
-				decodeStack[stackPtr] = codeTable[code].append // TODO stackPtr >= 4096 ?
-				stackPtr++
+				push(codeTable[code].append)
 				code = codeTable[code].prefix
 			}
 
-			decodeStack[stackPtr] = uint8(code) // TODO stackPtr >= 4096 ?
-			stackPtr++
+			push(uint8(code))
 			lastByte = code
 
 			for stackPtr > 0 {
-
 				stackPtr--
-
 				if outOffset >= outSize {
 					return outData
 				}
-
 				outData[outOffset] = decodeStack[stackPtr]
 				outOffset++
 			}
 
-			if freeEntry < 4096 {
+			if freeEntry < uint32(len(codeTable)) {
 				codeTable[freeEntry].prefix = oldCode
 				codeTable[freeEntry].append = uint8(lastByte)
 				freeEntry++
@@ -155,27 +161,51 @@ func uncompressRLE(buf *bytes.Reader, inSize, outSize uint32) []byte {
 	outData := make([]byte, outSize)
 	var outOffset uint32
 
+	if uint64(inSize) > uint64(buf.Len()) {
+		panic("uncompressRLE(): truncated input")
+	}
+
 	inOffset = 0
 	maxInOffset = inSize
 
-	for outOffset < outSize {
-		control := readUint8(buf)
+	readInputByte := func() uint8 {
+		if inOffset >= inSize {
+			panic("uncompressRLE(): truncated input")
+		}
+		b, err := buf.ReadByte()
+		if err != nil {
+			panic("uncompressRLE(): truncated input")
+		}
 		inOffset++
+		return b
+	}
+
+	for outOffset < outSize {
+		control := readInputByte()
 
 		if (control & 0x80) == 0x80 {
-			length := control & 0x7F
-			b := readUint8(buf)
-			inOffset++
+			length := uint32(control & 0x7F)
+			b := readInputByte()
+			if length > outSize-outOffset {
+				panic("uncompressRLE(): output overflow")
+			}
 
-			for i := 0; i < int(length); i++ {
-				outData[outOffset] = b // TODO outOffset > outSize ?
+			for i := uint32(0); i < length; i++ {
+				outData[outOffset] = b
 				outOffset++
 			}
 		} else {
-			for i := 0; i < int(control); i++ {
-				outData[outOffset] = readUint8(buf) // TODO idem
+			length := uint32(control)
+			if length > inSize-inOffset {
+				panic("uncompressRLE(): truncated literal run")
+			}
+			if length > outSize-outOffset {
+				panic("uncompressRLE(): output overflow")
+			}
+
+			for i := uint32(0); i < length; i++ {
+				outData[outOffset] = readInputByte()
 				outOffset++
-				inOffset++
 			}
 		}
 	}
