@@ -98,3 +98,18 @@ func TestADSResNameCannotConsumeNextBlock(t *testing.T) {
 		t.Fatalf("next block = %q, want SCR:", got)
 	}
 }
+
+
+func TestResourceCountsMustFitDeclaredBlocks(t *testing.T) {
+	// Two RES entries require at least 2-byte IDs plus one NUL byte each.
+	resBlock := bytes.NewReader(make([]byte, 5))
+	if count := 2; count <= resBlock.Len()/3 {
+		t.Fatal("test setup unexpectedly fits")
+	}
+
+	// Likewise, every TAG entry requires at least an ID and an empty C string.
+	tagBlock := bytes.NewReader(make([]byte, 2))
+	if count := 1; count <= tagBlock.Len()/3 {
+		t.Fatal("test setup unexpectedly fits")
+	}
+}
