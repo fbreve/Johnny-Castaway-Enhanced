@@ -2348,6 +2348,23 @@ func grInitEmptyBackground() {
 	rl.EndTextureMode()
 }
 
+func validateBmpFrames(bmpResource *TBMPResource) error {
+	dataBytes := len(bmpResource.UncompressedData)
+	for img := 0; img < int(bmpResource.NumImages); img++ {
+		width := int(bmpResource.Widths[img])
+		height := int(bmpResource.Heights[img])
+		if width <= 0 || height <= 0 || width%2 != 0 {
+			return fmt.Errorf("image %d has unsupported dimensions %dx%d", img, width, height)
+		}
+		frameBytes := (width / 2) * height
+		if frameBytes <= 0 || frameBytes > dataBytes {
+			return fmt.Errorf("image %d requires %d bytes; %d remain", img, frameBytes, dataBytes)
+		}
+		dataBytes -= frameBytes
+	}
+	return nil
+}
+
 func grLoadBmp(ttmSlot *TTtmSlot, slotNo uint16, name string) {
 	if ttmSlot == nil || int(slotNo) >= len(ttmSlot.numSprites) {
 		debugPrintf("WARN: BMP slot %d out of range - didn't load %s\n", slotNo, name)
@@ -2363,23 +2380,17 @@ func grLoadBmp(ttmSlot *TTtmSlot, slotNo uint16, name string) {
 		return
 	}
 
+	if err := validateBmpFrames(&bmpResource); err != nil {
+		debugPrintf("WARN: BMP %s invalid: %v - didn't load\n", name, err)
+		return
+	}
+
 	data := bmpResource.UncompressedData
 	for img := 0; img < int(bmpResource.NumImages); img++ {
-		if (bmpResource.Widths[img] % 2) == 1 {
-			debugPrintf("WARN: BMP %s image %d has odd width %d - didn't load\n", name, img, bmpResource.Widths[img])
-			grReleaseBmp(ttmSlot, slotNo)
-			return
-		}
-
 		width := int(bmpResource.Widths[img])
 		height := int(bmpResource.Heights[img])
-		bytesPerRow := int(width) / 2
+		bytesPerRow := width / 2
 		frameBytes := bytesPerRow * height
-		if width <= 0 || height <= 0 || frameBytes <= 0 || frameBytes > len(data) {
-			debugPrintf("WARN: BMP %s image %d requires %d bytes; %d remain - didn't load\n", name, img, frameBytes, len(data))
-			grReleaseBmp(ttmSlot, slotNo)
-			return
-		}
 
 		pixelData := make([]byte, 4*width*height)
 
