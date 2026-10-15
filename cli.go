@@ -79,7 +79,7 @@ func parseCLI(args []string) cliOptions {
 			strings.HasPrefix(lower, "/m:") || strings.HasPrefix(lower, "/m=") ||
 			strings.HasPrefix(lower, "--monitor:") || strings.HasPrefix(lower, "--monitor="):
 			value := optionValue(arg)
-			if value == "" && i+1 < len(args) && !looksLikeOption(args[i+1]) {
+			if value == "" && i+1 < len(args) && (!looksLikeOption(args[i+1]) || isSignedInteger(args[i+1])) {
 				value = args[i+1]
 				i++
 			}
@@ -93,6 +93,14 @@ func parseCLI(args []string) cliOptions {
 
 func looksLikeOption(s string) bool {
 	return strings.HasPrefix(s, "-") || strings.HasPrefix(s, "/")
+}
+
+func isSignedInteger(s string) bool {
+	if s == "" {
+		return false
+	}
+	_, err := strconv.Atoi(s)
+	return err == nil
 }
 
 func optionValue(arg string) string {
