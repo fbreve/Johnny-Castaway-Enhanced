@@ -343,6 +343,9 @@ func adsAddScene(ttmSlotNo, ttmTag, arg3 uint16) {
 }
 
 func adsStopScene(sceneNo int, keepAsDecoration bool) {
+	if sceneNo < 0 || sceneNo >= len(ttmThreads) || ttmThreads[sceneNo].isRunning == 0 {
+		return
+	}
 	_ = keepAsDecoration
 	if shouldFreezeOnStop(ttmThreads[sceneNo].sceneSlot, ttmThreads[sceneNo].sceneRootTag) {
 		// r.c. - TEMP: -t test mode keeps landing on a run where the ship's
@@ -362,7 +365,10 @@ func adsStopScene(sceneNo int, keepAsDecoration bool) {
 			grRedrawMostCommonSettledSpriteToBg(&ttmThreads[sceneNo])
 		}
 	}
-	grFreeLayer(ttmThreads[sceneNo].ttmLayer)
+	if ttmThreads[sceneNo].ttmLayer != nil {
+		grFreeLayer(ttmThreads[sceneNo].ttmLayer)
+		tmThreads[sceneNo].ttmLayer = nil
+	}
 	ttmThreads[sceneNo].isRunning = 0
 	numThreads--
 }
