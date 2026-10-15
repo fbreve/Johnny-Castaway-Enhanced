@@ -133,12 +133,27 @@ type TTags struct {
 	Description string
 }
 
+func readCompressedSize(buf *bytes.Reader) uint32 {
+	size := readUint32(buf)
+	if size < 5 {
+		panic(fmt.Sprintf("invalid compressed block size: %d", size))
+	}
+	return size - 5
+}
+
+func readVersionString(buf *bytes.Reader, size uint32) string {
+	if size < 4 || uint64(size) > uint64(buf.Len()) {
+		panic(fmt.Sprintf("invalid version string size: %d", size))
+	}
+	return string(readUint8Block(buf, int(size))[:4])
+}
+
 func parseTTMResource(buf *bytes.Reader) TTTMResource {
 	ttmResource := TTTMResource{}
 
 	readTag(buf, "VER:")
 	ttmResource.VersionSize = readUint32(buf)
-	ttmResource.VersionString = string(readUint8Block(buf, int(ttmResource.VersionSize))[0:4])
+	ttmResource.VersionString = readVersionString(buf, ttmResource.VersionSize)
 
 	readTag(buf, "PAG:")
 	ttmResource.NumPages = readUint32(buf)
@@ -146,7 +161,7 @@ func parseTTMResource(buf *bytes.Reader) TTTMResource {
 	ttmResource.PagUnknown2 = readUint8(buf)
 
 	readTag(buf, "TT3:")
-	ttmResource.CompressedSize = readUint32(buf) - 5
+	ttmResource.CompressedSize = readCompressedSize(buf)
 	ttmResource.CompressionMethod = readUint8(buf)
 	ttmResource.UncompressedSize = readUint32(buf)
 	ttmResource.UncompressedData = uncompress(
@@ -180,12 +195,8 @@ func parseAdsResource(buf *bytes.Reader) TAdsResource {
 
 	readTag(buf, "VER:")
 	res.VersionSize = readUint32(buf)
-	tempVersionString := make([]uint8, res.VersionSize)
-	err := binary.Read(buf, binary.LittleEndian, tempVersionString)
-	if err != nil {
-		panic(fmt.Errorf("binary.Read: %w", err))
-	}
-	res.VersionString = string(tempVersionString[0:4])
+	res.VersionString = readVersionString(buf, res.VersionSize)
+	var err error
 
 	readTag(buf, "ADS:")
 	err = binary.Read(buf, binary.LittleEndian, res.AdsUnknown[:])
@@ -197,6 +208,9 @@ func parseAdsResource(buf *bytes.Reader) TAdsResource {
 	res.ResSize = readUint32(buf)
 	res.NumRes = readUint16(buf)
 
+	if res.ResSize < 2 {
+		panic(fmt.Sprintf("invalid ADS RES size: %d", res.ResSize))
+	}
 	res.Res = make([]TAdsRes, res.NumRes)
 	// In original Screen Antics resources, ADS RES entries are stored as
 	// (uint16 id + null-terminated name) with variable name length, not fixed
@@ -223,7 +237,7 @@ func parseAdsResource(buf *bytes.Reader) TAdsResource {
 	}
 
 	readTag(buf, "SCR:")
-	res.CompressedSize = readUint32(buf) - 5
+	res.CompressedSize = readCompressedSize(buf)
 	res.CompressionMethod = readUint8(buf)
 	res.UncompressedSize = readUint32(buf)
 	res.UncompressedData = uncompress(
@@ -261,7 +275,7 @@ func parseBPMResource(buf *bytes.Reader) TBMPResource {
 	res.Heights = readUint16Block(buf, int(res.NumImages))
 
 	readTag(buf, "BIN:")
-	res.CompressedSize = readUint32(buf) - 5
+	res.CompressedSize = readCompressedSize(buf)
 	res.CompressionMethod = readUint8(buf)
 	res.UncompressedSize = readUint32(buf)
 
@@ -313,7 +327,7 @@ func parseScrResource(buf *bytes.Reader) TSCRResource {
 	res.Height = readUint16(buf)
 
 	readTag(buf, "BIN:")
-	res.CompressedSize = readUint32(buf) - 5
+	res.CompressedSize = readCompressedSize(buf)
 	res.CompressionMethod = readUint8(buf)
 	res.UncompressedSize = readUint32(buf)
 
