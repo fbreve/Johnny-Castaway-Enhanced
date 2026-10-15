@@ -283,6 +283,10 @@ func ttmPlay(ttmThread *TTtmThread) {
 			debugPrintf("\tSET DELAY => %d\n", result)
 		case 0x1051:
 			debugPrintf("\tSET BMP SLOT: slot:%d\n", args[0])
+			if int(args[0]) >= MaxBMPSlots {
+				debugPrintf("WARN: BMP slot %d out of range\n", args[0])
+				break
+			}
 			ttmThread.selectedBmpSlot = uint8(args[0])
 		case 0x1061:
 			debugPrintf("\tSET_PALETTE_SLOT: slot:%d\n", args[0])
