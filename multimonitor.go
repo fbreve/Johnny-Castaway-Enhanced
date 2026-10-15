@@ -50,6 +50,23 @@ func isWaylandPlatform(platform int) bool {
 	return platform == glfwPlatformWayland
 }
 
+func validMonitorIndex(index, count int) bool {
+	return index >= 0 && index < count
+}
+
+func selectedMonitorIndex(requested int, hasRequested bool, current int, count int) int {
+	if count < 1 {
+		return 0
+	}
+	if hasRequested && validMonitorIndex(requested, count) {
+		return requested
+	}
+	if validMonitorIndex(current, count) {
+		return current
+	}
+	return 0
+}
+
 // setupMonitors sizes and positions the application window to span every
 // connected monitor (the combined virtual desktop bounding box, which
 // correctly handles monitors of different sizes and irregular/offset
@@ -71,10 +88,8 @@ func setupMonitors() {
 	// the renderer then letterboxes against the actual window size on every
 	// frame, which also absorbs the asynchronous compositor resize.
 	if isWaylandSession() {
-		monitor := rl.GetCurrentMonitor()
-		if hasMonitorIndex {
-			monitor = runOnMonitorIndex
-		}
+		monitorCount := rl.GetMonitorCount()
+		monitor := selectedMonitorIndex(runOnMonitorIndex, hasMonitorIndex, rl.GetCurrentMonitor(), monitorCount)
 
 		pumpFrame := func() {
 			rl.BeginDrawing()
@@ -93,10 +108,16 @@ func setupMonitors() {
 		for i := 0; i < 10; i++ {
 			pumpFrame()
 		}
-		rl.ToggleFullscreen()
-		if hasMonitorIndex {
-			rl.SetWindowMonitor(runOnMonitorIndex)
+		// Select the requested output while the window is still windowed. On
+		// Wayland the subsequent fullscreen request is then associated with
+		// that output instead of the compositor-chosen initial one.
+		if hasMonitorIndex && validMonitorIndex(runOnMonitorIndex, monitorCount) && rl.GetCurrentMonitor() != monitor {
+			rl.SetWindowMonitor(monitor)
+			for i := 0; i < 3; i++ {
+				pumpFrame()
+			}
 		}
+		rl.ToggleFullscreen()
 
 		// Wait until the compositor-applied fullscreen resize reaches the
 		// framebuffer, so size-dependent setup done later (e.g. the
@@ -122,6 +143,10 @@ func setupMonitors() {
 		return
 	}
 	if hasMonitorIndex {
+		count := rl.GetMonitorCount()
+		if !validMonitorIndex(runOnMonitorIndex, count) {
+			runOnMonitorIndex = selectedMonitorIndex(runOnMonitorIndex, true, rl.GetCurrentMonitor(), count)
+		}
 		pos := rl.GetMonitorPosition(runOnMonitorIndex)
 		w := float32(rl.GetMonitorWidth(runOnMonitorIndex))
 		h := float32(rl.GetMonitorHeight(runOnMonitorIndex))
