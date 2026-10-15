@@ -137,88 +137,57 @@ type TAdsRandOp struct {
 	weight   uint16
 }
 
+func readADSWords(data []byte, dataSize uint32, offset *uint32, dest []uint16, count int) bool {
+	if uint64(dataSize) > uint64(len(data)) || *offset > dataSize {
+		return false
+	}
+	need := uint32(count) * 2
+	if need > dataSize-*offset || count > len(dest) {
+		return false
+	}
+	peekUint16Block(data, offset, dest, count)
+	return true
+}
+
 func adsLoad(data []byte, dataSize uint32, numTags uint16, tag uint16, tagOffset *uint32) {
-	var offset uint32 = 0
+	var offset uint32
 	var args [10]uint16
-	var bookmarkingChunks = 0
-	var bookmarkingIfNotRunnings = 0
+	bookmarkingChunks := 0
+	bookmarkingIfNotRunnings := 0
 
 	numAdsChunks = 0
 	numAdsChunksLocal = 0
 	*tagOffset = 0
 	adsNumTags = 0
-	adsTags = make([]TTtmTag, numTags)
+	adsTags = make([]TTtmTag, 0, numTags)
 
 	for offset < dataSize {
-		opCode := peekUint16(data, &offset)
-
+		var op [1]uint16
+		if !readADSWords(data, dataSize, &offset, op[:], 1) {
+			fmt.Printf("WARN: truncated ADS opcode at offset %d\n", offset)
+			break
+		}
+		opCode := op[0]
+		argWords := 0
 		switch opCode {
-		case 0x1350: // IF_LASTPLAYED
-			if bookmarkingChunks != 0 {
-				bookmarkingIfNotRunnings = 0
-				peekUint16Block(data, &offset, args[:], 2)
-				adsChunks[numAdsChunks].scene.slot = args[0]
-				adsChunks[numAdsChunks].scene.tag = args[1]
-				adsChunks[numAdsChunks].offset = offset
-				numAdsChunks++
-			} else {
-				offset += 2 << 1
-			}
-		case 0x1360: // IF_NOT_RUNNING
-			// We only bookmark the IF_NOT_RUNNINGs
-			// preceding the first IF_LAST_PLAYED or IF_IS_RUNNING
-
-			if bookmarkingChunks != 0 && bookmarkingIfNotRunnings != 0 {
-				peekUint16Block(data, &offset, args[:], 2)
-				adsChunks[numAdsChunks].scene.slot = args[0]
-				adsChunks[numAdsChunks].scene.tag = args[1]
-				adsChunks[numAdsChunks].offset = offset
-				numAdsChunks++
-			} else {
-				offset += 2 << 1
-			}
-		case 0x1370: // IF_IS_RUNNING
-			bookmarkingIfNotRunnings = 0
-			offset += 2 << 1
-		case 0x1070:
-			offset += 2 << 1
-		case 0x1330:
-			offset += 2 << 1
-		case 0x1420:
-			offset += 0 << 1
-		case 0x1430:
-			offset += 0 << 1
-			// OR   // TODO : manage here if_lastplayed OK tags ?
-		case 0x1510:
-			offset += 0 << 1
+		case 0x1350, 0x1360, 0x1370, 0x1070, 0x1330:
+			argWords = 2
 		case 0x1520:
-			offset += 5 << 1
+			argWords = 5
 		case 0x2005:
-			offset += 4 << 1
-		case 0x2010:
-			offset += 3 << 1
-		case 0x2014:
-			offset += 0 << 1
-		case 0x3010:
-			offset += 0 << 1
-		case 0x3020:
-			offset += 1 << 1
-		case 0x30ff:
-			offset += 0 << 1
-		case 0x4000:
-			offset += 3 << 1
-		case 0xf010:
-			offset += 0 << 1
-		case 0xf200:
-			offset += 1 << 1
-		case 0xffff:
-			offset += 0 << 1
-		case 0xfff0:
-			offset += 0 << 1
+			argWords = 4
+		case 0x2010, 0x4000:
+			argWords = 3
+		case 0x3020, 0xf200:
+			argWords = 1
+		case 0x1420, 0x1430, 0x1510, 0x2014, 0x3010, 0x30ff, 0xf010, 0xffff, 0xfff0:
 		default:
-			adsTags[adsNumTags].id = opCode
-			adsTags[adsNumTags].offset = offset
-			adsNumTags++
+			if len(adsTags) >= int(numTags) {
+				fmt.Printf("WARN: ADS contains more tags than declared (%d)\n", numTags)
+				return
+			}
+			adsTags = append(adsTags, TTtmTag{id: opCode, offset: offset})
+			adsNumTags = len(adsTags)
 			if opCode == tag {
 				*tagOffset = offset
 				bookmarkingChunks = 1
@@ -227,17 +196,48 @@ func adsLoad(data []byte, dataSize uint32, numTags uint16, tag uint16, tagOffset
 				bookmarkingChunks = 0
 				bookmarkingIfNotRunnings = 0
 			}
+			continue
+		}
+
+		if !readADSWords(data, dataSize, &offset, args[:], argWords) {
+			fmt.Printf("WARN: truncated ADS arguments for opcode %04x\n", opCode)
+			break
+		}
+		switch opCode {
+		case 0x1350:
+			if bookmarkingChunks != 0 {
+				bookmarkingIfNotRunnings = 0
+				if numAdsChunks >= len(adsChunks) {
+					fmt.Println("WARN: too many ADS chunks")
+					return
+				}
+				adsChunks[numAdsChunks].scene.slot = args[0]
+				adsChunks[numAdsChunks].scene.tag = args[1]
+				adsChunks[numAdsChunks].offset = offset
+				numAdsChunks++
+			}
+		case 0x1360:
+			if bookmarkingChunks != 0 && bookmarkingIfNotRunnings != 0 {
+				if numAdsChunks >= len(adsChunks) {
+					fmt.Println("WARN: too many ADS chunks")
+					return
+				}
+				adsChunks[numAdsChunks].scene.slot = args[0]
+				adsChunks[numAdsChunks].scene.tag = args[1]
+				adsChunks[numAdsChunks].offset = offset
+				numAdsChunks++
+			}
+		case 0x1370:
+			bookmarkingIfNotRunnings = 0
 		}
 	}
 
 	if adsNumTags != int(numTags) {
 		fmt.Println("WARN: didn't find every tag in ADS data")
 	}
-
 	if *tagOffset == 0 {
 		fmt.Printf("WARN: ADS tag %d not found, starting from offset 0\n", tag)
 	}
-
 }
 
 func adsReleaseAds() {
