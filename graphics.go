@@ -640,6 +640,8 @@ func graphicsInit() {
 }
 
 func graphicsEnd() {
+	grReleaseScreen()
+	grReleaseSavedLayer()
 	if grFinalRenderSur != nil {
 		rl.UnloadRenderTexture(*grFinalRenderSur)
 		grFinalRenderSur = nil
