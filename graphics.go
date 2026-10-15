@@ -2363,8 +2363,6 @@ func grLoadBmp(ttmSlot *TTtmSlot, slotNo uint16, name string) {
 	}
 
 	data := bmpResource.UncompressedData
-	dataOffset := 0 // dataOffset is where each bmp sprites data begins
-
 	for img := 0; img < int(bmpResource.NumImages); img++ {
 		if (bmpResource.Widths[img] % 2) == 1 {
 			panic("grLoadBmp(): can't manage odd widths")
@@ -2421,7 +2419,6 @@ func grLoadBmp(ttmSlot *TTtmSlot, slotNo uint16, name string) {
 				pixelData[idx+2] = c.B
 				pixelData[idx+3] = c.A
 
-				dataOffset = byteIdx
 			}
 		}
 		// segments the data to be the next cel of the sprite.
