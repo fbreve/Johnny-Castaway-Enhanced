@@ -1,6 +1,7 @@
 package main
 
 import (
+	"time"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
@@ -103,17 +104,26 @@ func setupMonitors() {
 		// monitor (a tiny zoomed scene in a corner). Pump a few frames
 		// first to map the window, then request fullscreen - the only
 		// window placement a Wayland client can rely on.
-		for i := 0; i < 10; i++ {
-			pumpFrame()
+		pumpUntil := func(timeout time.Duration, ready func() bool) {
+			deadline := time.Now().Add(timeout)
+			for {
+				pumpFrame()
+				if ready != nil && ready() {
+					return
+				}
+				if time.Now().After(deadline) {
+					return
+				}
+				time.Sleep(time.Millisecond)
+			}
 		}
+		pumpUntil(100*time.Millisecond, nil)
 		// Select the requested output while the window is still windowed. On
 		// Wayland the subsequent fullscreen request is then associated with
 		// that output instead of the compositor-chosen initial one.
 		if hasMonitorIndex && validMonitorIndex(runOnMonitorIndex, monitorCount) && rl.GetCurrentMonitor() != monitor {
 			rl.SetWindowMonitor(monitor)
-			for i := 0; i < 3; i++ {
-				pumpFrame()
-			}
+			pumpUntil(50*time.Millisecond, nil)
 		}
 		rl.ToggleFullscreen()
 
@@ -123,12 +133,9 @@ func setupMonitors() {
 		// initial 640x480 one.
 		targetW := rl.GetMonitorWidth(monitor)
 		targetH := rl.GetMonitorHeight(monitor)
-		for i := 0; i < 150; i++ {
-			pumpFrame()
-			if rl.GetRenderWidth() >= targetW-8 && rl.GetRenderHeight() >= targetH-8 {
-				break
-			}
-		}
+		pumpUntil(5*time.Second, func() bool {
+			return rl.GetRenderWidth() >= targetW-8 && rl.GetRenderHeight() >= targetH-8
+		})
 
 		// raylib's logical screen size is not updated by the fullscreen
 		// configure, so resync it with the actual framebuffer size, then
