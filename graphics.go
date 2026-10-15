@@ -2340,6 +2340,10 @@ func grInitEmptyBackground() {
 }
 
 func grLoadBmp(ttmSlot *TTtmSlot, slotNo uint16, name string) {
+	if ttmSlot == nil || int(slotNo) >= len(ttmSlot.numSprites) {
+		debugPrintf("WARN: BMP slot %d out of range - didn't load %s\n", slotNo, name)
+		return
+	}
 	if ttmSlot.numSprites[slotNo] != 0 {
 		grReleaseBmp(ttmSlot, slotNo)
 	}
@@ -2421,6 +2425,9 @@ func grLoadBmp(ttmSlot *TTtmSlot, slotNo uint16, name string) {
 }
 
 func grReleaseBmp(ttmSlot *TTtmSlot, bmpSlotNo uint16) {
+	if ttmSlot == nil || int(bmpSlotNo) >= len(ttmSlot.numSprites) {
+		return
+	}
 	for i := 0; i < ttmSlot.numSprites[bmpSlotNo]; i++ {
 		spr := ttmSlot.sprites[bmpSlotNo][i]
 		rl.UnloadTexture(*spr)
