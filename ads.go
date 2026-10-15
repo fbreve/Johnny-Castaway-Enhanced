@@ -821,8 +821,12 @@ func adsPlay(adsName string, adsTag uint16) {
 		}
 
 		// Decrease all timers by the shortest one, and wait that amount of time
-		ttmBackgroundThread.timer -= mini
-		ttmCloudsThread.timer -= mini
+		if ttmBackgroundThread.isRunning != 0 {
+			ttmBackgroundThread.timer -= mini
+		}
+		if ttmCloudsThread.isRunning != 0 {
+			ttmCloudsThread.timer -= mini
+		}
 
 		for i := 0; i < MaxTTMThreads; i++ {
 			if ttmThreads[i].isRunning != 0 {
