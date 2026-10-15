@@ -2357,14 +2357,6 @@ func grLoadBmp(ttmSlot *TTtmSlot, slotNo uint16, name string) {
 		grReleaseBmp(ttmSlot, slotNo)
 	}
 
-	// r.c. - record which BMP is currently in this slot so that
-	// shouldScaleSprite can classify slot 3 Johnny poses correctly.
-	upperName := strings.ToUpper(name)
-	ttmSlot.slotBmpNames[slotNo] = upperName
-	if ttmSlot.baseBmpNames[slotNo] == "" {
-		ttmSlot.baseBmpNames[slotNo] = upperName
-	}
-
 	bmpResource := findBMPResource(name)
 	if int(bmpResource.NumImages) > MaxSpritesPerBMP {
 		debugPrintf("WARN: BMP %s has %d images; maximum is %d - didn't load\n", name, bmpResource.NumImages, MaxSpritesPerBMP)
@@ -2374,7 +2366,9 @@ func grLoadBmp(ttmSlot *TTtmSlot, slotNo uint16, name string) {
 	data := bmpResource.UncompressedData
 	for img := 0; img < int(bmpResource.NumImages); img++ {
 		if (bmpResource.Widths[img] % 2) == 1 {
-			panic("grLoadBmp(): can't manage odd widths")
+			debugPrintf("WARN: BMP %s image %d has odd width %d - didn't load\n", name, img, bmpResource.Widths[img])
+			grReleaseBmp(ttmSlot, slotNo)
+			return
 		}
 
 		width := int(bmpResource.Widths[img])
@@ -2436,6 +2430,14 @@ func grLoadBmp(ttmSlot *TTtmSlot, slotNo uint16, name string) {
 		spriteTexture := rl.LoadTextureFromImage(spriteImg)
 		ttmSlot.sprites[slotNo][img] = &spriteTexture
 		ttmSlot.numSprites[slotNo]++
+	}
+
+	// Record the slot metadata only after every frame loaded successfully.
+	// Failed/partial loads must not make CLEAR_IMGSLOT believe the BMP is present.
+	upperName := strings.ToUpper(name)
+	ttmSlot.slotBmpNames[slotNo] = upperName
+	if ttmSlot.baseBmpNames[slotNo] == "" {
+		ttmSlot.baseBmpNames[slotNo] = upperName
 	}
 }
 
