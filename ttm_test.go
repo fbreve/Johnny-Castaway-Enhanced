@@ -84,3 +84,22 @@ func TestDecodeTTMInstructionRejectsTooManyArgs(t *testing.T) {
 		t.Fatal("expected oversized argument list to be rejected")
 	}
 }
+
+
+func TestValidSpriteIndexBounds(t *testing.T) {
+	var slot TTtmSlot
+	slot.numSprites[0] = 2
+
+	if !validSpriteIndex(&slot, 1, 0) {
+		t.Fatal("valid sprite index rejected")
+	}
+	if validSpriteIndex(&slot, 2, 0) {
+		t.Fatal("sprite index at count boundary accepted")
+	}
+	if validSpriteIndex(&slot, 0, MaxBMPSlots) {
+		t.Fatal("out-of-range image slot accepted")
+	}
+	if validSpriteIndex(nil, 0, 0) {
+		t.Fatal("nil TTM slot accepted")
+	}
+}
