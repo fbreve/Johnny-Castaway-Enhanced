@@ -497,6 +497,30 @@ func adsPlaySingleTtm(ttmName string) {
 	ttmResetSlot(&ttmSlots[0])
 }
 
+func decodeADSInstruction(data []byte, dataSize uint32, offset *uint32, args *[10]uint16) (uint16, error) {
+	var op [1]uint16
+	if !readADSWords(data, dataSize, offset, op[:], 1) {
+		return 0, fmt.Errorf("truncated opcode at offset %d", *offset)
+	}
+	argWords := 0
+	switch op[0] {
+	case 0x1070, 0x1330, 0x1350, 0x1360, 0x1370:
+		argWords = 2
+	case 0x1520:
+		argWords = 5
+	case 0x2005:
+		argWords = 4
+	case 0x2010, 0x4000:
+		argWords = 3
+	case 0x3020, 0xf200:
+		argWords = 1
+	}
+	if !readADSWords(data, dataSize, offset, args[:], argWords) {
+		return 0, fmt.Errorf("truncated arguments for opcode %04x", op[0])
+	}
+	return op[0], nil
+}
+
 func adsPlayChunk(data []byte, dataSize, offset uint32) {
 	var (
 		opcode              uint16 = 0
@@ -509,16 +533,24 @@ func adsPlayChunk(data []byte, dataSize, offset uint32) {
 	)
 
 	for continueLoop != 0 && offset < dataSize {
-		opcode = peekUint16(data, &offset)
+		var err error
+		opcode, err = decodeADSInstruction(data, dataSize, &offset, &args)
+		if err != nil {
+			debugPrintf("WARN: malformed ADS instruction: %v\n", err)
+			break
+		}
 
 		switch opcode {
 
 		case 0x1070:
 			// Inside an IF_LASTPLAYED chunk, local IF_LASTPLAYED
 			// which overrides the global IF_LASTPLAYEDs.
-			peekUint16Block(data, &offset, args[:], 2)
 			debugPrintln("IF_LASTPLAYED_LOCAL")
 			inIfLastplayedLocal = 1
+			if numAdsChunksLocal >= len(adsChunksLocal) {
+				debugPrintln("WARN: too many local ADS chunks")
+				break
+			}
 			adsChunksLocal[numAdsChunksLocal].scene.slot = args[0]
 			adsChunksLocal[numAdsChunksLocal].scene.tag = args[1]
 			adsChunksLocal[numAdsChunksLocal].offset = offset
@@ -535,10 +567,8 @@ func adsPlayChunk(data []byte, dataSize, offset uint32) {
 			// scene whose exact (ttm, tag) thread is already running, so
 			// whether or not this opcode is treated as a real conditional,
 			// the resulting behavior is identical. Safe to keep ignoring it.
-			peekUint16Block(data, &offset, args[:], 2)
 			debugPrintf("IF_UNKNOWN_1 %d %d\n", args[0], args[1])
 		case 0x1350:
-			peekUint16Block(data, &offset, args[:], 2)
 			debugPrintf("IF_LASTPLAYED %d %d\n", args[0], args[1])
 			if inOrBlock == 0 {
 				continueLoop = 0
@@ -546,13 +576,11 @@ func adsPlayChunk(data []byte, dataSize, offset uint32) {
 
 			inOrBlock = 0
 		case 0x1360:
-			peekUint16Block(data, &offset, args[:], 2)
 			debugPrintf("IF_NOT_RUNNING %d %d\n", args[0], args[1])
 			if isSceneRunning(args[0], args[1]) != 0 {
 				inSkipBlock = 1
 			}
 		case 0x1370:
-			peekUint16Block(data, &offset, args[:], 2)
 			debugPrintf("IF_IS_RUNNING %d %d\n", args[0], args[1])
 			// r.c - possible bug fixed, the inSkipBlock = 0|1 were swapped originally
 			if isSceneRunning(args[0], args[1]) == 0 {
@@ -578,7 +606,6 @@ func adsPlayChunk(data []byte, dataSize, offset uint32) {
 			}
 		case 0x1520:
 			// Only in ACTIVITY.ADS tag 7, after IF_LASTPLAYED_LOCAL
-			peekUint16Block(data, &offset, args[:], 5)
 			debugPrintln("ADD_SCENE_LOCAL")
 			if inIfLastplayedLocal != 0 {
 				// First pass : the scene was queued by IF_LASTPLAYED_LOCAL,
@@ -590,7 +617,6 @@ func adsPlayChunk(data []byte, dataSize, offset uint32) {
 				adsAddScene(args[1], args[2], args[3])
 			}
 		case 0x2005:
-			peekUint16Block(data, &offset, args[:], 4)
 			debugPrintf("ADD_SCENE %d %d %d %d\n", args[0], args[1], args[2], args[3])
 			if inSkipBlock == 0 { // TODO - TEMPO
 				if inRandBlock != 0 {
@@ -600,7 +626,6 @@ func adsPlayChunk(data []byte, dataSize, offset uint32) {
 				}
 			}
 		case 0x2010:
-			peekUint16Block(data, &offset, args[:], 3)
 			debugPrintf("STOP_SCENE %d %d %d\n", args[0], args[1], args[2])
 			if inSkipBlock == 0 { // TODO - TEMPO
 				if inRandBlock != 0 {
@@ -614,7 +639,6 @@ func adsPlayChunk(data []byte, dataSize, offset uint32) {
 			adsRandomStart()
 			inRandBlock = 1
 		case 0x3020:
-			peekUint16Block(data, &offset, args[:], 1)
 			debugPrintln("NOP")
 			if inRandBlock != 0 {
 				adsRandomNop(args[0])
@@ -624,17 +648,17 @@ func adsPlayChunk(data []byte, dataSize, offset uint32) {
 			adsRandomEnd()
 			inRandBlock = 0
 		case 0x4000:
-			peekUint16Block(data, &offset, args[:], 3)
 			debugPrintln("UNKNOWN_6") // only in BUILDING.ADS tag 7
 		case 0xf010:
 			debugPrintln("FADE_OUT")
 		case 0xf200:
-			peekUint16Block(data, &offset, args[:], 1)
 			debugPrintf("GOSUB_TAG %d\n", args[0]) // ex UNKNOWN_8
 			// "quick and dirty" implementation, sufficient for
 			// JCastaway : only encountered in STAND.ADS to tag 14
 			// which only contains 1 scene
-			adsPlayChunk(data, dataSize, adsFindTag(args[0]))
+			if target, ok := adsLookupTag(args[0]); ok {
+				adsPlayChunk(data, dataSize, target)
+			}
 		case 0xffff:
 			debugPrintln("END")
 			if inSkipBlock != 0 {
