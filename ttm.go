@@ -94,7 +94,10 @@ func scanTTMTags(data []byte, dataSize uint32, maxTags int) ([]TTtmTag, error) {
 				offset += 2
 			}
 		} else {
-			argBytes := uint32(numArgs) * 2
+			if int(numArgs) > len(args) {
+		return 0, "", fmt.Errorf("too many arguments (%d) at offset %d", numArgs, *offset-2)
+	}
+	argBytes := uint32(numArgs) * 2
 			if argBytes > dataSize-offset {
 				return nil, fmt.Errorf("truncated arguments at offset %d", offset)
 			}
