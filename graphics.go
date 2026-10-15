@@ -322,6 +322,10 @@ type settledSpriteEntry struct {
 }
 
 func grReleaseScreen() {
+	if grBackgroundSur == nil {
+		return
+	}
+	grFreeLayer(grBackgroundSur)
 	grBackgroundSur = nil
 }
 
