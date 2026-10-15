@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
 func TestValidHHMM(t *testing.T) {
 	valid := []int{0, 30, 100, 900, 1230, 2300, 2359}
@@ -50,5 +53,14 @@ func TestParseConfigBoolPreservesInvalidValue(t *testing.T) {
 	parseConfigBool("not-a-bool", &value)
 	if !value {
 		t.Fatal("invalid boolean changed destination")
+	}
+}
+
+
+func TestCfgPath(t *testing.T) {
+	home := filepath.Join("root", "user")
+	want := filepath.Join(home, CfgFileName)
+	if got := cfgPath(home); got != want {
+		t.Fatalf("cfgPath(%q) = %q, want %q", home, got, want)
 	}
 }

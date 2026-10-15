@@ -54,14 +54,16 @@ const (
 	SilentEndKey     = "silentEnd="
 )
 
-func cfgFullPath() string {
+func cfgPath(homeDir string) string {
+	return filepath.Join(homeDir, CfgFileName)
+}
+
+func cfgFullPath() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		panic(fmt.Errorf("user home dir: %w", err))
+		return "", fmt.Errorf("user home dir: %w", err)
 	}
-
-	fullPath := filepath.Join(homeDir, CfgFileName)
-	return fullPath
+	return cfgPath(homeDir), nil
 }
 
 func formatConfig(cfg *TConfig) string {
@@ -87,7 +89,12 @@ func cfgFileWrite(cfg *TConfig) {
 	cfgLock.Lock()
 	defer cfgLock.Unlock()
 
-	f, err := os.Create(cfgFullPath())
+	fullPath, err := cfgFullPath()
+	if err != nil {
+		fmt.Println("WARN: failed to resolve config path with err: ", err.Error())
+		return
+	}
+	f, err := os.Create(fullPath)
 	if err != nil {
 		fmt.Println("WARN: failed to create file with err: ", err.Error())
 		return
@@ -121,7 +128,12 @@ func cfgFileRead(cfg *TConfig) {
 	cfg.SilentStart = 2200
 	cfg.SilentEnd = 700
 
-	f, err := os.Open(cfgFullPath())
+	fullPath, err := cfgFullPath()
+	if err != nil {
+		fmt.Println("WARN: failed to resolve config path with err: ", err.Error())
+		return
+	}
+	f, err := os.Open(fullPath)
 	if err != nil {
 		fmt.Println("WARN: failed to read file with err: ", err.Error())
 		return
