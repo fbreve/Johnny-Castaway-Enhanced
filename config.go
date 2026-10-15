@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -60,7 +60,7 @@ func cfgFullPath() string {
 		panic(fmt.Errorf("user home dir: %w", err))
 	}
 
-	fullPath := path.Join(homeDir, CfgFileName)
+	fullPath := filepath.Join(homeDir, CfgFileName)
 	return fullPath
 }
 
@@ -189,7 +189,7 @@ func cfgFileRead(cfg *TConfig) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		fmt.Fprintln(os.Stderr, "reading standard input:", err)
+		fmt.Fprintln(os.Stderr, "failed to read config file:", err)
 	}
 }
 
