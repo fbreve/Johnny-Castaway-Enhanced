@@ -286,6 +286,10 @@ func parseBPMResource(buf *bytes.Reader) TBMPResource {
 	readTag(buf, "INF:")
 	res.DataSize = readUint32(buf)
 	res.NumImages = readUint16(buf)
+	validateEntryCount(int(res.NumImages), buf.Len(), 4, "BMP image dimensions")
+	if int(res.NumImages) > MaxSpritesPerBMP {
+		panic(fmt.Sprintf("BMP image count %d exceeds runtime capacity %d", res.NumImages, MaxSpritesPerBMP))
+	}
 
 	res.Widths = readUint16Block(buf, int(res.NumImages))
 	res.Heights = readUint16Block(buf, int(res.NumImages))
