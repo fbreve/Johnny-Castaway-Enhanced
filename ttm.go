@@ -94,10 +94,7 @@ func scanTTMTags(data []byte, dataSize uint32, maxTags int) ([]TTtmTag, error) {
 				offset += 2
 			}
 		} else {
-			if int(numArgs) > len(args) {
-		return 0, "", fmt.Errorf("too many arguments (%d) at offset %d", numArgs, *offset-2)
-	}
-	argBytes := uint32(numArgs) * 2
+			argBytes := uint32(numArgs) * 2
 			if argBytes > dataSize-offset {
 				return nil, fmt.Errorf("truncated arguments at offset %d", offset)
 			}
@@ -174,6 +171,9 @@ func decodeTTMInstruction(data []byte, dataSize uint32, offset *uint32, args *[1
 			*offset = *offset + 1
 		}
 		return opCode, str, nil
+	}
+	if int(numArgs) > len(args) {
+		return 0, "", fmt.Errorf("too many arguments (%d) at offset %d", numArgs, *offset-2)
 	}
 	argBytes := uint32(numArgs) * 2
 	if argBytes > dataSize-*offset {
