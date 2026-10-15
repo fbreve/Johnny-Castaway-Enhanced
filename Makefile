@@ -1,7 +1,10 @@
-.PHONY: run browser
+.PHONY: run build browser
 
 run:
 	go run *.go
+
+build:
+	go build -o JohnnyCastaway2026 .
 
 ttm:
 	go run *.go "ttm"

@@ -7,6 +7,19 @@ import (
 
 var (
 	storyCurrentDay int = 1
+
+	// forcedHoliday overrides the calendar-derived holiday decoration when
+	// nonzero: 1=Halloween, 2=St Patrick, 3=Christmas, 4=New Year.
+	// -1 suppresses holidays even on their calendar dates (forcedHolidayArg
+	// holds the raw value for propagating the flag to child processes).
+	forcedHoliday    int
+	forcedHolidayArg string
+
+	// forcedNight overrides the hour-derived day/night mode when >= 0
+	// (0 = day, 1 = night). Set by the -d/--day and -n/--night flags.
+	// forcedDayNightA holds the raw value for child process propagation.
+	forcedNight     = -1
+	forcedDayNightA = ""
 )
 
 func storyPickScene(wantedFlags uint16, unwantedFlags uint16) *TStoryScene {
@@ -57,6 +70,10 @@ func storyCalculateIslandFromDateAndTime() {
 	if hour < 6 || hour >= 18 {
 		islandState.night = 1
 	}
+	// A forced day/night (-d/-n) overrides the hour-derived mode.
+	if forcedNight >= 0 {
+		islandState.night = forcedNight
+	}
 
 	// Holidays ?
 	islandState.holiday = 0
@@ -75,6 +92,40 @@ func storyCalculateIslandFromDateAndTime() {
 		// New year  : 29/12 to 01/01
 		islandState.holiday = 4
 	}
+
+	// A forced holiday (-x) overrides the calendar-derived one, and can
+	// also suppress it entirely ("none").
+	if forcedHoliday > 0 {
+		islandState.holiday = forcedHoliday
+	} else if forcedHoliday < 0 {
+		islandState.holiday = 0
+	}
+}
+
+// holidayFromArg maps a holiday name or numeric id to the internal holiday
+// code used by storyCalculateIslandFromDateAndTime/islandInitHoliday.
+// Returns -1 for "none" (suppress calendar holidays) and 0 for unknown input.
+func holidayFromArg(arg string) int {
+	switch arg {
+	case "halloween", "hallowe'en":
+		return 1
+	case "patrick", "stpat", "st-patrick", "stpatrick", "saintpatrick":
+		return 2
+	case "christmas", "xmas", "noel":
+		return 3
+	case "newyear", "new-year", "newyears":
+		return 4
+	case "none", "off":
+		return -1
+	default:
+		n := 0
+		if _, err := fmt.Sscanf(arg, "%d", &n); err == nil && n >= 1 && n <= 4 {
+			return n
+		}
+	}
+
+	fmt.Printf("Unknown holiday '%s' (use halloween, patrick, christmas, newyear, none or 1-4)\n", arg)
+	return 0
 }
 
 func storyCalculateIslandFromScene(scene *TStoryScene) {

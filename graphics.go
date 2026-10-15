@@ -8,7 +8,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"syscall"
 	"time"
 
 	"strings"
@@ -52,29 +51,12 @@ var (
 )
 
 var (
-	modUser32            = syscall.NewLazyDLL("user32.dll")
-	procGetAsyncKeyState = modUser32.NewProc("GetAsyncKeyState")
-
 	prevSpaceDown  = false
 	prevMDown      = false
 	prevEnterDown  = false
 	prevEscapeDown = false
 	prevShiftDown  = false
 )
-
-func isKeyDownGlobally(vk int) bool {
-	r, _, _ := procGetAsyncKeyState.Call(uintptr(vk))
-	return (r & 0x8000) != 0
-}
-
-func isAnyKeyPressedGlobally() bool {
-	for vk := 8; vk <= 255; vk++ {
-		if isKeyDownGlobally(vk) {
-			return true
-		}
-	}
-	return false
-}
 
 type TSharedState struct {
 	Paused         bool `json:"p"`

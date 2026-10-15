@@ -495,15 +495,48 @@ func runOptionsWindow() {
 	}
 }
 
+func printUsage() {
+	fmt.Println("Johnny Castaway Enhanced - classic screensaver, Go/raylib port")
+	fmt.Println()
+	fmt.Println("Usage: JohnnyCastaway2026 [mode] [options]")
+	fmt.Println()
+	fmt.Println("Modes (mutually exclusive):")
+	fmt.Println("  (none)                screensaver mode spanning all monitors (Escape or mouse exits)")
+	fmt.Println("  -s, /s                screensaver mode, any key exits (standard Windows /s launch)")
+	fmt.Println("  -c, /c                options/settings dialog")
+	fmt.Println("  -p, /p                screensaver preview call (quietly exits)")
+	fmt.Println("  -t, /t [ADS] [tag]    developer test mode: loop one scene sequence")
+	fmt.Println("                        (default: ACTIVITY.ADS 4 + JOHNNY.ADS 3; e.g. /t BUILDING.ADS 2)")
+	fmt.Println("  -b, /b                render benchmark (3 passes of 1/4/8 sprite layers, bench.log)")
+	fmt.Println()
+	fmt.Println("Options:")
+	fmt.Println("  -k, /k                interactive debug hotkeys (Space=pause, Enter=step,")
+	fmt.Println("                        M=max speed, Shift=debug overlay, Escape=quit)")
+	fmt.Println("  -m N, /m N            fullscreen on monitor N only (also: -m:N)")
+	fmt.Println("  -1, /main, /single    primary monitor only")
+	fmt.Println("  -x <holiday>          force the island holiday decoration")
+	fmt.Println("                        halloween|patrick|christmas|newyear|none (or 1-4);")
+	fmt.Println("                        propagated to per-monitor child instances")
+	fmt.Println("  -d, --day             force daytime island/sky rendering")
+	fmt.Println("  -n, --night           force nighttime island/sky rendering")
+	fmt.Println()
+	fmt.Println("  -h, --help, -?        show this help")
+}
+
 func main() {
 	var isSettings = false
 	var isPreview = false
 	var isTest = false
 	var isBench = false
+	var showHelp = false
 	var testAdsName = ""
 	var testTagNo = 0
 
-	for i, arg := range os.Args {
+	// Skip os.Args[0] (the executable path): a binary installed under a
+	// path like /tmp/... or /s... would otherwise match the flag prefixes
+	// below and accidentally switch modes.
+	for i := 1; i < len(os.Args); i++ {
+		arg := os.Args[i]
 		argLower := strings.ToLower(arg)
 		if strings.HasPrefix(argLower, "/c") || strings.HasPrefix(argLower, "-c") {
 			isSettings = true
@@ -532,6 +565,38 @@ func main() {
 			argLower == "/primary" || argLower == "-primary" || argLower == "--primary" {
 			hasMonitorIndex = true
 			runOnMonitorIndex = 0
+		} else if strings.HasPrefix(argLower, "/x") || strings.HasPrefix(argLower, "-x") || strings.HasPrefix(argLower, "--holiday") {
+			// -x <name|id> forces the holiday decoration: halloween (1),
+			// patrick (2), christmas (3), newyear (4); none suppresses
+			// calendar holidays entirely.
+			holidayArg := ""
+			if strings.Contains(argLower, ":") || strings.Contains(argLower, "=") {
+				parts := strings.FieldsFunc(arg, func(r rune) bool { return r == ':' || r == '=' })
+				if len(parts) > 1 {
+					holidayArg = strings.ToLower(parts[1])
+				}
+			} else if i+1 < len(os.Args) && !strings.HasPrefix(os.Args[i+1], "-") && !strings.HasPrefix(os.Args[i+1], "/") {
+				holidayArg = strings.ToLower(os.Args[i+1])
+			}
+			if holidayArg == "" && strings.HasPrefix(argLower, "-x") && len(argLower) > 2 {
+				// Compact form: -xhalloween, -xchristmas...
+				holidayArg = argLower[2:]
+			}
+			if holidayArg != "" {
+				forcedHolidayArg = holidayArg
+				forcedHoliday = holidayFromArg(holidayArg)
+			}
+		} else if argLower == "-h" || argLower == "--help" || argLower == "-?" ||
+			argLower == "/h" || argLower == "/?" {
+			showHelp = true
+		} else if argLower == "-d" || argLower == "--day" || argLower == "/d" {
+			// force day mode (island/sky rendered as daytime)
+			forcedNight = 0
+			forcedDayNightA = "day"
+		} else if argLower == "-n" || argLower == "--night" || argLower == "/n" {
+			// force night mode
+			forcedNight = 1
+			forcedDayNightA = "night"
 		} else if strings.HasPrefix(argLower, "/m") || strings.HasPrefix(argLower, "-m") || strings.HasPrefix(argLower, "--monitor") {
 			hasMonitorIndex = true
 			runOnMonitorIndex = 0
@@ -544,6 +609,11 @@ func main() {
 				fmt.Sscanf(os.Args[i+1], "%d", &runOnMonitorIndex)
 			}
 		}
+	}
+
+	if showHelp {
+		printUsage()
+		os.Exit(0)
 	}
 
 	var initialConfig TConfig
@@ -651,6 +721,14 @@ func runStory() {
 				}
 				if hotKeysEnabled {
 					args = append(args, "-k")
+				}
+				if forcedHolidayArg != "" {
+					args = append(args, "-x", forcedHolidayArg)
+				}
+				if forcedDayNightA == "day" {
+					args = append(args, "-d")
+				} else if forcedDayNightA == "night" {
+					args = append(args, "-n")
 				}
 				cmd := exec.Command(os.Args[0], args...)
 				
@@ -793,6 +871,16 @@ func runTestMode(testAdsName string, testTagNo int) {
 	islandState.yPos = 0
 	islandState.lowTide = 0
 	islandState.raft = 0
+
+	// Day/night mode: honor the -d/-n flags, otherwise fall back to the
+	// current hour like the story mode does (the engine naturally switches
+	// at 06:00 and 18:00). Without this, test mode always rendered the
+	// daytime island regardless of the wall clock or the forced flags.
+	if forcedNight >= 0 {
+		islandState.night = forcedNight
+	} else if h := getHour(); h < 6 || h >= 18 {
+		islandState.night = 1
+	}
 
 	// Find the scene in storyScenes so test mode can mirror its actual story-day,
 	// raft stage, tide eligibility, and island positioning instead of using a
