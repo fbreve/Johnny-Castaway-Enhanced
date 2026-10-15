@@ -4,22 +4,24 @@ package main
 
 import rl "github.com/gen2brain/raylib-go/raylib"
 
-// vkToRaylib maps the Windows virtual-key codes used by the hotkey and
-// screensaver exit logic to the equivalent Raylib keys.
-var vkToRaylib = map[int]int32{
-	0x10: rl.KeyLeftShift, // VK_SHIFT
-	0x20: rl.KeySpace,     // VK_SPACE
-	0x0D: rl.KeyEnter,     // VK_RETURN
-	0x1B: rl.KeyEscape,    // VK_ESCAPE
-	0x4D: rl.KeyM,         // VK_M
-}
-
-// isKeyDownGlobally has no focus-free global key state API outside Windows,
-// so on other platforms it falls back to Raylib's window-focused input.
+// isKeyDownGlobally mirrors the small set of Windows virtual-key queries used
+// by the shared hotkey code. Outside Windows, Raylib can only report input
+// delivered to this window; Wayland intentionally provides no focus-free
+// global keyboard state API.
 func isKeyDownGlobally(vk int) bool {
-	if key, ok := vkToRaylib[vk]; ok {
-		return rl.IsKeyDown(key)
+	switch vk {
+	case 0x10: // VK_SHIFT: either physical Shift key
+		return rl.IsKeyDown(rl.KeyLeftShift) || rl.IsKeyDown(rl.KeyRightShift)
+	case 0x20: // VK_SPACE
+		return rl.IsKeyDown(rl.KeySpace)
+	case 0x0D: // VK_RETURN
+		return rl.IsKeyDown(rl.KeyEnter)
+	case 0x1B: // VK_ESCAPE
+		return rl.IsKeyDown(rl.KeyEscape)
+	case 0x4D: // VK_M
+		return rl.IsKeyDown(rl.KeyM)
 	}
+
 	// Printable letter virtual-key codes (0x41..0x5A) map directly.
 	if vk >= 0x41 && vk <= 0x5A {
 		return rl.IsKeyDown(rl.KeyA + int32(vk-0x41))
@@ -27,11 +29,9 @@ func isKeyDownGlobally(vk int) bool {
 	return false
 }
 
+// isAnyKeyPressedGlobally reports whether Raylib received a key press for this
+// window. GetKeyPressed drains Raylib's key queue and avoids probing arbitrary
+// integer values as if every value in 0..511 were a valid KeyboardKey.
 func isAnyKeyPressedGlobally() bool {
-	for key := int32(0); key < 512; key++ {
-		if rl.IsKeyPressed(key) {
-			return true
-		}
-	}
-	return false
+	return rl.GetKeyPressed() != 0
 }
