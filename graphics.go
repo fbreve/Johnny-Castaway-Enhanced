@@ -2380,7 +2380,7 @@ func grLoadBmp(ttmSlot *TTtmSlot, slotNo uint16, name string) {
 		return
 	}
 
-	if err := validateBmpFrames(&bmpResource); err != nil {
+	if err := validateBmpFrames(bmpResource); err != nil {
 		debugPrintf("WARN: BMP %s invalid: %v - didn't load\n", name, err)
 		return
 	}
