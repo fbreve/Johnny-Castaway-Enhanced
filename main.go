@@ -649,6 +649,13 @@ func runStory() {
 		monitorCount := getMonitorCount()
 
 		if monitorCount > 1 {
+			// Advance and persist the shared story day once in the parent. Child
+			// instances consume this state but must not race to rewrite the same
+			// config file when the calendar date changes.
+			if updateStoryDay(&config, getDayOfYear()) {
+				cfgFileWrite(&config)
+			}
+
 			// Spawn child processes for each monitor
 			var wg sync.WaitGroup
 			cmds := make([]*exec.Cmd, monitorCount)

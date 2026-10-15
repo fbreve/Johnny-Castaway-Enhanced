@@ -40,23 +40,26 @@ func storyPickScene(wantedFlags uint16, unwantedFlags uint16) *TStoryScene {
 	return &storyScenes[scenes[rand.Intn(numScenes)]]
 }
 
-func storyUpdateCurrentDay() {
-	today := getDayOfYear()
+func updateStoryDay(config *TConfig, today int) bool {
 	hasChanged := false
 
-	if today != activeConfig.CurrentDate {
+	if today != config.CurrentDate {
 		fmt.Println("System date has changed since last sequence -> next day of the story")
-		activeConfig.CurrentDate = today
-		activeConfig.CurrentDay += 1
+		config.CurrentDate = today
+		config.CurrentDay += 1
 		hasChanged = true
 	}
 
-	if activeConfig.CurrentDay < 1 || activeConfig.CurrentDay > 11 {
-		activeConfig.CurrentDay = 1
+	if config.CurrentDay < 1 || config.CurrentDay > 11 {
+		config.CurrentDay = 1
 		hasChanged = true
 	}
 
-	if hasChanged {
+	return hasChanged
+}
+
+func storyUpdateCurrentDay() {
+	if updateStoryDay(&activeConfig, getDayOfYear()) && !isChildProcess {
 		cfgFileWrite(&activeConfig)
 	}
 
