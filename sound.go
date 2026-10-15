@@ -39,13 +39,17 @@ var (
 		"sound24.wav",
 	}
 	soundSfx    = make([]rl.Sound, len(sfx))
+	soundLoaded = make([]bool, len(sfx))
 	soundTmpDir string
 )
 
 func loadSfx() {
 	// Extract embedded sounds to a process-specific temp directory to avoid conflicts
 	soundTmpDir = filepath.Join(os.TempDir(), fmt.Sprintf("johnny_castaway_sounds_%d", os.Getpid()))
-	_ = os.MkdirAll(soundTmpDir, 0755)
+	if err := os.MkdirAll(soundTmpDir, 0755); err != nil {
+		fmt.Printf("Warning: failed to create temporary sound directory: %v\n", err)
+		return
+	}
 
 	for i, filename := range sfx {
 		if filename == "missing" {
@@ -57,18 +61,23 @@ func loadSfx() {
 			continue
 		}
 		tmpPath := filepath.Join(soundTmpDir, filename)
-		_ = os.WriteFile(tmpPath, data, 0644)
+		if err := os.WriteFile(tmpPath, data, 0644); err != nil {
+			fmt.Printf("Warning: failed to extract sound %s: %v\n", filename, err)
+			continue
+		}
 		snd := rl.LoadSound(tmpPath)
 		soundSfx[i] = snd
+		soundLoaded[i] = true
 	}
 }
 
 func unloadSfx() {
 	for i, snd := range soundSfx {
-		if sfx[i] == "missing" {
+		if !soundLoaded[i] {
 			continue
 		}
 		rl.UnloadSound(snd)
+		soundLoaded[i] = false
 	}
 	// Clean up temp files
 	if soundTmpDir != "" {
@@ -93,6 +102,9 @@ func soundPlay(id uint16) {
 	}
 	if sfx[id] == "missing" {
 		fmt.Println("missing audio for this id =>", id)
+		return
+	}
+	if !soundLoaded[id] {
 		return
 	}
 	snd := soundSfx[id]
