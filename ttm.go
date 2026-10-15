@@ -214,6 +214,20 @@ func ttmScanForAnchor(ttmSlot *TTtmSlot, startOffset uint32, wantImageNo uint16)
 	return 0, false
 }
 
+
+func ttmTimerDelay(lo, hi uint16) uint16 {
+	var val uint16
+	if hi > lo {
+		val = lo + uint16(rand.Intn(int(hi-lo)+1))
+	} else {
+		val = lo
+	}
+	if val < 4 {
+		return 4
+	}
+	return val
+}
+
 func ttmPlay(ttmThread *TTtmThread) {
 	var (
 		offset       uint32
@@ -321,13 +335,7 @@ func ttmPlay(ttmThread *TTtmThread) {
 			// picks a random delay uniformly within that range rather than a
 			// fixed average. This adds the jitter the original animations rely
 			// on instead of always producing the same value.
-			lo, hi := args[0], args[1]
-			var val uint16
-			if hi > lo {
-				val = lo + uint16(rand.Intn(int(hi-lo)+1))
-			} else {
-				val = lo
-			}
+			val := ttmTimerDelay(args[0], args[1])
 			ttmThread.delay = val
 			ttmThread.timer = val
 		case 0x4004:
