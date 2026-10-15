@@ -39,3 +39,33 @@ func TestReadVersionString(t *testing.T) {
 		readVersionString(bytes.NewReader([]byte{'1', '.', '0'}), 4)
 	})
 }
+
+
+func TestResourceEntryDataBounds(t *testing.T) {
+	data := make([]byte, 64)
+	entries := []TMapFileEntry{
+		{offset: 0},
+		{offset: 32},
+	}
+
+	first, ok := resourceEntryData(data, entries, 0)
+	if !ok || len(first) != 32 {
+		t.Fatalf("first entry = len %d, ok %v; want len 32", len(first), ok)
+	}
+	second, ok := resourceEntryData(data, entries, 1)
+	if !ok || len(second) != 32 {
+		t.Fatalf("second entry = len %d, ok %v; want len 32", len(second), ok)
+	}
+
+	bad := [][]TMapFileEntry{
+		{{offset: 65}},
+		{{offset: 10}, {offset: 10}},
+		{{offset: 20}, {offset: 10}},
+		{{offset: 0}, {offset: 16}},
+	}
+	for i, entries := range bad {
+		if _, ok := resourceEntryData(data, entries, 0); ok {
+			t.Fatalf("bad case %d unexpectedly accepted", i)
+		}
+	}
+}
