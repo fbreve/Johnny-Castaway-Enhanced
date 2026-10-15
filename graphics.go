@@ -81,14 +81,8 @@ func writeSharedState() {
 		return
 	}
 
-	tmpPath := myStatePath + ".tmp"
-	if err := os.WriteFile(tmpPath, data, 0644); err != nil {
+	if err := os.WriteFile(myStatePath, data, 0644); err != nil {
 		fmt.Printf("Warning: failed to write shared state: %v\n", err)
-		return
-	}
-	if err := os.Rename(tmpPath, myStatePath); err != nil {
-		_ = os.Remove(tmpPath)
-		fmt.Printf("Warning: failed to publish shared state: %v\n", err)
 	}
 }
 
