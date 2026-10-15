@@ -245,6 +245,11 @@ func adsReleaseAds() {
 }
 
 func adsFindTag(reqdTag uint16) uint32 {
+	result, _ := adsLookupTag(reqdTag)
+	return result
+}
+
+func adsLookupTag(reqdTag uint16) (uint32, bool) {
 	var result uint32 = 0
 	i := 0
 
@@ -258,8 +263,9 @@ func adsFindTag(reqdTag uint16) uint32 {
 
 	if result == 0 {
 		fmt.Printf("WARN: ADS tag %d not found, returning offset 0000\n", reqdTag)
+		return 0, false
 	}
-	return result
+	return result, true
 }
 
 func adsAddScene(ttmSlotNo, ttmTag, arg3 uint16) {
