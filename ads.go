@@ -269,6 +269,10 @@ func adsLookupTag(reqdTag uint16) (uint32, bool) {
 }
 
 func adsAddScene(ttmSlotNo, ttmTag, arg3 uint16) {
+	if int(ttmSlotNo) >= len(ttmSlots) {
+		fmt.Printf("WARN: TTM slot %d out of range - didn't add scene\n", ttmSlotNo)
+		return
+	}
 	for i := 0; i < MaxTTMThreads; i++ {
 		ttmThread := &ttmThreads[i]
 
@@ -281,8 +285,12 @@ func adsAddScene(ttmSlotNo, ttmTag, arg3 uint16) {
 	}
 
 	i := 0
-	for ttmThreads[i].isRunning != 0 {
+	for i < len(ttmThreads) && ttmThreads[i].isRunning != 0 {
 		i++
+	}
+	if i >= len(ttmThreads) {
+		fmt.Println("WARN: no free TTM thread - didn't add scene")
+		return
 	}
 
 	ttmThread := &ttmThreads[i]
@@ -399,6 +407,10 @@ func adsRandomPickOp() *TAdsRandOp {
 		totalWeight += int(adsRandOps[i].weight)
 	}
 
+	if totalWeight <= 0 {
+		return nil
+	}
+
 	a := rand.Intn(totalWeight)
 
 	for res = 0; res < adsNumRandOps; res++ {
@@ -415,6 +427,10 @@ func adsRandomStart() {
 }
 
 func adsRandomAddScene(ttmSlotNo, ttmTag, numPlays, weight uint16) {
+	if adsNumRandOps >= len(adsRandOps) {
+		debugPrintln("WARN: too many ADS random operations")
+		return
+	}
 	adsRandOps[adsNumRandOps].ttype = OP_ADD_SCENE
 	adsRandOps[adsNumRandOps].slot = ttmSlotNo
 	adsRandOps[adsNumRandOps].tag = ttmTag
@@ -424,6 +440,10 @@ func adsRandomAddScene(ttmSlotNo, ttmTag, numPlays, weight uint16) {
 }
 
 func adsRandomStopSceneByTtmTag(ttmSlotNo, ttmTag, weight uint16) {
+	if adsNumRandOps >= len(adsRandOps) {
+		debugPrintln("WARN: too many ADS random operations")
+		return
+	}
 	adsRandOps[adsNumRandOps].ttype = OP_STOP_SCENE
 	adsRandOps[adsNumRandOps].slot = ttmSlotNo
 	adsRandOps[adsNumRandOps].tag = ttmTag
@@ -433,6 +453,10 @@ func adsRandomStopSceneByTtmTag(ttmSlotNo, ttmTag, weight uint16) {
 }
 
 func adsRandomNop(weight uint16) {
+	if adsNumRandOps >= len(adsRandOps) {
+		debugPrintln("WARN: too many ADS random operations")
+		return
+	}
 	adsRandOps[adsNumRandOps].ttype = OP_NOP
 	adsRandOps[adsNumRandOps].slot = 0
 	adsRandOps[adsNumRandOps].tag = 0
@@ -444,6 +468,10 @@ func adsRandomNop(weight uint16) {
 func adsRandomEnd() {
 	if adsNumRandOps != 0 {
 		op := adsRandomPickOp()
+		if op == nil {
+			debugPrintln("RANDOM: total weight is zero")
+			return
+		}
 		switch op.ttype {
 		case OP_ADD_SCENE:
 			debugPrintf("RANDOM: chose ADD_SCENE %d %d...\n", op.slot, op.tag)
