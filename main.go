@@ -532,83 +532,24 @@ func main() {
 	var testAdsName = ""
 	var testTagNo = 0
 
-	// Skip os.Args[0] (the executable path): a binary installed under a
-	// path like /tmp/... or /s... would otherwise match the flag prefixes
-	// below and accidentally switch modes.
-	for i := 1; i < len(os.Args); i++ {
-		arg := os.Args[i]
-		argLower := strings.ToLower(arg)
-		if strings.HasPrefix(argLower, "/c") || strings.HasPrefix(argLower, "-c") {
-			isSettings = true
-		} else if strings.HasPrefix(argLower, "/p") || strings.HasPrefix(argLower, "-p") {
-			isPreview = true
-		} else if strings.HasPrefix(argLower, "/s") || strings.HasPrefix(argLower, "-s") {
-			isRun = true
-		} else if strings.HasPrefix(argLower, "/t") || strings.HasPrefix(argLower, "-t") {
-			isTest = true
-			if i+1 < len(os.Args) {
-				testAdsName = os.Args[i+1]
-			}
-			if i+2 < len(os.Args) {
-				fmt.Sscanf(os.Args[i+2], "%d", &testTagNo)
-			}
-		} else if strings.HasPrefix(argLower, "/b") || strings.HasPrefix(argLower, "-b") {
-			isBench = true
-		} else if strings.HasPrefix(argLower, "/k") || strings.HasPrefix(argLower, "-k") {
-			// -k enables debug hotkeys: Space=pause, M=max-speed, Enter=advance, Esc=quit
-			hotKeysEnabled = true
-		} else if argLower == "--child" || argLower == "-child" || argLower == "/child" {
-			isChildProcess = true
-		} else if argLower == "/1" || argLower == "-1" || argLower == "--1" ||
-			argLower == "/main" || argLower == "-main" || argLower == "--main" ||
-			argLower == "/single" || argLower == "-single" || argLower == "--single" ||
-			argLower == "/primary" || argLower == "-primary" || argLower == "--primary" {
-			hasMonitorIndex = true
-			runOnMonitorIndex = 0
-		} else if strings.HasPrefix(argLower, "/x") || strings.HasPrefix(argLower, "-x") || strings.HasPrefix(argLower, "--holiday") {
-			// -x <name|id> forces the holiday decoration: halloween (1),
-			// patrick (2), christmas (3), newyear (4); none suppresses
-			// calendar holidays entirely.
-			holidayArg := ""
-			if strings.Contains(argLower, ":") || strings.Contains(argLower, "=") {
-				parts := strings.FieldsFunc(arg, func(r rune) bool { return r == ':' || r == '=' })
-				if len(parts) > 1 {
-					holidayArg = strings.ToLower(parts[1])
-				}
-			} else if i+1 < len(os.Args) && !strings.HasPrefix(os.Args[i+1], "-") && !strings.HasPrefix(os.Args[i+1], "/") {
-				holidayArg = strings.ToLower(os.Args[i+1])
-			}
-			if holidayArg == "" && strings.HasPrefix(argLower, "-x") && len(argLower) > 2 {
-				// Compact form: -xhalloween, -xchristmas...
-				holidayArg = argLower[2:]
-			}
-			if holidayArg != "" {
-				forcedHolidayArg = holidayArg
-				forcedHoliday = holidayFromArg(holidayArg)
-			}
-		} else if argLower == "-h" || argLower == "--help" || argLower == "-?" ||
-			argLower == "/h" || argLower == "/?" {
-			showHelp = true
-		} else if argLower == "-d" || argLower == "--day" || argLower == "/d" {
-			// force day mode (island/sky rendered as daytime)
-			forcedNight = 0
-			forcedDayNightA = "day"
-		} else if argLower == "-n" || argLower == "--night" || argLower == "/n" {
-			// force night mode
-			forcedNight = 1
-			forcedDayNightA = "night"
-		} else if strings.HasPrefix(argLower, "/m") || strings.HasPrefix(argLower, "-m") || strings.HasPrefix(argLower, "--monitor") {
-			hasMonitorIndex = true
-			runOnMonitorIndex = 0
-			if strings.Contains(argLower, ":") || strings.Contains(argLower, "=") {
-				parts := strings.FieldsFunc(arg, func(r rune) bool { return r == ':' || r == '=' })
-				if len(parts) > 1 {
-					fmt.Sscanf(parts[1], "%d", &runOnMonitorIndex)
-				}
-			} else if i+1 < len(os.Args) && !strings.HasPrefix(os.Args[i+1], "-") && !strings.HasPrefix(os.Args[i+1], "/") {
-				fmt.Sscanf(os.Args[i+1], "%d", &runOnMonitorIndex)
-			}
-		}
+	opts := parseCLI(os.Args[1:])
+	isSettings = opts.settings
+	isPreview = opts.preview
+	isTest = opts.test
+	isBench = opts.bench
+	showHelp = opts.help
+	testAdsName = opts.testAds
+	testTagNo = opts.testTag
+	isRun = opts.run
+	hotKeysEnabled = opts.hotKeys
+	isChildProcess = opts.child
+	hasMonitorIndex = opts.hasMonitor
+	runOnMonitorIndex = opts.monitor
+	forcedHolidayArg = opts.holidayArg
+	forcedHoliday = opts.holiday
+	if opts.dayNightArg != "" {
+		forcedNight = opts.forcedNight
+		forcedDayNightA = opts.dayNightArg
 	}
 
 	if showHelp {
