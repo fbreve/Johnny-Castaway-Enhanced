@@ -147,7 +147,7 @@ func cfgFileRead(cfg *TConfig) {
 			cfg.Password = line[len(PasswordKey):] == "true"
 		} else if strings.HasPrefix(line, StartTimeKey) {
 			st, err := strconv.Atoi(line[len(StartTimeKey):])
-			if err == nil {
+			if err == nil && validHHMM(st) {
 				cfg.StartTime = st
 			}
 		} else if strings.HasPrefix(line, UseMesaKey) {
@@ -158,7 +158,7 @@ func cfgFileRead(cfg *TConfig) {
 			cfg.Widescreen = line[len(WidescreenKey):] == "true"
 		} else if strings.HasPrefix(line, FilterModeKey) {
 			fm, err := strconv.Atoi(line[len(FilterModeKey):])
-			if err == nil {
+			if err == nil && fm >= 0 && fm < 7 {
 				cfg.FilterMode = fm
 			}
 		} else if strings.HasPrefix(line, ScanlinesKey) {
@@ -167,12 +167,12 @@ func cfgFileRead(cfg *TConfig) {
 			cfg.SilentTime = line[len(SilentTimeKey):] == "true"
 		} else if strings.HasPrefix(line, SilentStartKey) {
 			ss, err := strconv.Atoi(line[len(SilentStartKey):])
-			if err == nil {
+			if err == nil && validHHMM(ss) {
 				cfg.SilentStart = ss
 			}
 		} else if strings.HasPrefix(line, SilentEndKey) {
 			se, err := strconv.Atoi(line[len(SilentEndKey):])
-			if err == nil {
+			if err == nil && validHHMM(se) {
 				cfg.SilentEnd = se
 			}
 		}
@@ -199,4 +199,11 @@ func isSilentTime() bool {
 		return current >= start && current < end
 	}
 	return current >= start || current < end
+}
+
+func validHHMM(v int) bool {
+	if v < 0 || v > 2359 {
+		return false
+	}
+	return v%100 < 60
 }
