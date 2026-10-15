@@ -322,12 +322,19 @@ type settledSpriteEntry struct {
 }
 
 func grReleaseScreen() {
-	grBackgroundSur = nil
+	if grBackgroundSur != nil {
+		rl.UnloadRenderTexture(*grBackgroundSur)
+		grBackgroundSur = nil
+	}
 }
 
 func grReleaseSavedLayer() {
-	debugPrintln("*** SAVED ZONES LAYER RELEASED ***")
-	grSavedZonesLayer = nil
+	if grSavedZonesLayer != nil {
+		debugPrintln("*** SAVED ZONES LAYER RELEASED ***")
+		delete(activeClipZones, grSavedZonesLayer)
+		rl.UnloadRenderTexture(*grSavedZonesLayer)
+		grSavedZonesLayer = nil
+	}
 }
 
 func grPutPixel(sur *rl.RenderTexture2D, x, y uint16, c uint8) {
