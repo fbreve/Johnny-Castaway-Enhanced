@@ -137,6 +137,30 @@ type TAdsRandOp struct {
 	weight   uint16
 }
 
+func readADSWords(data []byte, dataSize uint32, offset *uint32, dest []uint16, count int) bool {
+	if uint64(dataSize) > uint64(len(data)) || *offset > dataSize {
+		return false
+	}
+	need := uint32(count) * 2
+	if need > dataSize-*offset || count > len(dest) {
+		return false
+	}
+	peekUint16Block(data, offset, dest, count)
+	return true
+}
+
+func skipADSWords(data []byte, dataSize uint32, offset *uint32, count int) bool {
+	if uint64(dataSize) > uint64(len(data)) || *offset > dataSize {
+		return false
+	}
+	need := uint32(count) * 2
+	if need > dataSize-*offset {
+		return false
+	}
+	*offset += need
+	return true
+}
+
 func adsLoad(data []byte, dataSize uint32, numTags uint16, tag uint16, tagOffset *uint32) {
 	var offset uint32 = 0
 	var args [10]uint16
