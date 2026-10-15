@@ -148,6 +148,12 @@ func readVersionString(buf *bytes.Reader, size uint32) string {
 	return string(readUint8Block(buf, int(size))[:4])
 }
 
+func validateEntryCount(count int, availableBytes int, minEntryBytes int, name string) {
+	if minEntryBytes <= 0 || count < 0 || count > availableBytes/minEntryBytes {
+		panic(fmt.Sprintf("%s count %d cannot fit in %d bytes", name, count, availableBytes))
+	}
+}
+
 func readSizedBlock(buf *bytes.Reader, size uint32, name string) *bytes.Reader {
 	if uint64(size) > uint64(buf.Len()) {
 		panic(fmt.Sprintf("invalid %s size: %d exceeds %d remaining bytes", name, size, buf.Len()))
@@ -191,6 +197,7 @@ func parseTTMResource(buf *bytes.Reader) TTTMResource {
 	}
 	tagBlock := readSizedBlock(buf, ttmResource.TagSize, "TAG block")
 	ttmResource.NumTags = readUint16(tagBlock)
+	validateEntryCount(int(ttmResource.NumTags), tagBlock.Len(), 3, "TAG")
 	ttmResource.Tags = make([]TTags, ttmResource.NumTags)
 	for i := range ttmResource.Tags {
 		if tagBlock.Len() < 3 {
@@ -225,6 +232,7 @@ func parseAdsResource(buf *bytes.Reader) TAdsResource {
 		panic(fmt.Sprintf("invalid ADS RES size: %d", res.ResSize))
 	}
 	resBlock := readSizedBlock(buf, res.ResSize-2, "ADS RES block")
+	validateEntryCount(int(res.NumRes), resBlock.Len(), 3, "ADS RES")
 	res.Res = make([]TAdsRes, res.NumRes)
 	// In original Screen Antics resources, ADS RES entries are stored as
 	// (uint16 id + null-terminated name) with variable name length, not fixed
@@ -255,6 +263,7 @@ func parseAdsResource(buf *bytes.Reader) TAdsResource {
 	}
 	tagBlock := readSizedBlock(buf, res.TagSize, "TAG block")
 	res.NumTags = readUint16(tagBlock)
+	validateEntryCount(int(res.NumTags), tagBlock.Len(), 3, "TAG")
 	res.Tags = make([]TTags, res.NumTags)
 	for i := range res.Tags {
 		if tagBlock.Len() < 3 {
@@ -367,6 +376,7 @@ func parseMapFile(filename string) *TMapFile {
 	mapFile.resFilename = strings.TrimRight(string(tempFilename[0:12]), "\x00 ")
 
 	mapFile.numEntries = readUint16(buf)
+	validateEntryCount(int(mapFile.numEntries), buf.Len(), 8, "resource map entry")
 	mapFile.entries = make([]TMapFileEntry, int(mapFile.numEntries))
 	for i := 0; i < len(mapFile.entries); i++ {
 		mapFile.entries[i].length = readUint32(buf)

@@ -98,3 +98,15 @@ func TestADSResNameCannotConsumeNextBlock(t *testing.T) {
 		t.Fatalf("next block = %q, want SCR:", got)
 	}
 }
+
+
+
+func TestValidateEntryCount(t *testing.T) {
+	validateEntryCount(2, 6, 3, "test")
+	expectPanic(t, func() {
+		validateEntryCount(2, 5, 3, "test")
+	})
+	expectPanic(t, func() {
+		validateEntryCount(1, 8, 0, "test")
+	})
+}
