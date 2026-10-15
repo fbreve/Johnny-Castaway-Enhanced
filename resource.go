@@ -148,6 +148,33 @@ func readVersionString(buf *bytes.Reader, size uint32) string {
 	return string(readUint8Block(buf, int(size))[:4])
 }
 
+func readSizedBlock(buf *bytes.Reader, size uint32, name string) *bytes.Reader {
+	if uint64(size) > uint64(buf.Len()) {
+		panic(fmt.Sprintf("invalid %s size: %d exceeds %d remaining bytes", name, size, buf.Len()))
+	}
+	return bytes.NewReader(readUint8Block(buf, int(size)))
+}
+
+func readTagEntries(buf *bytes.Reader, size uint32, count uint16) []TTags {
+	block := readSizedBlock(buf, size, "TAG block")
+	if block.Len() < 2 {
+		panic(fmt.Sprintf("invalid TAG block size: %d", size))
+	}
+	declared := readUint16(block)
+	if declared != count {
+		panic(fmt.Sprintf("TAG count mismatch: %d != %d", declared, count))
+	}
+	tags := make([]TTags, count)
+	for i := range tags {
+		if block.Len() < 3 {
+			panic(fmt.Sprintf("truncated TAG entry %d", i))
+		}
+		tags[i].ID = readUint16(block)
+		tags[i].Description = getString(block, 40)
+	}
+	return tags
+}
+
 func parseTTMResource(buf *bytes.Reader) TTTMResource {
 	ttmResource := TTTMResource{}
 
@@ -179,12 +206,18 @@ func parseTTMResource(buf *bytes.Reader) TTTMResource {
 
 	readTag(buf, "TAG:")
 	ttmResource.TagSize = readUint32(buf)
-	ttmResource.NumTags = readUint16(buf)
-
+	if ttmResource.TagSize < 2 {
+		panic(fmt.Sprintf("invalid TAG block size: %d", ttmResource.TagSize))
+	}
+	tagBlock := readSizedBlock(buf, ttmResource.TagSize, "TAG block")
+	ttmResource.NumTags = readUint16(tagBlock)
 	ttmResource.Tags = make([]TTags, ttmResource.NumTags)
-	for i := 0; i < len(ttmResource.Tags); i++ {
-		ttmResource.Tags[i].ID = readUint16(buf)
-		ttmResource.Tags[i].Description = getString(buf, 40)
+	for i := range ttmResource.Tags {
+		if tagBlock.Len() < 3 {
+			panic(fmt.Sprintf("truncated TAG entry %d", i))
+		}
+		ttmResource.Tags[i].ID = readUint16(tagBlock)
+		ttmResource.Tags[i].Description = getString(tagBlock, 40)
 	}
 
 	return ttmResource
@@ -211,29 +244,17 @@ func parseAdsResource(buf *bytes.Reader) TAdsResource {
 	if res.ResSize < 2 {
 		panic(fmt.Sprintf("invalid ADS RES size: %d", res.ResSize))
 	}
+	resBlock := readSizedBlock(buf, res.ResSize-2, "ADS RES block")
 	res.Res = make([]TAdsRes, res.NumRes)
 	// In original Screen Antics resources, ADS RES entries are stored as
 	// (uint16 id + null-terminated name) with variable name length, not fixed
-	// 40-byte records. Reading fixed-width names misaligns the stream and causes
-	// wrong slot->TTM mappings for some ADS scripts (notably JOHNNY.ADS).
-	resBytesRead := uint32(0)
-	for i := 0; i < int(res.NumRes) && resBytesRead < res.ResSize-2; i++ {
-		res.Res[i].ID = readUint16(buf)
-		resBytesRead += 2
-
-		nameBytes := make([]byte, 0, 32)
-		for {
-			b, err := buf.ReadByte()
-			if err != nil {
-				break
-			}
-			resBytesRead++
-			if b == 0 {
-				break
-			}
-			nameBytes = append(nameBytes, b)
+	// 40-byte records. Keep every entry confined to the declared RES block.
+	for i := range res.Res {
+		if resBlock.Len() < 3 {
+			panic(fmt.Sprintf("truncated ADS RES entry %d", i))
 		}
-		res.Res[i].Name = string(nameBytes)
+		res.Res[i].ID = readUint16(resBlock)
+		res.Res[i].Name = getString(resBlock, resBlock.Len())
 	}
 
 	readTag(buf, "SCR:")
@@ -249,12 +270,18 @@ func parseAdsResource(buf *bytes.Reader) TAdsResource {
 
 	readTag(buf, "TAG:")
 	res.TagSize = readUint32(buf)
-	res.NumTags = readUint16(buf)
-
+	if res.TagSize < 2 {
+		panic(fmt.Sprintf("invalid TAG block size: %d", res.TagSize))
+	}
+	tagBlock := readSizedBlock(buf, res.TagSize, "TAG block")
+	res.NumTags = readUint16(tagBlock)
 	res.Tags = make([]TTags, res.NumTags)
-	for i := 0; i < int(res.NumTags); i++ {
-		res.Tags[i].ID = readUint16(buf)
-		res.Tags[i].Description = getString(buf, 40)
+	for i := range res.Tags {
+		if tagBlock.Len() < 3 {
+			panic(fmt.Sprintf("truncated TAG entry %d", i))
+		}
+		res.Tags[i].ID = readUint16(tagBlock)
+		res.Tags[i].Description = getString(tagBlock, 40)
 	}
 
 	return res
