@@ -145,6 +145,26 @@ func TestBmpSlotBounds(t *testing.T) {
 }
 
 
+func TestValidateBmpFrames(t *testing.T) {
+	tests := []struct {
+		name string
+		res  TBMPResource
+		wantErr bool
+	}{
+		{"valid frames", TBMPResource{NumImages: 2, Widths: []uint16{4, 2}, Heights: []uint16{1, 2}, UncompressedData: make([]byte, 4)}, false},
+		{"odd width", TBMPResource{NumImages: 1, Widths: []uint16{3}, Heights: []uint16{1}, UncompressedData: make([]byte, 2)}, true},
+		{"truncated later frame", TBMPResource{NumImages: 2, Widths: []uint16{4, 4}, Heights: []uint16{1, 1}, UncompressedData: make([]byte, 3)}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateBmpFrames(&tt.res)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("validateBmpFrames() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestScreenPixelDataRequirements(t *testing.T) {
 	tests := []struct {
 		width, height int
