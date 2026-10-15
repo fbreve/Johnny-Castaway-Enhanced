@@ -193,23 +193,10 @@ func ttmScanForAnchor(ttmSlot *TTtmSlot, startOffset uint32, wantImageNo uint16)
 	var args [10]uint16
 
 	for offset < ttmSlot.dataSize {
-		opCode := peekUint16(data, &offset)
-		numArgs := uint8(opCode) & 0x000f
-
-		if numArgs == 0x0f {
-			strStart := offset
-			for offset < ttmSlot.dataSize && data[offset] != 0 {
-				offset++
-			}
-			strLen := offset - strStart
-			offset++ // skip null terminator
-			if (strLen+1)&0x01 == 0x01 {
-				offset++
-			}
-		} else {
-			peekUint16Block(data, &offset, args[:], int(numArgs))
+		opCode, _, err := decodeTTMInstruction(data, ttmSlot.dataSize, &offset, &args)
+		if err != nil {
+			return 0, false
 		}
-
 		switch opCode {
 		case 0x0FF0: // UPDATE - end of this frame, stop
 			return 0, false
@@ -230,7 +217,6 @@ func ttmPlay(ttmThread *TTtmThread) {
 		opCode       uint16
 		continueLoop = true
 		args         [10]uint16
-		strBytesArg  = make([]byte, 200)
 		finalStr     = "" // added by me -- r.c.
 	)
 
@@ -256,37 +242,17 @@ func ttmPlay(ttmThread *TTtmThread) {
 	data := ttmSlot.data
 
 	for continueLoop {
-		opCode = peekUint16(data, &offset)
-		numArgs := uint8(opCode) & 0x000f
-
-		if numArgs == 0x0f {
-			// ✅: verified this null-terminated string parsing works - Ralph
-			i := 0
-
-			for data[offset] != 0 {
-				strBytesArg[i] = data[offset]
-				i++
-				offset++
-			}
-			// r.c - here we have a complete string w/o null terminator (for Go)
-			finalStr = string(strBytesArg[0:i])
-
-			// r.c. - this captures the null terminator (we don't care about it)
-			strBytesArg[i] = data[offset]
-			i++
-			offset++
-
-			// r.c. - this just ensures we're always at an even byte, probably for historical reasons.
-			if i&0x01 == 0x01 { // always read an even number of uint8s
-				strBytesArg[i] = data[offset] // TODO
-				i++
-				offset++
-			}
-		} else {
-			// args are numArgs words
-			peekUint16Block(data, &offset, args[:], int(numArgs))
+		if offset >= ttmSlot.dataSize {
+			ttmThread.isRunning = 2
+			break
 		}
-
+		var err error
+		opCode, finalStr, err = decodeTTMInstruction(data, ttmSlot.dataSize, &offset, &args)
+		if err != nil {
+			debugPrintf("WARN: malformed TTM instruction: %v\n", err)
+			ttmThread.isRunning = 2
+			break
+		}
 		switch opCode {
 		case 0x0080:
 			debugPrintln("\tCLEAR_IMGSLOT")
