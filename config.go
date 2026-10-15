@@ -150,31 +150,31 @@ func cfgFileRead(cfg *TConfig) {
 				cfg.CurrentDate = d
 			}
 		} else if strings.HasPrefix(line, BackgroundKey) {
-			cfg.Background = line[len(BackgroundKey):] == "true"
+			parseConfigBool(line[len(BackgroundKey):], &cfg.Background)
 		} else if strings.HasPrefix(line, SoundsKey) {
-			cfg.Sounds = line[len(SoundsKey):] == "true"
+			parseConfigBool(line[len(SoundsKey):], &cfg.Sounds)
 		} else if strings.HasPrefix(line, PasswordKey) {
-			cfg.Password = line[len(PasswordKey):] == "true"
+			parseConfigBool(line[len(PasswordKey):], &cfg.Password)
 		} else if strings.HasPrefix(line, StartTimeKey) {
 			st, err := strconv.Atoi(line[len(StartTimeKey):])
 			if err == nil && validHHMM(st) {
 				cfg.StartTime = st
 			}
 		} else if strings.HasPrefix(line, UseMesaKey) {
-			cfg.UseMesa = line[len(UseMesaKey):] == "true"
+			parseConfigBool(line[len(UseMesaKey):], &cfg.UseMesa)
 		} else if strings.HasPrefix(line, MultiInstanceKey) {
-			cfg.MultiInstance = line[len(MultiInstanceKey):] == "true"
+			parseConfigBool(line[len(MultiInstanceKey):], &cfg.MultiInstance)
 		} else if strings.HasPrefix(line, WidescreenKey) {
-			cfg.Widescreen = line[len(WidescreenKey):] == "true"
+			parseConfigBool(line[len(WidescreenKey):], &cfg.Widescreen)
 		} else if strings.HasPrefix(line, FilterModeKey) {
 			fm, err := strconv.Atoi(line[len(FilterModeKey):])
 			if err == nil && fm >= 0 && fm < 7 {
 				cfg.FilterMode = fm
 			}
 		} else if strings.HasPrefix(line, ScanlinesKey) {
-			cfg.Scanlines = line[len(ScanlinesKey):] == "true"
+			parseConfigBool(line[len(ScanlinesKey):], &cfg.Scanlines)
 		} else if strings.HasPrefix(line, SilentTimeKey) {
-			cfg.SilentTime = line[len(SilentTimeKey):] == "true"
+			parseConfigBool(line[len(SilentTimeKey):], &cfg.SilentTime)
 		} else if strings.HasPrefix(line, SilentStartKey) {
 			ss, err := strconv.Atoi(line[len(SilentStartKey):])
 			if err == nil && validHHMM(ss) {
@@ -216,4 +216,11 @@ func validHHMM(v int) bool {
 		return false
 	}
 	return v%100 < 60
+}
+
+func parseConfigBool(value string, dst *bool) {
+	v, err := strconv.ParseBool(value)
+	if err == nil {
+		*dst = v
+	}
 }
