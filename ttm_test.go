@@ -116,6 +116,23 @@ func TestValidSpriteIndexBounds(t *testing.T) {
 }
 
 
+
+func TestReleaseBmpToleratesNilSpriteEntries(t *testing.T) {
+	var slot TTtmSlot
+	slot.numSprites[0] = 1
+	slot.slotBmpNames[0] = "BROKEN.BMP"
+
+	// Cleanup must tolerate a partially populated slot without dereferencing nil.
+	grReleaseBmp(&slot, 0)
+
+	if slot.numSprites[0] != 0 {
+		t.Fatalf("sprite count after release = %d, want 0", slot.numSprites[0])
+	}
+	if slot.slotBmpNames[0] != "" {
+		t.Fatalf("slot name after release = %q, want empty", slot.slotBmpNames[0])
+	}
+}
+
 func TestBmpSlotBounds(t *testing.T) {
 	var slot TTtmSlot
 
