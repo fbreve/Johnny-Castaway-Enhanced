@@ -110,3 +110,20 @@ func TestValidateEntryCount(t *testing.T) {
 		validateEntryCount(1, 8, 0, "test")
 	})
 }
+
+
+func TestBMPImageCountMustFitDimensionData(t *testing.T) {
+	// parseBPMResource has already consumed BMP:/dimensions and INF:/DataSize
+	// when this structural rule is applied: each image requires one uint16
+	// width and one uint16 height.
+	validateEntryCount(2, 8, 4, "BMP image dimensions")
+	expectPanic(t, func() {
+		validateEntryCount(3, 8, 4, "BMP image dimensions")
+	})
+}
+
+func TestBMPImageCountRuntimeCapacity(t *testing.T) {
+	if MaxSpritesPerBMP != len((TTtmSlot{}).sprites[0]) {
+		t.Fatalf("MaxSpritesPerBMP = %d, sprite capacity = %d", MaxSpritesPerBMP, len((TTtmSlot{}).sprites[0]))
+	}
+}
