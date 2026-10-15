@@ -115,3 +115,20 @@ func TestBmpSlotBounds(t *testing.T) {
 	grLoadBmp(nil, 0, "INVALID.BMP")
 	grReleaseBmp(nil, 0)
 }
+
+
+func TestScreenPixelDataRequirements(t *testing.T) {
+	tests := []struct {
+		width, height int
+		wantBytes     int
+	}{
+		{4, 1, 2},
+		{640, 480, 153600},
+	}
+	for _, tt := range tests {
+		got := (tt.width / 2) * tt.height
+		if got != tt.wantBytes {
+			t.Fatalf("%dx%d requires %d bytes, want %d", tt.width, tt.height, got, tt.wantBytes)
+		}
+	}
+}

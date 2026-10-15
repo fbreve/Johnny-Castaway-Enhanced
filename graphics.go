@@ -2236,9 +2236,16 @@ func grLoadScreen(screenName string) {
 
 	width := int(scrResource.Width)
 	height := int(scrResource.Height)
-	bytesPerRow := int(width) / 2
+	if width < 4 || height <= 0 {
+		panic(fmt.Sprintf("grLoadScreen(): invalid screen dimensions %dx%d", width, height))
+	}
+	bytesPerRow := width / 2
+	requiredBytes := bytesPerRow * height
 
 	data := scrResource.UncompressedData
+	if requiredBytes > len(data) {
+		panic(fmt.Sprintf("grLoadScreen(): screen %s requires %d bytes; only %d available", screenName, requiredBytes, len(data)))
+	}
 	pixelData := make([]byte, 4*width*height)
 
 	for y := 0; y < height; y++ {
