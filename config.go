@@ -64,6 +64,25 @@ func cfgFullPath() string {
 	return fullPath
 }
 
+func formatConfig(cfg *TConfig) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s%d\n", CurrentDayKey, cfg.CurrentDay)
+	fmt.Fprintf(&b, "%s%d\n", DateKey, cfg.CurrentDate)
+	fmt.Fprintf(&b, "%s%t\n", BackgroundKey, cfg.Background)
+	fmt.Fprintf(&b, "%s%t\n", SoundsKey, cfg.Sounds)
+	fmt.Fprintf(&b, "%s%t\n", PasswordKey, cfg.Password)
+	fmt.Fprintf(&b, "%s%d\n", StartTimeKey, cfg.StartTime)
+	fmt.Fprintf(&b, "%s%t\n", UseMesaKey, cfg.UseMesa)
+	fmt.Fprintf(&b, "%s%t\n", MultiInstanceKey, cfg.MultiInstance)
+	fmt.Fprintf(&b, "%s%t\n", WidescreenKey, cfg.Widescreen)
+	fmt.Fprintf(&b, "%s%d\n", FilterModeKey, cfg.FilterMode)
+	fmt.Fprintf(&b, "%s%t\n", ScanlinesKey, cfg.Scanlines)
+	fmt.Fprintf(&b, "%s%t\n", SilentTimeKey, cfg.SilentTime)
+	fmt.Fprintf(&b, "%s%d\n", SilentStartKey, cfg.SilentStart)
+	fmt.Fprintf(&b, "%s%d\n", SilentEndKey, cfg.SilentEnd)
+	return b.String()
+}
+
 func cfgFileWrite(cfg *TConfig) {
 	cfgLock.Lock()
 	defer cfgLock.Unlock()
@@ -73,24 +92,15 @@ func cfgFileWrite(cfg *TConfig) {
 		fmt.Println("WARN: failed to create file with err: ", err.Error())
 		return
 	}
-	defer func() {
-		_ = f.Close()
-	}()
 
-	_, _ = fmt.Fprintf(f, "%s%d\n", CurrentDayKey, cfg.CurrentDay)
-	_, _ = fmt.Fprintf(f, "%s%d\n", DateKey, cfg.CurrentDate)
-	_, _ = fmt.Fprintf(f, "%s%t\n", BackgroundKey, cfg.Background)
-	_, _ = fmt.Fprintf(f, "%s%t\n", SoundsKey, cfg.Sounds)
-	_, _ = fmt.Fprintf(f, "%s%t\n", PasswordKey, cfg.Password)
-	_, _ = fmt.Fprintf(f, "%s%d\n", StartTimeKey, cfg.StartTime)
-	_, _ = fmt.Fprintf(f, "%s%t\n", UseMesaKey, cfg.UseMesa)
-	_, _ = fmt.Fprintf(f, "%s%t\n", MultiInstanceKey, cfg.MultiInstance)
-	_, _ = fmt.Fprintf(f, "%s%t\n", WidescreenKey, cfg.Widescreen)
-	_, _ = fmt.Fprintf(f, "%s%d\n", FilterModeKey, cfg.FilterMode)
-	_, _ = fmt.Fprintf(f, "%s%t\n", ScanlinesKey, cfg.Scanlines)
-	_, _ = fmt.Fprintf(f, "%s%t\n", SilentTimeKey, cfg.SilentTime)
-	_, _ = fmt.Fprintf(f, "%s%d\n", SilentStartKey, cfg.SilentStart)
-	_, _ = fmt.Fprintf(f, "%s%d\n", SilentEndKey, cfg.SilentEnd)
+	if _, err := f.WriteString(formatConfig(cfg)); err != nil {
+		fmt.Println("WARN: failed to write config file with err: ", err.Error())
+		_ = f.Close()
+		return
+	}
+	if err := f.Close(); err != nil {
+		fmt.Println("WARN: failed to close config file with err: ", err.Error())
+	}
 }
 
 func cfgFileRead(cfg *TConfig) {

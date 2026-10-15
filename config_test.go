@@ -17,3 +17,19 @@ func TestValidHHMM(t *testing.T) {
 		}
 	}
 }
+
+
+func TestFormatConfigIncludesAllFields(t *testing.T) {
+	cfg := TConfig{
+		CurrentDay: 3, CurrentDate: 42, Background: true, Sounds: false,
+		Password: true, StartTime: 930, UseMesa: true, MultiInstance: true,
+		Widescreen: true, FilterMode: 6, Scanlines: true, SilentTime: true,
+		SilentStart: 2200, SilentEnd: 700,
+	}
+	want := "currentDay=3\ndate=42\nbackground=true\nsounds=false\npassword=true\nstartTime=930\n" +
+		"useMesa=true\nmultiInstance=true\nwidescreen=true\nfilterMode=6\nscanlines=true\n" +
+		"silentTime=true\nsilentStart=2200\nsilentEnd=700\n"
+	if got := formatConfig(&cfg); got != want {
+		t.Fatalf("formatConfig() = %q, want %q", got, want)
+	}
+}
