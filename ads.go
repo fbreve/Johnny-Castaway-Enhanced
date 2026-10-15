@@ -1037,6 +1037,8 @@ func adsReleaseIsland() {
 		}
 	}
 
+	ttmResetSlot(&ttmCloudsSlot)
+
 	if ttmHolidayThread.isRunning != 0 {
 		ttmHolidayThread.isRunning = 0
 		grFreeLayer(ttmHolidayThread.ttmLayer)
