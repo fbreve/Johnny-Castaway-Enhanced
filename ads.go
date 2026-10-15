@@ -367,7 +367,7 @@ func adsStopScene(sceneNo int, keepAsDecoration bool) {
 	}
 	if ttmThreads[sceneNo].ttmLayer != nil {
 		grFreeLayer(ttmThreads[sceneNo].ttmLayer)
-		tmThreads[sceneNo].ttmLayer = nil
+		ttmThreads[sceneNo].ttmLayer = nil
 	}
 	ttmThreads[sceneNo].isRunning = 0
 	numThreads--
