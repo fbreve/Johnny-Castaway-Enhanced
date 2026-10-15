@@ -148,6 +148,38 @@ func primaryAnchorImageNo(ttmSlot *TTtmSlot) (uint16, bool) {
 	return 0, false
 }
 
+func decodeTTMInstruction(data []byte, dataSize uint32, offset *uint32, args *[10]uint16) (uint16, string, error) {
+	if uint64(dataSize) > uint64(len(data)) || *offset > dataSize || dataSize-*offset < 2 {
+		return 0, "", fmt.Errorf("truncated opcode at offset %d", *offset)
+	}
+	opCode := peekUint16(data, offset)
+	numArgs := uint8(opCode) & 0x0f
+	if numArgs == 0x0f {
+		start := *offset
+		for *offset < dataSize && data[*offset] != 0 {
+			*offset = *offset + 1
+		}
+		if *offset >= dataSize {
+			return 0, "", fmt.Errorf("unterminated string at offset %d", start)
+		}
+		str := string(data[start:*offset])
+		*offset = *offset + 1
+		if (*offset-start)&1 == 1 {
+			if *offset >= dataSize {
+				return 0, "", fmt.Errorf("truncated string padding at offset %d", *offset)
+			}
+			*offset = *offset + 1
+		}
+		return opCode, str, nil
+	}
+	argBytes := uint32(numArgs) * 2
+	if argBytes > dataSize-*offset {
+		return 0, "", fmt.Errorf("truncated arguments at offset %d", *offset)
+	}
+	peekUint16Block(data, offset, args[:], int(numArgs))
+	return opCode, "", nil
+}
+
 // ttmScanForAnchor looks ahead from offset (without executing anything)
 // through the upcoming opcodes of the CURRENT frame only, searching for a
 // DRAW_SPRITE/DRAW_SPRITE_FLIP using wantImageNo. Stops cleanly at the next
