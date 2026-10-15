@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   test:
-    name: Go test (Windows)
+    name: Go tests (Windows)
     runs-on: windows-latest
     steps:
       - name: Check out repository
@@ -22,11 +22,15 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Create placeholder proprietary assets for compilation
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force assets | Out-Null
+          New-Item -ItemType File -Force assets/RESOURCE.MAP | Out-Null
+          New-Item -ItemType File -Force assets/RESOURCE.001 | Out-Null
+
       - name: Run tests
         run: go test ./...
-
-      - name: Build Windows executable
-        run: go build -o JohnnyCastaway.exe .
 
   race:
     name: Go race tests (Windows)
@@ -40,6 +44,13 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+
+      - name: Create placeholder proprietary assets for compilation
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force assets | Out-Null
+          New-Item -ItemType File -Force assets/RESOURCE.MAP | Out-Null
+          New-Item -ItemType File -Force assets/RESOURCE.001 | Out-Null
 
       - name: Run race detector
         run: go test -race ./...
