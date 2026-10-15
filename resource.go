@@ -242,6 +242,9 @@ func parseAdsResource(buf *bytes.Reader) TAdsResource {
 			panic(fmt.Sprintf("truncated ADS RES entry %d", i))
 		}
 		res.Res[i].ID = readUint16(resBlock)
+		if int(res.Res[i].ID) >= MaxTTMSlots {
+			panic(fmt.Sprintf("ADS RES slot %d exceeds runtime capacity %d", res.Res[i].ID, MaxTTMSlots))
+		}
 		res.Res[i].Name = getString(resBlock, resBlock.Len())
 	}
 
