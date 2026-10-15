@@ -58,3 +58,30 @@ func TestStoryCalculateNightFromHourForcedOverrides(t *testing.T) {
 		t.Fatalf("forced night at 12:00: night = %d, want 1", islandState.night)
 	}
 }
+
+
+func TestUpdateStoryDay(t *testing.T) {
+	tests := []struct {
+		name       string
+		day, date  int
+		today      int
+		wantDay    int
+		wantDate   int
+		wantChange bool
+	}{
+		{"same date", 4, 100, 100, 4, 100, false},
+		{"next date", 4, 100, 101, 5, 101, true},
+		{"wrap day", 11, 100, 101, 1, 101, true},
+		{"repair invalid day", 0, 100, 100, 1, 100, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := TConfig{CurrentDay: tt.day, CurrentDate: tt.date}
+			got := updateStoryDay(&cfg, tt.today)
+			if got != tt.wantChange || cfg.CurrentDay != tt.wantDay || cfg.CurrentDate != tt.wantDate {
+				t.Fatalf("updateStoryDay() = %v, day=%d date=%d; want %v, day=%d date=%d",
+					got, cfg.CurrentDay, cfg.CurrentDate, tt.wantChange, tt.wantDay, tt.wantDate)
+			}
+		})
+	}
+}
