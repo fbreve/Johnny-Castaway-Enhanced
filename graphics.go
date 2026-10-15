@@ -2357,12 +2357,12 @@ func grLoadBmp(ttmSlot *TTtmSlot, slotNo uint16, name string) {
 	}
 
 	bmpResource := findBMPResource(name)
-
-	ttmSlot.numSprites[slotNo] = int(bmpResource.NumImages)
+	if int(bmpResource.NumImages) > MaxSpritesPerBMP {
+		debugPrintf("WARN: BMP %s has %d images; maximum is %d - didn't load\n", name, bmpResource.NumImages, MaxSpritesPerBMP)
+		return
+	}
 
 	data := bmpResource.UncompressedData
-	dataOffset := 0 // dataOffset is where each bmp sprites data begins
-
 	for img := 0; img < int(bmpResource.NumImages); img++ {
 		if (bmpResource.Widths[img] % 2) == 1 {
 			panic("grLoadBmp(): can't manage odd widths")
@@ -2371,6 +2371,12 @@ func grLoadBmp(ttmSlot *TTtmSlot, slotNo uint16, name string) {
 		width := int(bmpResource.Widths[img])
 		height := int(bmpResource.Heights[img])
 		bytesPerRow := int(width) / 2
+		frameBytes := bytesPerRow * height
+		if width <= 0 || height <= 0 || frameBytes <= 0 || frameBytes > len(data) {
+			debugPrintf("WARN: BMP %s image %d requires %d bytes; %d remain - didn't load\n", name, img, frameBytes, len(data))
+			grReleaseBmp(ttmSlot, slotNo)
+			return
+		}
 
 		pixelData := make([]byte, 4*width*height)
 
@@ -2413,14 +2419,14 @@ func grLoadBmp(ttmSlot *TTtmSlot, slotNo uint16, name string) {
 				pixelData[idx+2] = c.B
 				pixelData[idx+3] = c.A
 
-				dataOffset = byteIdx
 			}
 		}
 		// segments the data to be the next cel of the sprite.
-		data = data[dataOffset+1:]
+		data = data[frameBytes:]
 		spriteImg := rl.NewImage(pixelData, int32(width), int32(height), 1, rl.UncompressedR8g8b8a8)
 		spriteTexture := rl.LoadTextureFromImage(spriteImg)
 		ttmSlot.sprites[slotNo][img] = &spriteTexture
+		ttmSlot.numSprites[slotNo]++
 	}
 }
 
