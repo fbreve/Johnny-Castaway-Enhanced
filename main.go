@@ -29,6 +29,10 @@ var (
 	isChildProcess    bool
 	buildTime         = "Developer Build"
 	isRun             = false
+	// exitCmd is run (and waited for) when the screensaver exits, BEFORE its
+	// window is torn down, so e.g. a session lock can cover the screen
+	// before the desktop shows through (--exit-cmd).
+	exitCmd string
 )
 
 func formatStartTime(val int) string {
@@ -519,6 +523,9 @@ func printUsage() {
 	fmt.Println("                        propagated to per-monitor child instances")
 	fmt.Println("  -d, --day             force daytime island/sky rendering")
 	fmt.Println("  -n, --night           force nighttime island/sky rendering")
+	fmt.Println("  --exit-cmd <cmd>      run <cmd> (via sh, waited for) when the screensaver")
+	fmt.Println("                        exits, before its window closes; e.g. lock the session")
+	fmt.Println("                        so the desktop never shows through")
 	fmt.Println()
 	fmt.Println("  -h, --help, -?        show this help")
 }
@@ -545,6 +552,7 @@ func main() {
 	isChildProcess = opts.child
 	hasMonitorIndex = opts.hasMonitor
 	runOnMonitorIndex = opts.monitor
+	exitCmd = opts.exitCmd
 	forcedHolidayArg = opts.holidayArg
 	forcedHoliday = opts.holiday
 	if opts.dayNightArg != "" {
@@ -715,6 +723,8 @@ func runStory() {
 
 			// Wait for any child process to exit
 			<-shouldExitChan
+			// The other instances still cover their monitors at this point.
+			runExitCmd()
 
 			// Clean exit: signal all other child processes to terminate gracefully
 			// by closing their stdin pipes. This causes their stdin reader loop to unblock
@@ -745,8 +755,23 @@ func runStory() {
 	defer rl.CloseAudioDevice()
 	defer graphicsEnd()
 	defer unloadSfx()
+	// Deferred last so it runs first, while the window is still mapped.
+	defer runExitCmd()
 
 	storyPlay()
+}
+
+// runExitCmd runs the --exit-cmd command through sh and waits for it.
+func runExitCmd() {
+	if exitCmd == "" {
+		return
+	}
+	cmd := exec.Command("sh", "-c", exitCmd)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		fmt.Printf("exit command failed: %v\n", err)
+	}
 }
 
 func singleTTM() {

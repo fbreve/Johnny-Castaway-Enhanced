@@ -12,6 +12,7 @@ type cliOptions struct {
 	hotKeys, child bool
 	hasMonitor bool
 	monitor int
+	exitCmd string
 	holidayArg string
 	holiday int
 	forcedNight int
@@ -48,6 +49,11 @@ func parseCLI(args []string) cliOptions {
 			o.hotKeys = true
 		case lower == "--child" || lower == "-child" || lower == "/child":
 			o.child = true
+		case lower == "--exit-cmd" || lower == "-exit-cmd" || lower == "/exit-cmd":
+			if i+1 < len(args) && !looksLikeOption(args[i+1]) {
+				o.exitCmd = args[i+1]
+				i++
+			}
 		case lower == "/1" || lower == "-1" || lower == "--1" ||
 			lower == "/main" || lower == "-main" || lower == "--main" ||
 			lower == "/single" || lower == "-single" || lower == "--single" ||
