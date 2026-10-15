@@ -48,7 +48,6 @@ func ttmLoadTTM(ttmSlot *TTtmSlot, name string) {
 	ttmSlot.data = ttmResource.UncompressedData
 	ttmSlot.dataSize = ttmResource.UncompressedSize
 	ttmSlot.numTags = int(ttmResource.NumTags)
-	ttmSlot.tags = make([]TTtmTag, ttmSlot.numTags)
 
 	tags, err := scanTTMTags(ttmSlot.data, ttmSlot.dataSize, ttmSlot.numTags)
 	if err != nil {
