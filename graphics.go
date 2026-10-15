@@ -2445,7 +2445,10 @@ func grReleaseBmp(ttmSlot *TTtmSlot, bmpSlotNo uint16) {
 	}
 	for i := 0; i < ttmSlot.numSprites[bmpSlotNo]; i++ {
 		spr := ttmSlot.sprites[bmpSlotNo][i]
-		rl.UnloadTexture(*spr)
+		if spr != nil {
+			rl.UnloadTexture(*spr)
+			ttmSlot.sprites[bmpSlotNo][i] = nil
+		}
 	}
 
 	ttmSlot.numSprites[bmpSlotNo] = 0
