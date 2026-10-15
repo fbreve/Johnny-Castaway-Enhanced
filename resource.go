@@ -369,15 +369,30 @@ func parseMapFile(filename string) *TMapFile {
 	return &mapFile
 }
 
+func resourceEntryData(b []byte, entries []TMapFileEntry, i int) ([]byte, bool) {
+	if i < 0 || i >= len(entries) {
+		return nil, false
+	}
+	start := uint64(entries[i].offset)
+	end := uint64(len(b))
+	if i+1 < len(entries) {
+		end = uint64(entries[i+1].offset)
+	}
+	if start > uint64(len(b)) || end > uint64(len(b)) || end <= start || end-start < 17 {
+		return nil, false
+	}
+	return b[int(start):int(end)], true
+}
+
 func parseResourceFile(filename string, mapFile *TMapFile) {
 	b := embeddedRes
 
 	for i := 0; i < len(mapFile.entries); i++ {
-		if int(mapFile.entries[i].offset)+17 > len(b) {
-			fmt.Printf("Skipping entry %d: offset %d out of range\n", i, mapFile.entries[i].offset)
+		seekedBuffer, ok := resourceEntryData(b, mapFile.entries, i)
+		if !ok {
+			fmt.Printf("Skipping entry %d: invalid resource bounds at offset %d\n", i, mapFile.entries[i].offset)
 			continue
 		}
-		seekedBuffer := b[mapFile.entries[i].offset:]
 
 		tempFilename := make([]uint8, 13)
 		buf := bytes.NewReader(seekedBuffer)
@@ -406,22 +421,42 @@ func parseResourceFile(filename string, mapFile *TMapFile) {
 
 		switch resType {
 		case ".ADS":
+			if numAdsResources >= len(adsResources) {
+				fmt.Printf("Skipping %s: too many ADS resources\n", resName)
+				continue
+			}
 			adsResources[numAdsResources] = parseAdsResource(buf)
 			adsResources[numAdsResources].ResName = resName
 			numAdsResources += 1
 		case ".BMP":
+			if numBmpResources >= len(bmpResources) {
+				fmt.Printf("Skipping %s: too many BMP resources\n", resName)
+				continue
+			}
 			bmpResources[numBmpResources] = parseBPMResource(buf)
 			bmpResources[numBmpResources].ResName = resName
 			numBmpResources += 1
 		case ".PAL":
+			if numPalResources >= len(palResources) {
+				fmt.Printf("Skipping %s: too many PAL resources\n", resName)
+				continue
+			}
 			palResources[numPalResources] = parsePalResource(buf)
 			palResources[numPalResources].ResName = resName
 			numPalResources += 1
 		case ".SCR":
+			if numScrResources >= len(scrResources) {
+				fmt.Printf("Skipping %s: too many SCR resources\n", resName)
+				continue
+			}
 			scrResources[numScrResources] = parseScrResource(buf)
 			scrResources[numScrResources].ResName = resName
 			numScrResources += 1
 		case ".TTM":
+			if numTtmResources >= len(ttmResources) {
+				fmt.Printf("Skipping %s: too many TTM resources\n", resName)
+				continue
+			}
 			ttmResources[numTtmResources] = parseTTMResource(buf)
 			ttmResources[numTtmResources].ResName = resName
 			numTtmResources += 1
