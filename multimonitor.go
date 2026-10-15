@@ -1,8 +1,6 @@
 package main
 
 import (
-	"os"
-	"runtime"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
@@ -41,15 +39,15 @@ type TMonitorRect struct {
 // copy of the scene into each entry's rectangle.
 var monitorRects []TMonitorRect
 
-// isWaylandSession reports whether the process is likely to render through
-// GLFW's Wayland backend. raylib-go builds GLFW with both X11 and Wayland
-// support on Linux, and GLFW 3.4 prefers Wayland whenever WAYLAND_DISPLAY
-// (or a wayland session) is present.
+// isWaylandSession checks the window system actually selected by GLFW after
+// rl.InitWindow. Session environment variables are not reliable here: XWayland
+// clients can inherit WAYLAND_DISPLAY and XDG_SESSION_TYPE=wayland.
 func isWaylandSession() bool {
-	if runtime.GOOS == "windows" {
-		return false
-	}
-	return os.Getenv("WAYLAND_DISPLAY") != "" || os.Getenv("XDG_SESSION_TYPE") == "wayland"
+	return isWaylandPlatform(glfwPlatform())
+}
+
+func isWaylandPlatform(platform int) bool {
+	return platform == glfwPlatformWayland
 }
 
 // setupMonitors sizes and positions the application window to span every
