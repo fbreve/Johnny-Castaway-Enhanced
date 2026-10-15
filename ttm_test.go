@@ -73,3 +73,14 @@ func TestDecodeTTMInstruction(t *testing.T) {
 		})
 	}
 }
+
+
+func TestDecodeTTMInstructionRejectsTooManyArgs(t *testing.T) {
+	data := make([]byte, 2+11*2)
+	data[0] = 0x0b
+	var offset uint32
+	var args [10]uint16
+	if _, _, err := decodeTTMInstruction(data, uint32(len(data)), &offset, &args); err == nil {
+		t.Fatal("expected oversized argument list to be rejected")
+	}
+}
