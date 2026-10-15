@@ -1045,7 +1045,10 @@ func adsReleaseIsland() {
 
 	if ttmHolidayThread.isRunning != 0 {
 		ttmHolidayThread.isRunning = 0
-		grFreeLayer(ttmHolidayThread.ttmLayer)
+		if ttmHolidayThread.ttmLayer != nil {
+			grFreeLayer(ttmHolidayThread.ttmLayer)
+			ttmHolidayThread.ttmLayer = nil
+		}
 	}
 }
 
@@ -1074,7 +1077,10 @@ func adsNoIsland() {
 	}
 	if ttmHolidayThread.isRunning != 0 {
 		ttmHolidayThread.isRunning = 0
-		grFreeLayer(ttmHolidayThread.ttmLayer)
+		if ttmHolidayThread.ttmLayer != nil {
+			grFreeLayer(ttmHolidayThread.ttmLayer)
+			ttmHolidayThread.ttmLayer = nil
+		}
 	}
 
 	grInitEmptyBackground()
