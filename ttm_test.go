@@ -17,7 +17,7 @@ func TestScanTTMTags(t *testing.T) {
 		{name: "valid tag", data: []byte{0x11, 0x11, 0x34, 0x12}, maxTags: 1, wantID: 0x1234},
 		{name: "truncated opcode", data: []byte{0x11}, maxTags: 1, wantErr: true},
 		{name: "truncated tag", data: []byte{0x11, 0x11, 0x34}, maxTags: 1, wantErr: true},
-		{name: "unterminated string", data: []byte{0x0f, 0x00, 'A', 0x00}, maxTags: 0, wantErr: true},
+		{name: "unterminated string", data: []byte{0x0f, 0x00, 'A', 'B'}, maxTags: 0, wantErr: true},
 		{name: "truncated arguments", data: []byte{0x02, 0x00, 0x01, 0x00}, maxTags: 0, wantErr: true},
 		{name: "too many tags", data: []byte{0x11, 0x11, 0x01, 0x00}, maxTags: 0, wantErr: true},
 	}
