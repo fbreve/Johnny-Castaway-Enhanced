@@ -547,6 +547,7 @@ func adsPlaySingleTtm(ttmName string) {
 	adsAddScene(0, 0, 0)
 	defer func() {
 		if shouldExitApp {
+			adsCleanupOnExit()
 			return
 		}
 		adsStopScene(0, false)
@@ -558,12 +559,10 @@ func adsPlaySingleTtm(ttmName string) {
 		ttmPlay(&ttmThreads[0])
 		grUpdateDisplay(nil, ttmThreads[:], nil, nil)
 		if shouldExitApp {
-			adsCleanupOnExit()
 			return
 		}
 		grUpdateDelay = int(ttmThreads[0].delay)
 	}
-
 }
 
 func decodeADSInstruction(data []byte, dataSize uint32, offset *uint32, args *[10]uint16) (uint16, error) {
