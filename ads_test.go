@@ -114,3 +114,30 @@ func TestAdsRandomPickOpZeroWeight(t *testing.T) {
 		t.Fatal("zero-weight random block unexpectedly returned an operation")
 	}
 }
+
+func TestAdsSceneTimerSignedRange(t *testing.T) {
+	tests := []struct {
+		arg  uint16
+		want int32
+	}{
+		{0x0000, 0},
+		{0x0001, 0},
+		{0x7fff, 0},
+		{0xffff, 1},
+		{0x8001, 32767},
+		{0x8000, 32768},
+	}
+	for _, tt := range tests {
+		if got := adsSceneTimer(tt.arg); got != tt.want {
+			t.Fatalf("adsSceneTimer(%#04x) = %d, want %d", tt.arg, got, tt.want)
+		}
+	}
+}
+
+func TestSceneTimerLargeDelayDoesNotWrap(t *testing.T) {
+	remaining := int32(32768)
+	remaining -= int32(uint16(65535))
+	if remaining >= 0 {
+		t.Fatalf("remaining scene timer = %d, want expired timer", remaining)
+	}
+}

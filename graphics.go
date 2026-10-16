@@ -191,7 +191,7 @@ type TTtmThread struct {
 	sceneSlot       uint16
 	sceneRootTag    uint16
 	sceneTag        uint16
-	sceneTimer      int16
+	sceneTimer      int32
 	sceneIterations uint16
 	ip              uint32
 	delay           uint16
