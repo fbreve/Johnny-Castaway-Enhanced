@@ -268,6 +268,14 @@ func adsLookupTag(reqdTag uint16) (uint32, bool) {
 	return result, true
 }
 
+func adsSceneTimer(arg uint16) int32 {
+	signed := int32(int16(arg))
+	if signed < 0 {
+		return -signed
+	}
+	return 0
+}
+
 func adsAddScene(ttmSlotNo, ttmTag, arg3 uint16) {
 	if int(ttmSlotNo) >= len(ttmSlots) {
 		fmt.Printf("WARN: TTM slot %d out of range - didn't add scene\n", ttmSlotNo)
@@ -321,8 +329,8 @@ func adsAddScene(ttmSlotNo, ttmTag, arg3 uint16) {
 		ttmThread.ip = 0
 	}
 
-	if int16(arg3) < 0 {
-		ttmThread.sceneTimer = -(int16(arg3))
+	if timer := adsSceneTimer(arg3); timer > 0 {
+		ttmThread.sceneTimer = timer
 	} else if int16(arg3) > 0 {
 		ttmThread.sceneIterations = arg3 - 1
 	}
@@ -854,7 +862,7 @@ func adsPlay(adsName string, adsTag uint16) {
 
 				// Managing the timer which was indicated in ADD_SCENE arg3 (neg. value)
 				if ttmThreads[i].sceneTimer > 0 {
-					ttmThreads[i].sceneTimer -= int16(ttmThreads[i].delay)
+					ttmThreads[i].sceneTimer -= int32(ttmThreads[i].delay)
 					if ttmThreads[i].sceneTimer <= 0 {
 						ttmThreads[i].isRunning = 2
 					}
