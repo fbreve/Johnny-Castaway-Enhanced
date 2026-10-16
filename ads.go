@@ -530,6 +530,9 @@ func adsCleanupOnExit() {
 		ttmThreads[i].isRunning = 0
 	}
 	numThreads = 0
+	ttmBackgroundThread.isRunning = 0
+	ttmHolidayThread.isRunning = 0
+	ttmCloudsThread.isRunning = 0
 	for i := 0; i < MaxTTMSlots; i++ {
 		ttmResetSlot(&ttmSlots[i])
 	}
