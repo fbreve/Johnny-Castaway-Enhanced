@@ -222,8 +222,8 @@ func ttmTimerDelay(lo, hi uint16) uint16 {
 	} else {
 		val = lo
 	}
-	if val < 4 {
-		return 4
+	if val == 0 {
+		return 1
 	}
 	return val
 }

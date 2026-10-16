@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"testing"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
@@ -195,28 +196,38 @@ func TestScreenPixelDataRequirements(t *testing.T) {
 	}
 }
 
-func TestTTMTimerDelayAlwaysMakesProgress(t *testing.T) {
+func TestTTMTimerDelayPreservesPositiveValues(t *testing.T) {
 	for _, tt := range []struct {
 		lo, hi uint16
 	}{
-		{0, 0},
-		{0, 3},
-		{1, 1},
-		{3, 3},
-		{4, 4},
-		{4, 8},
+		{0, 0}, {0, 3}, {1, 1}, {2, 2}, {3, 3}, {4, 4}, {4, 8},
+		{3, 1}, {65535, 65535}, {65534, 65535},
 	} {
-		for i := 0; i < 100; i++ {
-			got := ttmTimerDelay(tt.lo, tt.hi)
-			if got < 4 {
-				t.Fatalf("ttmTimerDelay(%d, %d) = %d, want at least 4", tt.lo, tt.hi, got)
+		t.Run(fmt.Sprintf("%d_%d", tt.lo, tt.hi), func(t *testing.T) {
+			seen := make(map[uint16]bool)
+			for i := 0; i < 1000; i++ {
+				got := ttmTimerDelay(tt.lo, tt.hi)
+				if got == 0 {
+					t.Fatalf("ttmTimerDelay(%d, %d) returned zero", tt.lo, tt.hi)
+				}
+				if tt.lo > 0 && got < tt.lo {
+					t.Fatalf("ttmTimerDelay(%d, %d) = %d, below lower bound", tt.lo, tt.hi, got)
+				}
+				if tt.hi >= tt.lo && tt.hi > 0 && got > tt.hi {
+					t.Fatalf("ttmTimerDelay(%d, %d) = %d, above upper bound", tt.lo, tt.hi, got)
+				}
+				if tt.hi <= tt.lo && got != max(tt.lo, 1) {
+					t.Fatalf("fixed timer (%d, %d) returned %d", tt.lo, tt.hi, got)
+				}
+				seen[got] = true
 			}
-			if tt.lo >= 4 && got < tt.lo {
-				t.Fatalf("ttmTimerDelay(%d, %d) = %d, below lower bound", tt.lo, tt.hi, got)
+			if tt.lo == 0 && tt.hi == 3 {
+				for _, want := range []uint16{1, 2, 3} {
+					if !seen[want] {
+						t.Errorf("timer range 0..3 never produced %d", want)
+					}
+				}
 			}
-			if tt.hi >= tt.lo && tt.hi >= 4 && got > tt.hi {
-				t.Fatalf("ttmTimerDelay(%d, %d) = %d, above upper bound", tt.lo, tt.hi, got)
-			}
-		}
+		})
 	}
 }
