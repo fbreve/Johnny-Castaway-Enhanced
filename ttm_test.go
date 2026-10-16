@@ -38,6 +38,20 @@ func TestScanTTMTags(t *testing.T) {
 	}
 }
 
+func TestScanTTMTagsPreservesSingleZeroStringTermination(t *testing.T) {
+	// The original scanner stops a string opcode when either byte of the
+	// current 16-bit pair is zero. The following tag must therefore start
+	// immediately after the pair containing 'A', 0.
+	data := []byte{0x0f, 0xf0, 'A', 0, 0x11, 0x11, 0x34, 0x12}
+	tags, err := scanTTMTags(data, uint32(len(data)), 1)
+	if err != nil {
+		t.Fatalf("scanTTMTags() error = %v", err)
+	}
+	if len(tags) != 1 || tags[0].id != 0x1234 || tags[0].offset != 8 {
+		t.Fatalf("scanTTMTags() tags = %#v", tags)
+	}
+}
+
 func TestScanTTMTagsRejectsOversizedDeclaration(t *testing.T) {
 	if _, err := scanTTMTags([]byte{0, 0}, 3, 0); err == nil {
 		t.Fatal("scanTTMTags() accepted dataSize larger than buffer")
