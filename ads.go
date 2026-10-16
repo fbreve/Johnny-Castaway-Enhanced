@@ -527,6 +527,10 @@ func adsPlaySingleTtm(ttmName string) {
 	adsInit()
 	ttmLoadTTM(&ttmSlots[0], ttmName)
 	adsAddScene(0, 0, 0)
+	defer func() {
+		adsStopScene(0, false)
+		ttmResetSlot(&ttmSlots[0])
+	}()
 	ttmThreads[0].ip = 0
 
 	for singleTtmShouldContinue(&ttmThreads[0], &ttmSlots[0]) {
@@ -538,8 +542,6 @@ func adsPlaySingleTtm(ttmName string) {
 		grUpdateDelay = int(ttmThreads[0].delay)
 	}
 
-	adsStopScene(0, false)
-	ttmResetSlot(&ttmSlots[0])
 }
 
 func decodeADSInstruction(data []byte, dataSize uint32, offset *uint32, args *[10]uint16) (uint16, error) {

@@ -750,7 +750,7 @@ func singleTTM() {
 	setupApp()
 	defer rl.CloseWindow()
 	defer graphicsEnd()
-	for {
+	for !shouldExitApp {
 		adsPlaySingleTtm("MJFIRE.TTM")
 	}
 }
