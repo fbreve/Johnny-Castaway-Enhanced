@@ -519,6 +519,24 @@ func adsInit() {
 	adsStopRequested = 0
 }
 
+// adsCleanupOnExit releases active ADS resources without applying story-specific
+// stop-scene decoration or freezing semantics.
+func adsCleanupOnExit() {
+	for i := 0; i < MaxTTMThreads; i++ {
+		if ttmThreads[i].ttmLayer != nil {
+			grFreeLayer(ttmThreads[i].ttmLayer)
+			ttmThreads[i].ttmLayer = nil
+		}
+		ttmThreads[i].isRunning = 0
+	}
+	numThreads = 0
+	for i := 0; i < MaxTTMSlots; i++ {
+		ttmResetSlot(&ttmSlots[i])
+	}
+	grRestoreZone(nil, 0, 0, 0, 0)
+	adsReleaseAds()
+}
+
 func singleTtmShouldContinue(thread *TTtmThread, slot *TTtmSlot) bool {
 	return thread != nil && slot != nil && thread.isRunning == 1 && thread.ip < slot.dataSize
 }
@@ -528,7 +546,9 @@ func adsPlaySingleTtm(ttmName string) {
 	ttmLoadTTM(&ttmSlots[0], ttmName)
 	adsAddScene(0, 0, 0)
 	defer func() {
-		adsStopScene(0, false)
+		if !shouldExitApp {
+			adsStopScene(0, false)
+		}
 		ttmResetSlot(&ttmSlots[0])
 	}()
 	ttmThreads[0].ip = 0
@@ -537,22 +557,7 @@ func adsPlaySingleTtm(ttmName string) {
 		ttmPlay(&ttmThreads[0])
 		grUpdateDisplay(nil, ttmThreads[:], nil, nil)
 		if shouldExitApp {
-			// Early shutdown bypasses the normal tail cleanup. Release only
-			// surviving render layers here; do not call adsStopScene(), whose
-			// normal story semantics may freeze/redraw decoration.
-			for i := 0; i < MaxTTMThreads; i++ {
-				if ttmThreads[i].ttmLayer != nil {
-					grFreeLayer(ttmThreads[i].ttmLayer)
-					ttmThreads[i].ttmLayer = nil
-				}
-				ttmThreads[i].isRunning = 0
-			}
-			numThreads = 0
-			for i := 0; i < MaxTTMSlots; i++ {
-				ttmResetSlot(&ttmSlots[i])
-			}
-			grRestoreZone(nil, 0, 0, 0, 0)
-			adsReleaseAds()
+			adsCleanupOnExit()
 			return
 		}
 		grUpdateDelay = int(ttmThreads[0].delay)
@@ -826,22 +831,7 @@ func adsPlay(adsName string, adsTag uint16) {
 		// Refresh display
 		grUpdateDisplay(&ttmBackgroundThread, ttmThreads[:], &ttmHolidayThread, &ttmCloudsThread)
 		if shouldExitApp {
-			// Early shutdown bypasses the normal tail cleanup. Release only
-			// surviving render layers here; do not call adsStopScene(), whose
-			// normal story semantics may freeze/redraw decoration.
-			for i := 0; i < MaxTTMThreads; i++ {
-				if ttmThreads[i].ttmLayer != nil {
-					grFreeLayer(ttmThreads[i].ttmLayer)
-					ttmThreads[i].ttmLayer = nil
-				}
-				ttmThreads[i].isRunning = 0
-			}
-			numThreads = 0
-			for i := 0; i < MaxTTMSlots; i++ {
-				ttmResetSlot(&ttmSlots[i])
-			}
-			grRestoreZone(nil, 0, 0, 0, 0)
-			adsReleaseAds()
+			adsCleanupOnExit()
 			return
 		}
 
