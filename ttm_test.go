@@ -64,6 +64,38 @@ func TestScanTTMTagsFirstByteZeroTermination(t *testing.T) {
 	}
 }
 
+// Both consumers must advance to the same next instruction for valid
+// null-terminated, word-aligned TTM strings.
+func TestTTMStringScanAndDecoderOffsetsAgree(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		str  []byte
+	}{
+		{name: "empty", str: []byte{0, 0}},
+		{name: "one character", str: []byte{'A', 0}},
+		{name: "two characters", str: []byte{'A', 'B', 0, 0}},
+		{name: "three characters", str: []byte{'A', 'B', 'C', 0}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			data := append([]byte{0x0f, 0xf0}, tc.str...)
+			data = append(data, 0x11, 0x11, 0x34, 0x12)
+			tags, err := scanTTMTags(data, uint32(len(data)), 1)
+			if err != nil || len(tags) != 1 {
+				t.Fatalf("scanTTMTags() = %#v, %v", tags, err)
+			}
+			var offset uint32
+			var args [10]uint16
+			op, _, err := decodeTTMInstruction(data, uint32(len(data)), &offset, &args)
+			if err != nil || op != 0xf00f {
+				t.Fatalf("decodeTTMInstruction() = %#x, %v", op, err)
+			}
+			if offset != tags[0].offset-4 {
+				t.Fatalf("decoder offset = %d, tag begins at %d", offset, tags[0].offset-4)
+			}
+		})
+	}
+}
+
 func TestScanTTMTagsRejectsOversizedDeclaration(t *testing.T) {
 	if _, err := scanTTMTags([]byte{0, 0}, 3, 0); err == nil {
 		t.Fatal("scanTTMTags() accepted dataSize larger than buffer")
