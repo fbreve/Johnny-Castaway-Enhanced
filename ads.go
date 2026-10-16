@@ -519,6 +519,27 @@ func adsInit() {
 	adsStopRequested = 0
 }
 
+// adsCleanupOnExit releases active ADS resources without applying story-specific
+// stop-scene decoration or freezing semantics.
+func adsCleanupOnExit() {
+	for i := 0; i < MaxTTMThreads; i++ {
+		if ttmThreads[i].ttmLayer != nil {
+			grFreeLayer(ttmThreads[i].ttmLayer)
+			ttmThreads[i].ttmLayer = nil
+		}
+		ttmThreads[i].isRunning = 0
+	}
+	numThreads = 0
+	ttmBackgroundThread.isRunning = 0
+	ttmHolidayThread.isRunning = 0
+	ttmCloudsThread.isRunning = 0
+	for i := 0; i < MaxTTMSlots; i++ {
+		ttmResetSlot(&ttmSlots[i])
+	}
+	grRestoreZone(nil, 0, 0, 0, 0)
+	adsReleaseAds()
+}
+
 func singleTtmShouldContinue(thread *TTtmThread, slot *TTtmSlot) bool {
 	return thread != nil && slot != nil && thread.isRunning == 1 && thread.ip < slot.dataSize
 }
@@ -528,6 +549,10 @@ func adsPlaySingleTtm(ttmName string) {
 	ttmLoadTTM(&ttmSlots[0], ttmName)
 	adsAddScene(0, 0, 0)
 	defer func() {
+		if shouldExitApp {
+			adsCleanupOnExit()
+			return
+		}
 		adsStopScene(0, false)
 		ttmResetSlot(&ttmSlots[0])
 	}()
@@ -541,7 +566,6 @@ func adsPlaySingleTtm(ttmName string) {
 		}
 		grUpdateDelay = int(ttmThreads[0].delay)
 	}
-
 }
 
 func decodeADSInstruction(data []byte, dataSize uint32, offset *uint32, args *[10]uint16) (uint16, error) {
@@ -776,12 +800,19 @@ func adsPlay(adsName string, adsTag uint16) {
 
 	adsStopRequested = 0
 	grUpdateDelay = 0
-
 	// Play the first ADS chunk of the sequence
 	adsPlayChunk(data, dataSize, offset)
+	if shouldExitApp {
+		adsCleanupOnExit()
+		return
+	}
 
 	// Main ADS loop
 	for numThreads != 0 {
+		if shouldExitApp {
+			adsCleanupOnExit()
+			return
+		}
 		if ttmBackgroundThread.isRunning != 0 && ttmBackgroundThread.timer == 0 {
 			debugPrintln("    ------> Animate bg")
 			ttmBackgroundThread.timer = ttmBackgroundThread.delay
@@ -811,6 +842,7 @@ func adsPlay(adsName string, adsTag uint16) {
 		// Refresh display
 		grUpdateDisplay(&ttmBackgroundThread, ttmThreads[:], &ttmHolidayThread, &ttmCloudsThread)
 		if shouldExitApp {
+			adsCleanupOnExit()
 			return
 		}
 
@@ -897,6 +929,7 @@ func adsPlay(adsName string, adsTag uint16) {
 			}
 		}
 	}
+
 
 	for i := 0; i < MaxTTMSlots; i++ {
 		ttmResetSlot(&ttmSlots[i])

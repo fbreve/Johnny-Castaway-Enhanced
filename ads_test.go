@@ -160,3 +160,42 @@ func TestSingleTtmStopsWhenThreadTerminates(t *testing.T) {
 		t.Fatal("TTM would continue past the end of its data")
 	}
 }
+
+func TestAdsCleanupOnExitClearsInactiveState(t *testing.T) {
+	// No graphics context is needed when no render layers are allocated.
+	// Save global state to keep this test independent of other tests.
+	oldThreads, oldSlots := ttmThreads, ttmSlots
+	oldBg, oldHoliday, oldClouds := ttmBackgroundThread, ttmHolidayThread, ttmCloudsThread
+	oldNumThreads, oldDelay, oldStop := numThreads, grUpdateDelay, adsStopRequested
+	defer func() {
+		ttmThreads, ttmSlots = oldThreads, oldSlots
+		ttmBackgroundThread, ttmHolidayThread, ttmCloudsThread = oldBg, oldHoliday, oldClouds
+		numThreads, grUpdateDelay, adsStopRequested = oldNumThreads, oldDelay, oldStop
+	}()
+
+	for i := range ttmThreads {
+		ttmThreads[i].ttmLayer = nil
+		ttmThreads[i].isRunning = 1
+	}
+	for i := range ttmSlots {
+		ttmSlots[i] = TTtmSlot{}
+	}
+	numThreads = len(ttmThreads)
+	ttmBackgroundThread.isRunning = 1
+	ttmHolidayThread.isRunning = 1
+	ttmCloudsThread.isRunning = 1
+	adsCleanupOnExit()
+	if numThreads != 0 {
+		t.Fatalf("numThreads = %d, want zero", numThreads)
+	}
+	if ttmBackgroundThread.isRunning != 0 || ttmHolidayThread.isRunning != 0 || ttmCloudsThread.isRunning != 0 {
+		t.Fatal("auxiliary ADS threads still active after cleanup")
+	}
+	for i := range ttmThreads {
+		if ttmThreads[i].isRunning != 0 || ttmThreads[i].ttmLayer != nil {
+			t.Fatalf("thread %d still active after cleanup", i)
+		}
+	}
+	// Repeating cleanup without allocated layers must be safe.
+	adsCleanupOnExit()
+}
