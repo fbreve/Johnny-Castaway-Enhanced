@@ -201,6 +201,7 @@ func TestTTMTimerDelayPreservesPositiveValues(t *testing.T) {
 		lo, hi uint16
 	}{
 		{0, 0}, {0, 3}, {1, 1}, {2, 2}, {3, 3}, {4, 4}, {4, 8},
+		{3, 1}, {65535, 65535}, {65534, 65535},
 	} {
 		t.Run(fmt.Sprintf("%d_%d", tt.lo, tt.hi), func(t *testing.T) {
 			seen := make(map[uint16]bool)
@@ -215,7 +216,7 @@ func TestTTMTimerDelayPreservesPositiveValues(t *testing.T) {
 				if tt.hi >= tt.lo && tt.hi > 0 && got > tt.hi {
 					t.Fatalf("ttmTimerDelay(%d, %d) = %d, above upper bound", tt.lo, tt.hi, got)
 				}
-				if tt.lo == tt.hi && got != max(tt.lo, 1) {
+				if tt.hi <= tt.lo && got != max(tt.lo, 1) {
 					t.Fatalf("fixed timer (%d, %d) returned %d", tt.lo, tt.hi, got)
 				}
 				seen[got] = true
