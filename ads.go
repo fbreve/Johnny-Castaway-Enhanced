@@ -525,9 +525,8 @@ func adsPlaySingleTtm(ttmName string) {
 	adsAddScene(0, 0, 0)
 	ttmThreads[0].ip = 0
 
-	for ttmThreads[0].ip < ttmSlots[0].dataSize {
+	for ttmThreads[0].isRunning == 1 && ttmThreads[0].ip < ttmSlots[0].dataSize {
 		ttmPlay(&ttmThreads[0])
-		ttmThreads[0].isRunning = 1
 		grUpdateDisplay(nil, ttmThreads[:], nil, nil)
 		if shouldExitApp {
 			return
