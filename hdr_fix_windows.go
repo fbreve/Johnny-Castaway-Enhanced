@@ -3,6 +3,7 @@
 package main
 
 import (
+	"os"
 	"syscall"
 	"time"
 	"unsafe"
@@ -25,6 +26,11 @@ const (
 // startHDRWatchdog spawns a hidden window that listens for monitor
 // wake events and calls ChangeDisplaySettings to re-initialize HDR.
 func startHDRWatchdog() {
+	// Diagnostic: keep the legacy display-mode reset disabled by default.
+	// Set JC_ENABLE_LEGACY_HDR_WATCHDOG=1 to compare against prior behavior.
+	if os.Getenv("JC_ENABLE_LEGACY_HDR_WATCHDOG") != "1" {
+		return
+	}
 	go func() {
 		// Use HWND_MESSAGE (-3) for a message-only window
 		hwnd, _, _ := procCreateWindowEx.Call(
