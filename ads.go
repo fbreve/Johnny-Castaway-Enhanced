@@ -826,6 +826,22 @@ func adsPlay(adsName string, adsTag uint16) {
 		// Refresh display
 		grUpdateDisplay(&ttmBackgroundThread, ttmThreads[:], &ttmHolidayThread, &ttmCloudsThread)
 		if shouldExitApp {
+			// Early shutdown bypasses the normal tail cleanup. Release only
+			// surviving render layers here; do not call adsStopScene(), whose
+			// normal story semantics may freeze/redraw decoration.
+			for i := 0; i < MaxTTMThreads; i++ {
+				if ttmThreads[i].ttmLayer != nil {
+					grFreeLayer(ttmThreads[i].ttmLayer)
+					ttmThreads[i].ttmLayer = nil
+				}
+				ttmThreads[i].isRunning = 0
+			}
+			numThreads = 0
+			for i := 0; i < MaxTTMSlots; i++ {
+				ttmResetSlot(&ttmSlots[i])
+			}
+			grRestoreZone(nil, 0, 0, 0, 0)
+			adsReleaseAds()
 			return
 		}
 
