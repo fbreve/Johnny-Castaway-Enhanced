@@ -809,6 +809,10 @@ func adsPlay(adsName string, adsTag uint16) {
 
 	// Main ADS loop
 	for numThreads != 0 {
+		if shouldExitApp {
+			adsCleanupOnExit()
+			return
+		}
 		if ttmBackgroundThread.isRunning != 0 && ttmBackgroundThread.timer == 0 {
 			debugPrintln("    ------> Animate bg")
 			ttmBackgroundThread.timer = ttmBackgroundThread.delay
