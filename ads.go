@@ -754,6 +754,25 @@ func adsPlayTriggeredChunks(data []byte, dataSize uint32, ttmSlotNo, ttmTag uint
 	}
 }
 
+func adsCleanupPlayback() {
+	// Playback cleanup must not call adsStopScene: stopping a scene can freeze
+	// or redraw decoration as part of normal story semantics. At function exit
+	// we only need to release any layer that survived an early shutdown.
+	for i := 0; i < MaxTTMThreads; i++ {
+		if ttmThreads[i].ttmLayer != nil {
+			grFreeLayer(ttmThreads[i].ttmLayer)
+			ttmThreads[i].ttmLayer = nil
+		}
+		ttmThreads[i].isRunning = 0
+	}
+	numThreads = 0
+	for i := 0; i < MaxTTMSlots; i++ {
+		ttmResetSlot(&ttmSlots[i])
+	}
+	grRestoreZone(nil, 0, 0, 0, 0)
+	adsReleaseAds()
+}
+
 func adsPlay(adsName string, adsTag uint16) {
 	var (
 		offset   uint32 = 0
@@ -776,6 +795,7 @@ func adsPlay(adsName string, adsTag uint16) {
 
 	adsStopRequested = 0
 	grUpdateDelay = 0
+	defer adsCleanupPlayback()
 
 	// Play the first ADS chunk of the sequence
 	adsPlayChunk(data, dataSize, offset)
@@ -898,13 +918,6 @@ func adsPlay(adsName string, adsTag uint16) {
 		}
 	}
 
-	for i := 0; i < MaxTTMSlots; i++ {
-		ttmResetSlot(&ttmSlots[i])
-	}
-
-	grRestoreZone(nil, 0, 0, 0, 0)
-
-	adsReleaseAds()
 }
 
 func adsPlayBench() []string {
