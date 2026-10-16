@@ -141,3 +141,22 @@ func TestSceneTimerLargeDelayDoesNotWrap(t *testing.T) {
 		t.Fatalf("remaining scene timer = %d, want expired timer", remaining)
 	}
 }
+
+func TestSingleTtmStopsWhenThreadTerminates(t *testing.T) {
+	slot := TTtmSlot{dataSize: 100}
+	thread := TTtmThread{isRunning: 1, ip: 10}
+	if !singleTtmShouldContinue(&thread, &slot) {
+		t.Fatal("active TTM stopped before reaching the end")
+	}
+
+	thread.isRunning = 2
+	if singleTtmShouldContinue(&thread, &slot) {
+		t.Fatal("terminated TTM would be played again")
+	}
+
+	thread.isRunning = 1
+	thread.ip = slot.dataSize
+	if singleTtmShouldContinue(&thread, &slot) {
+		t.Fatal("TTM would continue past the end of its data")
+	}
+}
