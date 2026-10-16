@@ -546,9 +546,10 @@ func adsPlaySingleTtm(ttmName string) {
 	ttmLoadTTM(&ttmSlots[0], ttmName)
 	adsAddScene(0, 0, 0)
 	defer func() {
-		if !shouldExitApp {
-			adsStopScene(0, false)
+		if shouldExitApp {
+			return
 		}
+		adsStopScene(0, false)
 		ttmResetSlot(&ttmSlots[0])
 	}()
 	ttmThreads[0].ip = 0
