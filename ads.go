@@ -519,13 +519,17 @@ func adsInit() {
 	adsStopRequested = 0
 }
 
+func singleTtmShouldContinue(thread *TTtmThread, slot *TTtmSlot) bool {
+	return thread != nil && slot != nil && thread.isRunning == 1 && thread.ip < slot.dataSize
+}
+
 func adsPlaySingleTtm(ttmName string) {
 	adsInit()
 	ttmLoadTTM(&ttmSlots[0], ttmName)
 	adsAddScene(0, 0, 0)
 	ttmThreads[0].ip = 0
 
-	for ttmThreads[0].isRunning == 1 && ttmThreads[0].ip < ttmSlots[0].dataSize {
+	for singleTtmShouldContinue(&ttmThreads[0], &ttmSlots[0]) {
 		ttmPlay(&ttmThreads[0])
 		grUpdateDisplay(nil, ttmThreads[:], nil, nil)
 		if shouldExitApp {
