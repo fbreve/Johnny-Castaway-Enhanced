@@ -802,6 +802,10 @@ func adsPlay(adsName string, adsTag uint16) {
 	grUpdateDelay = 0
 	// Play the first ADS chunk of the sequence
 	adsPlayChunk(data, dataSize, offset)
+	if shouldExitApp {
+		adsCleanupOnExit()
+		return
+	}
 
 	// Main ADS loop
 	for numThreads != 0 {
