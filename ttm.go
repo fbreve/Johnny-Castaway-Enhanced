@@ -87,7 +87,7 @@ func scanTTMTags(data []byte, dataSize uint32, maxTags int) ([]TTtmTag, error) {
 				if dataSize-offset < 2 {
 					return nil, fmt.Errorf("unterminated string at offset %d", offset)
 				}
-				if data[offset] == 0 && data[offset+1] == 0 {
+				if data[offset] == 0 || data[offset+1] == 0 {
 					offset += 2
 					break
 				}
