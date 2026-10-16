@@ -1102,11 +1102,6 @@ func adsNoIsland() {
 		}
 	}
 
-	// adsNoIsland is also the defensive cleanup path when an island scene
-	// was not released normally. Drop any BMP textures retained by the
-	// global background/cloud slots instead of relying on adsReleaseIsland.
-	ttmResetSlot(&ttmBackgroundSlot)
-	ttmResetSlot(&ttmCloudsSlot)
 
 	grInitEmptyBackground()
 }
