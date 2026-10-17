@@ -28,6 +28,7 @@ var (
 	hasMonitorIndex   bool
 	isChildProcess    bool
 	buildTime         = "Developer Build"
+	hdrDiagnosticVariant = "" // Set at build time using -ldflags -X; empty means normal game
 	isRun             = false
 )
 
@@ -739,11 +740,11 @@ func runStory() {
 
 	// Opt-in diagnostic: isolate the Raylib/OpenGL window lifecycle from game assets.
 	// Inherits the regular multi-monitor parent/child process behavior.
-	if os.Getenv("JC_DIAGNOSTIC_BLACK_SCREEN") == "1" {
+	if hdrDiagnosticVariant != "" {
 		startHDRWatchdog()
-		// Variant A (default): original flags. Variant B: no MSAA or resizable flag.
+		// Variant A: original flags. Variant B: no MSAA or resizable flag.
 		flags := uint32(rl.FlagMsaa4xHint | rl.FlagWindowUndecorated | rl.FlagWindowResizable)
-		if os.Getenv("JC_DIAGNOSTIC_WINDOW_VARIANT") == "B" {
+		if hdrDiagnosticVariant == "B" {
 			flags = uint32(rl.FlagWindowUndecorated)
 		}
 		rl.SetConfigFlags(flags)
