@@ -741,7 +741,12 @@ func runStory() {
 	// Inherits the regular multi-monitor parent/child process behavior.
 	if os.Getenv("JC_DIAGNOSTIC_BLACK_SCREEN") == "1" {
 		startHDRWatchdog()
-		rl.SetConfigFlags(rl.FlagMsaa4xHint | rl.FlagWindowUndecorated | rl.FlagWindowResizable)
+		// Variant A (default): original flags. Variant B: no MSAA or resizable flag.
+		flags := uint32(rl.FlagMsaa4xHint | rl.FlagWindowUndecorated | rl.FlagWindowResizable)
+		if os.Getenv("JC_DIAGNOSTIC_WINDOW_VARIANT") == "B" {
+			flags = uint32(rl.FlagWindowUndecorated)
+		}
+		rl.SetConfigFlags(flags)
 		rl.InitWindow(screenWidth, screenHeight, "Johnny Castaway HDR Diagnostic")
 		defer rl.CloseWindow()
 		setupMonitors()
