@@ -737,6 +737,25 @@ func runStory() {
 		}()
 	}
 
+	// Opt-in diagnostic: isolate the Raylib/OpenGL window lifecycle from game assets.
+	// Inherits the regular multi-monitor parent/child process behavior.
+	if os.Getenv("JC_DIAGNOSTIC_BLACK_SCREEN") == "1" {
+		startHDRWatchdog()
+		rl.SetConfigFlags(rl.FlagMsaa4xHint | rl.FlagWindowUndecorated | rl.FlagWindowResizable)
+		rl.InitWindow(screenWidth, screenHeight, "Johnny Castaway HDR Diagnostic")
+		defer rl.CloseWindow()
+		setupMonitors()
+		rl.DisableCursor()
+		rl.HideCursor()
+		rl.SetTargetFPS(30)
+		for !rl.WindowShouldClose() && !shouldExitApp {
+			rl.BeginDrawing()
+			rl.ClearBackground(rl.Black)
+			rl.EndDrawing()
+		}
+		return
+	}
+
 	setupApp()
 	defer rl.CloseWindow()
 	defer rl.CloseAudioDevice()
