@@ -524,6 +524,8 @@ func printUsage() {
 }
 
 func main() {
+	hdrTraceStart()
+	defer hdrTraceStop()
 	var isSettings = false
 	var isPreview = false
 	var isTest = false
@@ -585,12 +587,14 @@ func main() {
 }
 
 func setupApp() {
+	hdrTrace("setupApp.enter")
 	cfgFileRead(&activeConfig)
 	startHDRWatchdog()
 
 	// Keep MSAA and undecorated mode; omit resizable to test HDR recovery after monitor standby.
 	rl.SetConfigFlags(rl.FlagMsaa4xHint | rl.FlagWindowUndecorated)
 	rl.InitWindow(screenWidth, screenHeight, "Johnny Castaway")
+	hdrTrace("window.initialized ready=%v", rl.IsWindowReady())
 
 	if !rl.IsWindowReady() {
 		panic("Fatal: Failed to initialize window. Please check your OpenGL/graphics drivers.")
@@ -601,6 +605,7 @@ func setupApp() {
 	// renderer to draw a separate copy of the scene into. On a
 	// single-monitor system this behaves exactly like the previous code.
 	setupMonitors()
+	hdrTrace("monitors.configured")
 	rl.DisableCursor()
 	rl.HideCursor()
 
@@ -614,6 +619,7 @@ func setupApp() {
 
 	doFadeIn()
 	graphicsInit()
+	hdrTrace("setupApp.complete")
 }
 
 func doFadeIn() {
@@ -642,6 +648,8 @@ func doFadeIn() {
 }
 
 func runStory() {
+	hdrTrace("runStory.enter child=%v monitor=%d", isChildProcess, runOnMonitorIndex)
+	defer hdrTrace("runStory.exit")
 	var config TConfig
 	cfgFileRead(&config)
 
@@ -738,12 +746,14 @@ func runStory() {
 	}
 
 	setupApp()
-	defer rl.CloseWindow()
-	defer rl.CloseAudioDevice()
-	defer graphicsEnd()
-	defer unloadSfx()
+	defer func() { hdrTrace("window.close.begin"); rl.CloseWindow(); hdrTrace("window.close.end") }()
+	defer func() { hdrTrace("audio.close.begin"); rl.CloseAudioDevice(); hdrTrace("audio.close.end") }()
+	defer func() { hdrTrace("graphicsEnd.begin"); graphicsEnd(); hdrTrace("graphicsEnd.end") }()
+	defer func() { hdrTrace("unloadSfx.begin"); unloadSfx(); hdrTrace("unloadSfx.end") }()
 
+	hdrTrace("storyPlay.begin")
 	storyPlay()
+	hdrTrace("storyPlay.end")
 }
 
 func singleTTM() {
