@@ -28,6 +28,7 @@ var (
 	hasMonitorIndex   bool
 	isChildProcess    bool
 	buildTime         = "Developer Build"
+	hdrDiagnosticVariant = "" // Set at build time using -ldflags -X; empty means normal game
 	isRun             = false
 )
 
@@ -735,6 +736,35 @@ func runStory() {
 			_, _ = os.Stdin.Read(buf)
 			shouldExitApp = true
 		}()
+	}
+
+	// Opt-in diagnostic: isolate the Raylib/OpenGL window lifecycle from game assets.
+	// Inherits the regular multi-monitor parent/child process behavior.
+	if hdrDiagnosticVariant != "" {
+		startHDRWatchdog()
+		// A: MSAA + resizable; B: neither; C: MSAA only; D: resizable only.
+		flags := uint32(rl.FlagWindowUndecorated)
+		switch hdrDiagnosticVariant {
+		case "A":
+			flags |= uint32(rl.FlagMsaa4xHint | rl.FlagWindowResizable)
+		case "C":
+			flags |= uint32(rl.FlagMsaa4xHint)
+		case "D":
+			flags |= uint32(rl.FlagWindowResizable)
+		}
+		rl.SetConfigFlags(flags)
+		rl.InitWindow(screenWidth, screenHeight, "Johnny Castaway HDR Diagnostic")
+		defer rl.CloseWindow()
+		setupMonitors()
+		rl.DisableCursor()
+		rl.HideCursor()
+		rl.SetTargetFPS(30)
+		for !rl.WindowShouldClose() && !shouldExitApp {
+			rl.BeginDrawing()
+			rl.ClearBackground(rl.Black)
+			rl.EndDrawing()
+		}
+		return
 	}
 
 	setupApp()

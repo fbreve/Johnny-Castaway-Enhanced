@@ -1,0 +1,42 @@
+name: HDR diagnostic Windows build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - diagnostic/hdr-minimal-opengl
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Create embed placeholders (diagnostic mode does not read game assets)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force assets | Out-Null
+          New-Item -ItemType File -Force assets/RESOURCE.MAP | Out-Null
+          New-Item -ItemType File -Force assets/RESOURCE.001 | Out-Null
+      - name: Build four standalone Windows screensavers
+        shell: pwsh
+        run: |
+          go build -ldflags="-X main.hdrDiagnosticVariant=A -H windowsgui" -o JohnnyHDR-A.scr .
+          go build -ldflags="-X main.hdrDiagnosticVariant=B -H windowsgui" -o JohnnyHDR-B.scr .
+          go build -ldflags="-X main.hdrDiagnosticVariant=C -H windowsgui" -o JohnnyHDR-C.scr .
+          go build -ldflags="-X main.hdrDiagnosticVariant=D -H windowsgui" -o JohnnyHDR-D.scr .
+      - name: Upload diagnostic screensavers
+        uses: actions/upload-artifact@v4
+        with:
+          name: Johnny-HDR-Diagnostic-SCR
+          path: |
+            JohnnyHDR-A.scr
+            JohnnyHDR-B.scr
+            JohnnyHDR-C.scr
+            JohnnyHDR-D.scr
+          retention-days: 7
