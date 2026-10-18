@@ -23,11 +23,13 @@ jobs:
           New-Item -ItemType Directory -Force assets | Out-Null
           New-Item -ItemType File -Force assets/RESOURCE.MAP | Out-Null
           New-Item -ItemType File -Force assets/RESOURCE.001 | Out-Null
-      - name: Build two standalone Windows screensavers
+      - name: Build four standalone Windows screensavers
         shell: pwsh
         run: |
           go build -ldflags="-X main.hdrDiagnosticVariant=A -H windowsgui" -o JohnnyHDR-A.scr .
           go build -ldflags="-X main.hdrDiagnosticVariant=B -H windowsgui" -o JohnnyHDR-B.scr .
+          go build -ldflags="-X main.hdrDiagnosticVariant=C -H windowsgui" -o JohnnyHDR-C.scr .
+          go build -ldflags="-X main.hdrDiagnosticVariant=D -H windowsgui" -o JohnnyHDR-D.scr .
       - name: Upload diagnostic screensavers
         uses: actions/upload-artifact@v4
         with:
@@ -35,4 +37,6 @@ jobs:
           path: |
             JohnnyHDR-A.scr
             JohnnyHDR-B.scr
+            JohnnyHDR-C.scr
+            JohnnyHDR-D.scr
           retention-days: 7
