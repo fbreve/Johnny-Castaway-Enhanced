@@ -747,7 +747,7 @@ func runStory() {
 		switch hdrDiagnosticVariant {
 		case "A":
 			flags |= uint32(rl.FlagMsaa4xHint | rl.FlagWindowResizable)
-		case "C", "E", "F":
+		case "C", "E", "F", "G":
 			flags |= uint32(rl.FlagMsaa4xHint)
 		case "D":
 			flags |= uint32(rl.FlagWindowResizable)
@@ -761,11 +761,20 @@ func runStory() {
 		rl.SetTargetFPS(30)
 		// F adds one offscreen render target to E; it needs no game assets.
 		var hdrTestTexture rl.RenderTexture2D
-		if hdrDiagnosticVariant == "F" {
+		if hdrDiagnosticVariant == "F" || hdrDiagnosticVariant == "G" {
 			hdrTestTexture = rl.LoadRenderTexture(screenWidth, screenHeight)
 			defer rl.UnloadRenderTexture(hdrTestTexture)
 		}
-		// E/F keep C's window configuration and use the game's exit checks.
+		// G adds the actual scanline shader used by the game on top of F.
+		var hdrTestShader rl.Shader
+		var hdrTextureSizeLoc, hdrScanlineLoc int32
+		if hdrDiagnosticVariant == "G" {
+			hdrTestShader = rl.LoadShaderFromMemory("", scanlineFs)
+			hdrTextureSizeLoc = rl.GetShaderLocation(hdrTestShader, "textureSize")
+			hdrScanlineLoc = rl.GetShaderLocation(hdrTestShader, "scanlineWeight")
+			defer rl.UnloadShader(hdrTestShader)
+		}
+		// E/F/G keep C's window configuration and use the game's exit checks.
 		var frames int
 		var captured bool
 		var initialMouse rl.Vector2
@@ -781,10 +790,18 @@ func runStory() {
 			if hdrDiagnosticVariant == "F" {
 				src := rl.NewRectangle(0, 0, screenWidth, -screenHeight)
 				dst := rl.NewRectangle(0, 0, float32(rl.GetScreenWidth()), float32(rl.GetScreenHeight()))
+				if hdrDiagnosticVariant == "G" {
+					rl.SetShaderValue(hdrTestShader, hdrTextureSizeLoc, []float32{screenWidth, screenHeight}, rl.ShaderUniformVec2)
+					rl.SetShaderValue(hdrTestShader, hdrScanlineLoc, []float32{0.15}, rl.ShaderUniformFloat)
+					rl.BeginShaderMode(hdrTestShader)
+				}
 				rl.DrawTexturePro(hdrTestTexture.Texture, src, dst, rl.NewVector2(0, 0), 0, rl.White)
+				if hdrDiagnosticVariant == "G" {
+					rl.EndShaderMode()
+				}
 			}
 			rl.EndDrawing()
-			if (hdrDiagnosticVariant == "E" || hdrDiagnosticVariant == "F") && isScreensaverMode && !hotKeysEnabled {
+			if (hdrDiagnosticVariant == "E" || hdrDiagnosticVariant == "F" || hdrDiagnosticVariant == "G") && isScreensaverMode && !hotKeysEnabled {
 				if (isRun && isAnyKeyPressedGlobally()) || (!isRun && isKeyDownGlobally(0x1B)) || rl.IsMouseButtonPressed(rl.MouseLeftButton) || rl.IsMouseButtonPressed(rl.MouseRightButton) {
 					shouldExitApp = true
 					break
