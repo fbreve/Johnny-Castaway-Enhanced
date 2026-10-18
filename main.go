@@ -742,10 +742,15 @@ func runStory() {
 	// Inherits the regular multi-monitor parent/child process behavior.
 	if hdrDiagnosticVariant != "" {
 		startHDRWatchdog()
-		// Variant A: original flags. Variant B: no MSAA or resizable flag.
-		flags := uint32(rl.FlagMsaa4xHint | rl.FlagWindowUndecorated | rl.FlagWindowResizable)
-		if hdrDiagnosticVariant == "B" {
-			flags = uint32(rl.FlagWindowUndecorated)
+		// A: MSAA + resizable; B: neither; C: MSAA only; D: resizable only.
+		flags := uint32(rl.FlagWindowUndecorated)
+		switch hdrDiagnosticVariant {
+		case "A":
+			flags |= uint32(rl.FlagMsaa4xHint | rl.FlagWindowResizable)
+		case "C":
+			flags |= uint32(rl.FlagMsaa4xHint)
+		case "D":
+			flags |= uint32(rl.FlagWindowResizable)
 		}
 		rl.SetConfigFlags(flags)
 		rl.InitWindow(screenWidth, screenHeight, "Johnny Castaway HDR Diagnostic")
