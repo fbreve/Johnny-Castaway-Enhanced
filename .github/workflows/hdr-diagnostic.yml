@@ -8,6 +8,7 @@ on:
       - diagnostic/hdr-exit-lifecycle
       - diagnostic/hdr-rendertexture
       - diagnostic/hdr-shader
+      - diagnostic/hdr-multilayer
 
 permissions:
   contents: read
@@ -26,7 +27,7 @@ jobs:
           New-Item -ItemType Directory -Force assets | Out-Null
           New-Item -ItemType File -Force assets/RESOURCE.MAP | Out-Null
           New-Item -ItemType File -Force assets/RESOURCE.001 | Out-Null
-      - name: Build seven standalone Windows screensavers
+      - name: Build eight standalone Windows screensavers
         shell: pwsh
         run: |
           go build -ldflags="-X main.hdrDiagnosticVariant=A -H windowsgui" -o JohnnyHDR-A.scr .
@@ -36,6 +37,7 @@ jobs:
           go build -ldflags="-X main.hdrDiagnosticVariant=E -H windowsgui" -o JohnnyHDR-E.scr .
           go build -ldflags="-X main.hdrDiagnosticVariant=F -H windowsgui" -o JohnnyHDR-F.scr .
           go build -ldflags="-X main.hdrDiagnosticVariant=G -H windowsgui" -o JohnnyHDR-G.scr .
+          go build -ldflags="-X main.hdrDiagnosticVariant=H -H windowsgui" -o JohnnyHDR-H.scr .
       - name: Upload diagnostic screensavers
         uses: actions/upload-artifact@v4
         with:
@@ -48,4 +50,5 @@ jobs:
             JohnnyHDR-E.scr
             JohnnyHDR-F.scr
             JohnnyHDR-G.scr
+            JohnnyHDR-H.scr
           retention-days: 7

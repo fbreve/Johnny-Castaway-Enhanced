@@ -747,7 +747,7 @@ func runStory() {
 		switch hdrDiagnosticVariant {
 		case "A":
 			flags |= uint32(rl.FlagMsaa4xHint | rl.FlagWindowResizable)
-		case "C", "E", "F", "G":
+		case "C", "E", "F", "G", "H":
 			flags |= uint32(rl.FlagMsaa4xHint)
 		case "D":
 			flags |= uint32(rl.FlagWindowResizable)
@@ -774,7 +774,13 @@ func runStory() {
 			hdrScanlineLoc = rl.GetShaderLocation(hdrTestShader, "scanlineWeight")
 			defer rl.UnloadShader(hdrTestShader)
 		}
-		// E/F/G keep C's window configuration and use the game's exit checks.
+		// H uses the game-like multilayer/shader pipeline without game assets.
+		var hdrLayers *hdrDiagnosticLayers
+		if hdrDiagnosticVariant == "H" {
+			hdrLayers = newHDRDiagnosticLayers()
+			defer hdrLayers.close()
+		}
+		// E/F/G/H keep C's window configuration and use the game's exit checks.
 		var frames int
 		var captured bool
 		var initialMouse rl.Vector2
@@ -785,8 +791,14 @@ func runStory() {
 				rl.DrawRectangle(0, 0, screenWidth, screenHeight, rl.DarkGray)
 				rl.EndTextureMode()
 			}
+			if hdrLayers != nil {
+				hdrLayers.composeFrame()
+			}
 			rl.BeginDrawing()
 			rl.ClearBackground(rl.Black)
+			if hdrLayers != nil {
+				hdrLayers.present()
+			}
 			if hdrDiagnosticVariant == "F" || hdrDiagnosticVariant == "G" {
 				src := rl.NewRectangle(0, 0, screenWidth, -screenHeight)
 				dst := rl.NewRectangle(0, 0, float32(rl.GetScreenWidth()), float32(rl.GetScreenHeight()))
@@ -801,7 +813,7 @@ func runStory() {
 				}
 			}
 			rl.EndDrawing()
-			if (hdrDiagnosticVariant == "E" || hdrDiagnosticVariant == "F" || hdrDiagnosticVariant == "G") && isScreensaverMode && !hotKeysEnabled {
+			if (hdrDiagnosticVariant == "E" || hdrDiagnosticVariant == "F" || hdrDiagnosticVariant == "G" || hdrDiagnosticVariant == "H") && isScreensaverMode && !hotKeysEnabled {
 				if (isRun && isAnyKeyPressedGlobally()) || (!isRun && isKeyDownGlobally(0x1B)) || rl.IsMouseButtonPressed(rl.MouseLeftButton) || rl.IsMouseButtonPressed(rl.MouseRightButton) {
 					shouldExitApp = true
 					break
