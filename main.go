@@ -28,6 +28,7 @@ var (
 	hasMonitorIndex   bool
 	isChildProcess    bool
 	buildTime         = "Developer Build"
+	hdrDisableAudio   = "" // Set to "1" via -ldflags for full-game HDR isolation
 	isRun             = false
 )
 
@@ -604,9 +605,11 @@ func setupApp() {
 	rl.DisableCursor()
 	rl.HideCursor()
 
-	rl.InitAudioDevice()
-	rl.SetMasterVolume(1.0)
-	loadSfx()
+	if hdrDisableAudio != "1" {
+		rl.InitAudioDevice()
+		rl.SetMasterVolume(1.0)
+		loadSfx()
+	}
 
 	rl.SetTargetFPS(30)
 
@@ -739,9 +742,13 @@ func runStory() {
 
 	setupApp()
 	defer rl.CloseWindow()
-	defer rl.CloseAudioDevice()
+	if hdrDisableAudio != "1" {
+		defer rl.CloseAudioDevice()
+	}
 	defer graphicsEnd()
-	defer unloadSfx()
+	if hdrDisableAudio != "1" {
+		defer unloadSfx()
+	}
 
 	storyPlay()
 }
@@ -764,9 +771,13 @@ func runBenchMode() {
 	fmt.Println("-----------------------------------")
 	setupApp()
 	defer rl.CloseWindow()
-	defer rl.CloseAudioDevice()
+	if hdrDisableAudio != "1" {
+		defer rl.CloseAudioDevice()
+	}
 	defer graphicsEnd()
-	defer unloadSfx()
+	if hdrDisableAudio != "1" {
+		defer unloadSfx()
+	}
 
 	results := adsPlayBench()
 
@@ -819,9 +830,13 @@ func runBenchMode() {
 func runTestMode(testAdsName string, testTagNo int) {
 	setupApp()
 	defer rl.CloseWindow()
-	defer rl.CloseAudioDevice()
+	if hdrDisableAudio != "1" {
+		defer rl.CloseAudioDevice()
+	}
 	defer graphicsEnd()
-	defer unloadSfx()
+	if hdrDisableAudio != "1" {
+		defer unloadSfx()
+	}
 
 	adsInit()
 	storyCurrentDay = activeConfig.CurrentDay
