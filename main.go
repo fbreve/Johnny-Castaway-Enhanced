@@ -742,12 +742,12 @@ func runStory() {
 	// Inherits the regular multi-monitor parent/child process behavior.
 	if hdrDiagnosticVariant != "" {
 		startHDRWatchdog()
-		// A: MSAA + resizable; B: neither; C: MSAA only; D: resizable only.
+		// A: MSAA + resizable; B: neither; C: MSAA only; D: resizable only; E: exit checks; F: offscreen texture.
 		flags := uint32(rl.FlagWindowUndecorated)
 		switch hdrDiagnosticVariant {
 		case "A":
 			flags |= uint32(rl.FlagMsaa4xHint | rl.FlagWindowResizable)
-		case "C", "E":
+		case "C", "E", "F":
 			flags |= uint32(rl.FlagMsaa4xHint)
 		case "D":
 			flags |= uint32(rl.FlagWindowResizable)
@@ -759,15 +759,32 @@ func runStory() {
 		rl.DisableCursor()
 		rl.HideCursor()
 		rl.SetTargetFPS(30)
-		// E keeps C's rendering configuration but uses the full game's exit checks.
+		// F adds one offscreen render target to E; it needs no game assets.
+		var hdrTestTexture rl.RenderTexture2D
+		if hdrDiagnosticVariant == "F" {
+			hdrTestTexture = rl.LoadRenderTexture(screenWidth, screenHeight)
+			defer rl.UnloadRenderTexture(hdrTestTexture)
+		}
+		// E/F keep C's window configuration and use the game's exit checks.
 		var frames int
 		var captured bool
 		var initialMouse rl.Vector2
 		for !rl.WindowShouldClose() && !shouldExitApp {
+			if hdrDiagnosticVariant == "F" {
+				rl.BeginTextureMode(hdrTestTexture)
+				rl.ClearBackground(rl.Black)
+				rl.DrawRectangle(0, 0, screenWidth, screenHeight, rl.DarkGray)
+				rl.EndTextureMode()
+			}
 			rl.BeginDrawing()
 			rl.ClearBackground(rl.Black)
+			if hdrDiagnosticVariant == "F" {
+				src := rl.NewRectangle(0, 0, screenWidth, -screenHeight)
+				dst := rl.NewRectangle(0, 0, float32(rl.GetScreenWidth()), float32(rl.GetScreenHeight()))
+				rl.DrawTexturePro(hdrTestTexture.Texture, src, dst, rl.NewVector2(0, 0), 0, rl.White)
+			}
 			rl.EndDrawing()
-			if hdrDiagnosticVariant == "E" && isScreensaverMode && !hotKeysEnabled {
+			if (hdrDiagnosticVariant == "E" || hdrDiagnosticVariant == "F") && isScreensaverMode && !hotKeysEnabled {
 				if (isRun && isAnyKeyPressedGlobally()) || (!isRun && isKeyDownGlobally(0x1B)) || rl.IsMouseButtonPressed(rl.MouseLeftButton) || rl.IsMouseButtonPressed(rl.MouseRightButton) {
 					shouldExitApp = true
 					break
