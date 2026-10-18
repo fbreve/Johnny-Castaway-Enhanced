@@ -779,7 +779,7 @@ func runStory() {
 		var captured bool
 		var initialMouse rl.Vector2
 		for !rl.WindowShouldClose() && !shouldExitApp {
-			if hdrDiagnosticVariant == "F" {
+			if hdrDiagnosticVariant == "F" || hdrDiagnosticVariant == "G" {
 				rl.BeginTextureMode(hdrTestTexture)
 				rl.ClearBackground(rl.Black)
 				rl.DrawRectangle(0, 0, screenWidth, screenHeight, rl.DarkGray)
@@ -787,7 +787,7 @@ func runStory() {
 			}
 			rl.BeginDrawing()
 			rl.ClearBackground(rl.Black)
-			if hdrDiagnosticVariant == "F" {
+			if hdrDiagnosticVariant == "F" || hdrDiagnosticVariant == "G" {
 				src := rl.NewRectangle(0, 0, screenWidth, -screenHeight)
 				dst := rl.NewRectangle(0, 0, float32(rl.GetScreenWidth()), float32(rl.GetScreenHeight()))
 				if hdrDiagnosticVariant == "G" {
