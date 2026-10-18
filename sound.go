@@ -86,6 +86,9 @@ func unloadSfx() {
 }
 
 func soundPlay(id uint16) {
+	if hdrDisableAudio == "1" {
+		return
+	}
 	if !activeConfig.Sounds {
 		return
 	}
