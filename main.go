@@ -588,8 +588,8 @@ func setupApp() {
 	cfgFileRead(&activeConfig)
 	startHDRWatchdog()
 
-	// Enable 4x MSAA, undecorated, and resizable window flags before initialization to ensure window focus
-	rl.SetConfigFlags(rl.FlagMsaa4xHint | rl.FlagWindowUndecorated | rl.FlagWindowResizable)
+	// Keep MSAA and undecorated mode; omit resizable to test HDR recovery after monitor standby.
+	rl.SetConfigFlags(rl.FlagMsaa4xHint | rl.FlagWindowUndecorated)
 	rl.InitWindow(screenWidth, screenHeight, "Johnny Castaway")
 
 	if !rl.IsWindowReady() {
