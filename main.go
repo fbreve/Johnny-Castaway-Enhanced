@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
@@ -747,7 +748,7 @@ func runStory() {
 		switch hdrDiagnosticVariant {
 		case "A":
 			flags |= uint32(rl.FlagMsaa4xHint | rl.FlagWindowResizable)
-		case "C", "E", "F", "G", "H":
+		case "C", "E", "F", "G", "H", "I":
 			flags |= uint32(rl.FlagMsaa4xHint)
 		case "D":
 			flags |= uint32(rl.FlagWindowResizable)
@@ -758,7 +759,12 @@ func runStory() {
 		setupMonitors()
 		rl.DisableCursor()
 		rl.HideCursor()
-		rl.SetTargetFPS(30)
+		if hdrDiagnosticVariant == "I" {
+			// Game-style fixed sleep after presenting, instead of Raylib frame pacing.
+			rl.SetTargetFPS(0)
+		} else {
+			rl.SetTargetFPS(30)
+		}
 		// F adds one offscreen render target to E; it needs no game assets.
 		var hdrTestTexture rl.RenderTexture2D
 		if hdrDiagnosticVariant == "F" || hdrDiagnosticVariant == "G" {
@@ -776,7 +782,7 @@ func runStory() {
 		}
 		// H uses the game-like multilayer/shader pipeline without game assets.
 		var hdrLayers *hdrDiagnosticLayers
-		if hdrDiagnosticVariant == "H" {
+		if hdrDiagnosticVariant == "H" || hdrDiagnosticVariant == "I" {
 			hdrLayers = newHDRDiagnosticLayers()
 			defer hdrLayers.close()
 		}
@@ -813,7 +819,10 @@ func runStory() {
 				}
 			}
 			rl.EndDrawing()
-			if (hdrDiagnosticVariant == "E" || hdrDiagnosticVariant == "F" || hdrDiagnosticVariant == "G" || hdrDiagnosticVariant == "H") && isScreensaverMode && !hotKeysEnabled {
+			if hdrDiagnosticVariant == "I" {
+				time.Sleep(33 * time.Millisecond)
+			}
+			if (hdrDiagnosticVariant == "E" || hdrDiagnosticVariant == "F" || hdrDiagnosticVariant == "G" || hdrDiagnosticVariant == "H" || hdrDiagnosticVariant == "I") && isScreensaverMode && !hotKeysEnabled {
 				if (isRun && isAnyKeyPressedGlobally()) || (!isRun && isKeyDownGlobally(0x1B)) || rl.IsMouseButtonPressed(rl.MouseLeftButton) || rl.IsMouseButtonPressed(rl.MouseRightButton) {
 					shouldExitApp = true
 					break
