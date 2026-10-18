@@ -747,7 +747,7 @@ func runStory() {
 		switch hdrDiagnosticVariant {
 		case "A":
 			flags |= uint32(rl.FlagMsaa4xHint | rl.FlagWindowResizable)
-		case "C":
+		case "C", "E":
 			flags |= uint32(rl.FlagMsaa4xHint)
 		case "D":
 			flags |= uint32(rl.FlagWindowResizable)
@@ -759,10 +759,34 @@ func runStory() {
 		rl.DisableCursor()
 		rl.HideCursor()
 		rl.SetTargetFPS(30)
+		// E keeps C's rendering configuration but uses the full game's exit checks.
+		var frames int
+		var captured bool
+		var initialMouse rl.Vector2
 		for !rl.WindowShouldClose() && !shouldExitApp {
 			rl.BeginDrawing()
 			rl.ClearBackground(rl.Black)
 			rl.EndDrawing()
+			if hdrDiagnosticVariant == "E" && isScreensaverMode && !hotKeysEnabled {
+				if (isRun && isAnyKeyPressedGlobally()) || (!isRun && isKeyDownGlobally(0x1B)) || rl.IsMouseButtonPressed(rl.MouseLeftButton) || rl.IsMouseButtonPressed(rl.MouseRightButton) {
+					shouldExitApp = true
+					break
+				}
+				frames++
+				if frames > 10 {
+					pos := rl.GetMousePosition()
+					if !captured {
+						initialMouse = pos
+						captured = true
+					} else {
+						dx, dy := pos.X-initialMouse.X, pos.Y-initialMouse.Y
+						if dx*dx+dy*dy > 100 {
+							shouldExitApp = true
+							break
+						}
+					}
+				}
+			}
 		}
 		return
 	}
