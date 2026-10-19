@@ -11,6 +11,8 @@ Write-Trace "observer.start path=$path"
 Write-Host "HDR observer logging to: $path"
 $last = $null
 $lastHeartbeat = [datetime]::MinValue
+# Keep native process handles so an exit code can be read after a process disappears from CIM.
+$tracked = @{}
 try {
     while ($true) {
         try {
@@ -23,6 +25,36 @@ try {
                 Sort-Object ProcessId |
                 ForEach-Object { "pid=$($_.ProcessId) ppid=$($_.ParentProcessId) name=$($_.Name)" })
             $current = $matches -join '; '
+            $seen = @{}
+            foreach ($entry in $matches) {
+                if ($entry -match '^pid=(\d+) ') {
+                    $processId = [int]$Matches[1]
+                    $seen[$processId] = $true
+                    if (-not $tracked.ContainsKey($processId)) {
+                        try {
+                            $handle = [System.Diagnostics.Process]::GetProcessById($processId)
+                            $tracked[$processId] = $handle
+                            Write-Trace "process.open pid=$processId start=$($handle.StartTime.ToString('o'))"
+                        } catch {
+                            Write-Trace "process.open.error pid=$processId error=$($_.Exception.Message)"
+                        }
+                    }
+                }
+            }
+            foreach ($processId in @($tracked.Keys)) {
+                $handle = $tracked[$processId]
+                try {
+                    if ($handle.HasExited) {
+                        Write-Trace "process.exit pid=$processId code=$($handle.ExitCode)"
+                        $handle.Dispose()
+                        $tracked.Remove($processId)
+                    } elseif (-not $seen.ContainsKey($processId)) {
+                        Write-Trace "process.cim.missing.but.alive pid=$processId"
+                    }
+                } catch {
+                    Write-Trace "process.exit.error pid=$processId error=$($_.Exception.Message)"
+                }
+            }
             if ($current -ne $last) {
                 Write-Trace "processes.changed $current"
                 $last = $current
@@ -37,5 +69,6 @@ try {
         Start-Sleep -Seconds 1
     }
 } finally {
+    foreach ($handle in $tracked.Values) { $handle.Dispose() }
     Write-Trace "observer.stop"
 }
