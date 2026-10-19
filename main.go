@@ -708,6 +708,7 @@ func runStory() {
 				go func(index int, c *exec.Cmd) {
 					defer wg.Done()
 					err := c.Run()
+					hdrTrace("child.exit monitor=%d pid=%d err=%v", index, func() int { if c.Process != nil { return c.Process.Pid }; return 0 }(), err)
 					if err != nil {
 						fmt.Printf("Instance %d exited: %v\n", index, err)
 					}
@@ -719,18 +720,23 @@ func runStory() {
 			}
 
 			// Wait for any child process to exit
+			hdrTrace("parent.wait.child")
 			<-shouldExitChan
+			hdrTrace("parent.child.exit.observed")
 
 			// Clean exit: signal all other child processes to terminate gracefully
 			// by closing their stdin pipes. This causes their stdin reader loop to unblock
 			// and trigger a standard Raylib/GLFW teardown to cleanly restore HDR and display settings.
+			hdrTrace("parent.close.child.pipes.begin")
 			for _, pipe := range stdinPipes {
 				if pipe != nil {
 					_ = pipe.Close()
 				}
 			}
 
+			hdrTrace("parent.wait.all.children")
 			wg.Wait()
+			hdrTrace("parent.all.children.exited")
 			return
 		}
 	}
@@ -740,7 +746,8 @@ func runStory() {
 		// When the parent closes the stdin pipe, Read returns immediately, triggering clean exit.
 		go func() {
 			buf := make([]byte, 1)
-			_, _ = os.Stdin.Read(buf)
+			n, err := os.Stdin.Read(buf)
+			hdrTrace("child.stdin.signal n=%d err=%v", n, err)
 			shouldExitApp = true
 		}()
 	}
