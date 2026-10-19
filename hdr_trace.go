@@ -22,6 +22,13 @@ func hdrTraceStart() {
  hdrTraceFile = file
  hdrTraceMu.Unlock()
  hdrTrace("process.start args=%q", os.Args)
+ go func() {
+  ticker := time.NewTicker(5 * time.Second)
+  defer ticker.Stop()
+  for range ticker.C {
+   hdrTrace("heartbeat")
+  }
+ }()
 }
 
 func hdrTrace(format string, args ...interface{}) {
