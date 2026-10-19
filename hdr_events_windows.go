@@ -22,6 +22,11 @@ const (
  hdrPBTSettingChange = 0x8013
 )
 
+type hdrGUID struct { a uint32; b,c uint16; d [8]byte }
+type hdrPowerSetting struct { setting hdrGUID; length uint32; data [1]byte }
+var hdrConsoleDisplay = hdrGUID{0x6fe69556,0x704a,0x47a0,[8]byte{0x8f,0x24,0xc2,0x8d,0x93,0x6f,0xda,0x47}}
+var hdrSessionDisplay = hdrGUID{0x2b84c20e,0xad23,0x4ddf,[8]byte{0x93,0xdb,0x05,0xff,0xbd,0x7e,0xfc,0xa5}}
+
 type hdrWndClass struct {
  size uint32
  style uint32
@@ -58,6 +63,8 @@ var (
  hdrDefWindowProc = hdrUser32.NewProc("DefWindowProcW")
  hdrDestroyWindow = hdrUser32.NewProc("DestroyWindow")
  hdrGetModuleHandle = hdrKernel32.NewProc("GetModuleHandleW")
+ hdrRegisterPower = hdrUser32.NewProc("RegisterPowerSettingNotification")
+ hdrUnregisterPower = hdrUser32.NewProc("UnregisterPowerSettingNotification")
  hdrWTSRegister = hdrWTS.NewProc("WTSRegisterSessionNotification")
  hdrWTSUnregister = hdrWTS.NewProc("WTSUnRegisterSessionNotification")
 )
@@ -76,7 +83,15 @@ func hdrWindowsEventsLoop() {
   case hdrWMDisplayChange:
    hdrTrace("windows.display.change bits=%d size=%dx%d", wp, uint16(lp), uint16(lp>>16))
   case hdrWMPowerBroadcast:
-   hdrTrace("windows.power.broadcast event=0x%x", wp)
+   if wp == hdrPBTSettingChange && lp != 0 {
+    setting := (*hdrPowerSetting)(unsafe.Pointer(lp))
+    if setting.length >= 4 && setting.length <= 256 {
+     value := *(*uint32)(unsafe.Pointer(&setting.data[0]))
+     hdrTrace("windows.power.setting guid=%08x value=%d",setting.setting.a,value)
+    } else {
+     hdrTrace("windows.power.setting.invalid length=%d",setting.length)
+    }
+   } else { hdrTrace("windows.power.broadcast event=0x%x", wp) }
   case hdrWMWTSSessionChange:
    hdrTrace("windows.session.change event=0x%x session=%d", wp, lp)
   case hdrWMQueryEndSession:
@@ -97,9 +112,16 @@ func hdrWindowsEventsLoop() {
  // A hidden top-level window receives broadcast messages; message-only windows do not.
  hwnd, _, err := hdrCreateWindow.Call(0,uintptr(unsafe.Pointer(className)),uintptr(unsafe.Pointer(className)),0,0,0,0,0,0,0,instance,0)
  if hwnd == 0 { hdrTrace("windows.observer.create.failed err=%v",err); return }
+ var powerHandles []uintptr
+ for _, g := range []*hdrGUID{&hdrConsoleDisplay,&hdrSessionDisplay} {
+  h, _, powerErr := hdrRegisterPower.Call(hwnd,uintptr(unsafe.Pointer(g)),0)
+  hdrTrace("windows.power.register guid=%08x success=%v err=%v",g.a,h!=0,powerErr)
+  if h != 0 {powerHandles=append(powerHandles,h)}
+ }
  registered, _, wtsErr := hdrWTSRegister.Call(hwnd,hdrWTSNotifyThisSession)
  hdrTrace("windows.observer.ready hwnd=0x%x session_notifications=%v err=%v",hwnd,registered!=0,wtsErr)
  defer func() {
+  for _, h := range powerHandles { hdrUnregisterPower.Call(h) }
   if registered != 0 { hdrWTSUnregister.Call(hwnd) }
   hdrDestroyWindow.Call(hwnd)
   hdrTrace("windows.observer.stopped")
