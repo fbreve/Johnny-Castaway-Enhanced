@@ -526,6 +526,7 @@ func printUsage() {
 func main() {
 	hdrTraceStart()
 	defer hdrTraceStop()
+	hdrWindowsEventsStart()
 	var isSettings = false
 	var isPreview = false
 	var isTest = false
