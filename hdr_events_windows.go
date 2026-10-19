@@ -19,6 +19,7 @@ const (
  hdrWTSLock = 0x7
  hdrWTSUnlock = 0x8
  hdrWTSNotifyThisSession = 0
+ hdrPBTSettingChange = 0x8013
 )
 
 type hdrWndClass struct {
