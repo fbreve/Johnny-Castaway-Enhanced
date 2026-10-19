@@ -5,9 +5,11 @@ import (
  "os"
  "path/filepath"
  "sync"
+ "sync/atomic"
  "time"
 )
 
+var hdrTraceFrames atomic.Uint64
 var hdrTraceMu sync.Mutex
 var hdrTraceFile *os.File
 var hdrTraceEnabled = "" // -ldflags="-X main.hdrTraceEnabled=1"
@@ -25,8 +27,11 @@ func hdrTraceStart() {
  go func() {
   ticker := time.NewTicker(5 * time.Second)
   defer ticker.Stop()
+  var lastFrames uint64
   for range ticker.C {
-   hdrTrace("heartbeat")
+   frames := hdrTraceFrames.Load()
+   hdrTrace("heartbeat presented_frames=%d delta_frames=%d", frames, frames-lastFrames)
+   lastFrames = frames
   }
  }()
 }
@@ -49,4 +54,9 @@ func hdrTraceStop() {
   _ = hdrTraceFile.Close()
   hdrTraceFile = nil
  }
+}
+
+// Called only after the graphics thread returns from EndDrawing.
+func hdrTraceFramePresented() {
+ if hdrTraceEnabled == "1" { hdrTraceFrames.Add(1) }
 }
