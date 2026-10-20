@@ -680,8 +680,11 @@ func grUpdateDisplay(
 	ttmHolidayThread *TTtmThread,
 	ttmCloudsThread *TTtmThread,
 ) {
-	// Experimental HDR test: skip frame submission while display is off.
-	if isScreensaverMode && hdrShouldPausePresentation() { return }
+	// The Windows power observer requests normal teardown rather than freezing frames.
+	if isScreensaverMode && hdrShouldExitOnDisplayOff() {
+		shouldExitApp = true
+		return
+	}
 	// r.c. - compute one letterboxed (4:3) destination rect per connected
 	// monitor instead of one for the whole (now possibly multi-monitor-
 	// spanning) window, so the same scene is drawn correctly centered on
@@ -1135,6 +1138,11 @@ func grUpdateDisplay(
 
 	start := rl.GetTime()
 	for {
+		if isScreensaverMode && hdrShouldExitOnDisplayOff() {
+			hdrTrace("windows.display.off.exit.handled")
+			shouldExitApp = true
+			break
+		}
 		draw()
 		if shouldExitApp {
 			break
