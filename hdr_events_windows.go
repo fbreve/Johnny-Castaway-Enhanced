@@ -4,7 +4,6 @@ package main
 
 import (
  "runtime"
- "os"
  "sync/atomic"
  "syscall"
  "unsafe"
@@ -29,7 +28,7 @@ type hdrPowerSetting struct { setting hdrGUID; length uint32; data [1]byte }
 var hdrDisplayOff atomic.Bool
 
 func hdrShouldPausePresentation() bool {
- return os.Getenv("JOHNNY_HDR_PAUSE_PRESENT") == "1" && hdrDisplayOff.Load()
+ return hdrDisplayOff.Load()
 }
 
 var hdrConsoleDisplay = hdrGUID{0x6fe69556,0x704a,0x47a0,[8]byte{0x8f,0x24,0xc2,0x8d,0x93,0x6f,0xda,0x47}}
@@ -96,7 +95,7 @@ func hdrWindowsEventsLoop() {
     if setting.length >= 4 && setting.length <= 256 {
      value := *(*uint32)(unsafe.Pointer(&setting.data[0]))
      hdrTrace("windows.power.setting guid=%08x value=%d",setting.setting.a,value)
-     if setting.setting.a == hdrConsoleDisplay.a && os.Getenv("JOHNNY_HDR_PAUSE_PRESENT") == "1" {
+     if setting.setting.a == hdrConsoleDisplay.a {
       off := value == 0 || value == 2
       old := hdrDisplayOff.Swap(off)
       if old != off { hdrTrace("windows.presentation.pause changed=%v power_value=%d", off, value) }
