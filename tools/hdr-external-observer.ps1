@@ -43,8 +43,17 @@ public static class JohnnyNativeDiagnostics {
                     int rc = DisplayConfigGetDeviceInfo(info);
                     if (rc == 0) {
                         uint flags = unchecked((uint)Marshal.ReadInt32(info, 20));
-                        statuses.Add("target=" + targetId + ",supported=" + ((flags & 2)!=0) +
-                            ",enabled=" + ((flags & 4)!=0) + ",wide_color=" + ((flags & 8)!=0) +
+                        // DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO bitfields (LSB first):
+                        // advancedColorSupported=bit 0, advancedColorEnabled=bit 1,
+                        // wideColorEnforced=bit 2, advancedColorForceDisabled=bit 3.
+                        // Higher bits are reserved: retain them for diagnostics, but never
+                        // interpret them as feature-state changes.
+                        uint known = flags & 0xFu;
+                        statuses.Add("target=" + targetId + ",supported=" + ((known & 1)!=0) +
+                            ",enabled=" + ((known & 2)!=0) + ",wide_color_enforced=" + ((known & 4)!=0) +
+                            ",force_disabled=" + ((known & 8)!=0) +
+                            ",known_flags=0x" + known.ToString("X") +
+                            ",reserved_flags=0x" + (flags & ~0xFu).ToString("X") +
                             ",raw_flags=0x" + flags.ToString("X"));
                     } else statuses.Add("target=" + targetId + ",error=" + rc);
                 } finally { Marshal.FreeHGlobal(info); }
