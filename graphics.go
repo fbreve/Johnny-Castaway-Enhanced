@@ -928,7 +928,10 @@ func grUpdateDisplay(
 		}
 
 		rl.BeginDrawing()
-		defer rl.EndDrawing()
+		defer func() {
+			rl.EndDrawing()
+			hdrTraceFramePresented()
+		}()
 
 		rl.ClearBackground(rl.Black)
 

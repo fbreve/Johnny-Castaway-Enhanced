@@ -524,6 +524,9 @@ func printUsage() {
 }
 
 func main() {
+	hdrTraceStart()
+	defer hdrTraceStop()
+	hdrWindowsEventsStart()
 	var isSettings = false
 	var isPreview = false
 	var isTest = false
@@ -585,12 +588,14 @@ func main() {
 }
 
 func setupApp() {
+	hdrTrace("setupApp.enter")
 	cfgFileRead(&activeConfig)
 	startHDRWatchdog()
 
 	// Keep MSAA and undecorated mode; omit resizable to test HDR recovery after monitor standby.
 	rl.SetConfigFlags(rl.FlagMsaa4xHint | rl.FlagWindowUndecorated)
 	rl.InitWindow(screenWidth, screenHeight, "Johnny Castaway")
+	hdrTrace("window.initialized ready=%v", rl.IsWindowReady())
 
 	if !rl.IsWindowReady() {
 		panic("Fatal: Failed to initialize window. Please check your OpenGL/graphics drivers.")
@@ -601,6 +606,7 @@ func setupApp() {
 	// renderer to draw a separate copy of the scene into. On a
 	// single-monitor system this behaves exactly like the previous code.
 	setupMonitors()
+	hdrTrace("monitors.configured")
 	rl.DisableCursor()
 	rl.HideCursor()
 
@@ -614,6 +620,7 @@ func setupApp() {
 
 	doFadeIn()
 	graphicsInit()
+	hdrTrace("setupApp.complete")
 }
 
 func doFadeIn() {
@@ -642,6 +649,8 @@ func doFadeIn() {
 }
 
 func runStory() {
+	hdrTrace("runStory.enter child=%v monitor=%d", isChildProcess, runOnMonitorIndex)
+	defer hdrTrace("runStory.exit")
 	var config TConfig
 	cfgFileRead(&config)
 
@@ -700,6 +709,7 @@ func runStory() {
 				go func(index int, c *exec.Cmd) {
 					defer wg.Done()
 					err := c.Run()
+					hdrTrace("child.exit monitor=%d pid=%d err=%v", index, func() int { if c.Process != nil { return c.Process.Pid }; return 0 }(), err)
 					if err != nil {
 						fmt.Printf("Instance %d exited: %v\n", index, err)
 					}
@@ -711,18 +721,23 @@ func runStory() {
 			}
 
 			// Wait for any child process to exit
+			hdrTrace("parent.wait.child")
 			<-shouldExitChan
+			hdrTrace("parent.child.exit.observed")
 
 			// Clean exit: signal all other child processes to terminate gracefully
 			// by closing their stdin pipes. This causes their stdin reader loop to unblock
 			// and trigger a standard Raylib/GLFW teardown to cleanly restore HDR and display settings.
+			hdrTrace("parent.close.child.pipes.begin")
 			for _, pipe := range stdinPipes {
 				if pipe != nil {
 					_ = pipe.Close()
 				}
 			}
 
+			hdrTrace("parent.wait.all.children")
 			wg.Wait()
+			hdrTrace("parent.all.children.exited")
 			return
 		}
 	}
@@ -732,18 +747,21 @@ func runStory() {
 		// When the parent closes the stdin pipe, Read returns immediately, triggering clean exit.
 		go func() {
 			buf := make([]byte, 1)
-			_, _ = os.Stdin.Read(buf)
+			n, err := os.Stdin.Read(buf)
+			hdrTrace("child.stdin.signal n=%d err=%v", n, err)
 			shouldExitApp = true
 		}()
 	}
 
 	setupApp()
-	defer rl.CloseWindow()
-	defer rl.CloseAudioDevice()
-	defer graphicsEnd()
-	defer unloadSfx()
+	defer func() { hdrTrace("window.close.begin"); rl.CloseWindow(); hdrTrace("window.close.end") }()
+	defer func() { hdrTrace("audio.close.begin"); rl.CloseAudioDevice(); hdrTrace("audio.close.end") }()
+	defer func() { hdrTrace("graphicsEnd.begin"); graphicsEnd(); hdrTrace("graphicsEnd.end") }()
+	defer func() { hdrTrace("unloadSfx.begin"); unloadSfx(); hdrTrace("unloadSfx.end") }()
 
+	hdrTrace("storyPlay.begin")
 	storyPlay()
+	hdrTrace("storyPlay.end")
 }
 
 func singleTTM() {

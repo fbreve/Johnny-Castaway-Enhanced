@@ -35,8 +35,10 @@ func startHDRWatchdog() {
 			0, 0, 0,
 		)
 		if hwnd == 0 {
+			hdrTrace("watchdog.window.create.failed")
 			return
 		}
+		hdrTrace("watchdog.window.created hwnd=%#x", hwnd)
 
 		type MSG struct {
 			Hwnd    uintptr
@@ -55,12 +57,18 @@ func startHDRWatchdog() {
 			if ret == 0 || ret == ^uintptr(0) {
 				break
 			}
+			if msg.Message == WM_POWERBROADCAST || msg.Message == 0x007E /* WM_DISPLAYCHANGE */ || msg.Message == 0x0219 /* WM_DEVICECHANGE */ {
+				hdrTrace("window.message id=%#x wparam=%#x lparam=%#x", msg.Message, msg.WParam, msg.LParam)
+			}
 			if msg.Message == WM_POWERBROADCAST {
 				if msg.WParam == PBT_APMRESUMEAUTOMATIC || msg.WParam == PBT_APMRESUMESUSPEND {
 					// Small delay to let Windows finish restoring the session
+					hdrTrace("watchdog.display.reset.scheduled")
 					time.Sleep(2 * time.Second)
 					// Reset display mode — forces GPU driver to re-apply HDR
+					hdrTrace("watchdog.display.reset.begin")
 					procChangeDisplay.Call(uintptr(unsafe.Pointer(nil)), 0)
+					hdrTrace("watchdog.display.reset.end")
 				}
 			}
 			procDispatchMsg.Call(uintptr(unsafe.Pointer(&msg)))

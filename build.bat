@@ -10,13 +10,16 @@ set "PATH=D:\Tools\w64devkit-1.22.0\bin;E:\Tools\w64devkit-1.22.0\bin;%PATH%"
 
 echo [1/3] Building...
 for /f "usebackq tokens=*" %%a in (`powershell -Command "Get-Date -Format 'yyyy-MM-dd HH:mm:ss'"`) do set BUILD_TIME=%%a
-go build -ldflags "-H windowsgui -X 'main.buildTime=%BUILD_TIME%'" -o JohnnyCastaway.exe .
+go build -ldflags "-H windowsgui -X 'main.buildTime=%BUILD_TIME%' -X main.hdrTraceEnabled=1" -o JohnnyCastaway.exe .
 if %ERRORLEVEL% NEQ 0 (
     echo BUILD FAILED
     pause
     exit /b 1
 )
 
+echo HDR diagnostic logging enabled in this build.
+echo Logs: %%TEMP%%\JohnnyCastawayHDR\
+echo.
 echo [2/3] Creating screensaver...
 copy /Y JohnnyCastaway.exe JohnnyCastaway.scr >nul
 
