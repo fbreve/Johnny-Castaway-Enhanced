@@ -680,6 +680,8 @@ func grUpdateDisplay(
 	ttmHolidayThread *TTtmThread,
 	ttmCloudsThread *TTtmThread,
 ) {
+	// Experimental HDR test: skip frame submission while display is off.
+	if isScreensaverMode && hdrShouldPausePresentation() { return }
 	// r.c. - compute one letterboxed (4:3) destination rect per connected
 	// monitor instead of one for the whole (now possibly multi-monitor-
 	// spanning) window, so the same scene is drawn correctly centered on
