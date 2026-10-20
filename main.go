@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
@@ -30,6 +31,18 @@ var (
 	buildTime         = "Developer Build"
 	isRun             = false
 )
+
+
+// shutdownTrace writes a separate timestamped trace for each process. The file is
+// intentionally opened per event so the last completed event survives abrupt exit.
+// Missing process.main.return indicates abnormal termination or forced shutdown.
+func shutdownTrace(event string) {
+    path := fmt.Sprintf("%s%cjohnny-shutdown-%d.log", os.TempDir(), os.PathSeparator, os.Getpid())
+    f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+    if err != nil { return }
+    defer f.Close()
+    fmt.Fprintf(f, "%s pid=%d %s\n", time.Now().Format(time.RFC3339Nano), os.Getpid(), event)
+}
 
 func formatStartTime(val int) string {
 	hour := val / 100
@@ -524,6 +537,8 @@ func printUsage() {
 }
 
 func main() {
+	defer shutdownTrace("process.main.return")
+	shutdownTrace("process.main.enter")
 	var isSettings = false
 	var isPreview = false
 	var isTest = false
@@ -642,6 +657,8 @@ func doFadeIn() {
 }
 
 func runStory() {
+	shutdownTrace("runStory.enter")
+	defer shutdownTrace("runStory.return")
 	var config TConfig
 	cfgFileRead(&config)
 
@@ -699,7 +716,9 @@ func runStory() {
 				wg.Add(1)
 				go func(index int, c *exec.Cmd) {
 					defer wg.Done()
+					shutdownTrace(fmt.Sprintf("child.wait.begin monitor=%d", index))
 					err := c.Run()
+					shutdownTrace(fmt.Sprintf("child.wait.end monitor=%d pid=%d err=%v", index, c.Process.Pid, err))
 					if err != nil {
 						fmt.Printf("Instance %d exited: %v\n", index, err)
 					}
@@ -711,18 +730,23 @@ func runStory() {
 			}
 
 			// Wait for any child process to exit
+			shutdownTrace("parent.wait.first-child")
 			<-shouldExitChan
+			shutdownTrace("parent.first-child-exited")
 
 			// Clean exit: signal all other child processes to terminate gracefully
 			// by closing their stdin pipes. This causes their stdin reader loop to unblock
 			// and trigger a standard Raylib/GLFW teardown to cleanly restore HDR and display settings.
+			shutdownTrace("parent.close.child-stdin.begin")
 			for _, pipe := range stdinPipes {
 				if pipe != nil {
 					_ = pipe.Close()
 				}
 			}
 
+			shutdownTrace("parent.wait.all-children.begin")
 			wg.Wait()
+			shutdownTrace("parent.wait.all-children.end")
 			return
 		}
 	}
@@ -732,18 +756,23 @@ func runStory() {
 		// When the parent closes the stdin pipe, Read returns immediately, triggering clean exit.
 		go func() {
 			buf := make([]byte, 1)
-			_, _ = os.Stdin.Read(buf)
+			n, err := os.Stdin.Read(buf)
+			shutdownTrace(fmt.Sprintf("child.stdin.read.end n=%d err=%v", n, err))
 			shouldExitApp = true
 		}()
 	}
 
+	shutdownTrace("setupApp.begin")
 	setupApp()
-	defer rl.CloseWindow()
-	defer rl.CloseAudioDevice()
-	defer graphicsEnd()
-	defer unloadSfx()
+	shutdownTrace("setupApp.end")
+	defer func() { shutdownTrace("teardown.CloseWindow.begin"); rl.CloseWindow(); shutdownTrace("teardown.CloseWindow.end") }()
+	defer func() { shutdownTrace("teardown.CloseAudioDevice.begin"); rl.CloseAudioDevice(); shutdownTrace("teardown.CloseAudioDevice.end") }()
+	defer func() { shutdownTrace("teardown.graphicsEnd.begin"); graphicsEnd(); shutdownTrace("teardown.graphicsEnd.end") }()
+	defer func() { shutdownTrace("teardown.unloadSfx.begin"); unloadSfx(); shutdownTrace("teardown.unloadSfx.end") }()
 
+	shutdownTrace("storyPlay.begin")
 	storyPlay()
+	shutdownTrace(fmt.Sprintf("storyPlay.return shouldExitApp=%t windowShouldClose=%t", shouldExitApp, rl.WindowShouldClose()))
 }
 
 func singleTTM() {
