@@ -678,6 +678,14 @@ func runStory() {
 				if isRun {
 					args = append(args, "-s")
 				}
+				// Propagate the exit command: the child whose window the user
+				// dismissed runs it (deferred, while its window is still
+				// mapped), so the session locks before that window closes.
+				// Without it the parent only notices the child's exit after
+				// the fact, briefly exposing the desktop on that monitor.
+				if exitCmd != "" {
+					args = append(args, "--exit-cmd", exitCmd)
+				}
 				if hotKeysEnabled {
 					args = append(args, "-k")
 				}
