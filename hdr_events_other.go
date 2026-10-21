@@ -4,4 +4,4 @@ package main
 
 func hdrWindowsEventsStart() {}
 
-func hdrShouldExitOnDisplayOff() bool { return false }
+func hdrShouldPausePresentation() bool { return false }
