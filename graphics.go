@@ -680,9 +680,9 @@ func grUpdateDisplay(
 	ttmHolidayThread *TTtmThread,
 	ttmCloudsThread *TTtmThread,
 ) {
-	// The Windows power observer requests normal teardown rather than freezing frames.
-	if isScreensaverMode && hdrShouldExitOnDisplayOff() {
-		shouldExitApp = true
+	// Experimental HDR mitigation: stop submitting frames while Windows reports dimmed/off.
+	if isScreensaverMode && hdrShouldPausePresentation() {
+		time.Sleep(33 * time.Millisecond)
 		return
 	}
 	// r.c. - compute one letterboxed (4:3) destination rect per connected
@@ -1138,11 +1138,6 @@ func grUpdateDisplay(
 
 	start := rl.GetTime()
 	for {
-		if isScreensaverMode && hdrShouldExitOnDisplayOff() {
-			hdrTrace("windows.display.off.exit.handled")
-			shouldExitApp = true
-			break
-		}
 		draw()
 		if shouldExitApp {
 			break
