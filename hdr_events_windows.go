@@ -97,7 +97,7 @@ func hdrWindowsEventsLoop() {
      if setting.setting.a == hdrConsoleDisplay.a {
       // GUID_CONSOLE_DISPLAY_STATE: 0=off, 1=on, 2=dimmed.
       if value <= 2 {
-       paused := value != 1
+       paused := value == 0
        old := hdrDisplayPaused.Swap(paused)
        if old != paused {
         hdrTrace("windows.presentation.pause changed=%v power_value=%d", paused, value)
