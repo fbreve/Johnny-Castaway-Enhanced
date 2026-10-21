@@ -96,7 +96,8 @@ func hdrWindowsEventsLoop() {
      value := *(*uint32)(unsafe.Pointer(&setting.data[0]))
      hdrTrace("windows.power.setting guid=%08x value=%d",setting.setting.a,value)
      if setting.setting.a == hdrConsoleDisplay.a {
-      if value == 2 && hdrExitOnDisplayOff.CompareAndSwap(false, true) {
+      // GUID_CONSOLE_DISPLAY_STATE: 0=off, 1=on, 2=dimmed.
+      if value == 0 && hdrExitOnDisplayOff.CompareAndSwap(false, true) {
        hdrTrace("windows.display.off.exit.requested power_value=%d", value)
       }
      }
