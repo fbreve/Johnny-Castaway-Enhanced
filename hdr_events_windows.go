@@ -25,10 +25,10 @@ const (
 
 type hdrGUID struct { a uint32; b,c uint16; d [8]byte }
 type hdrPowerSetting struct { setting hdrGUID; length uint32; data [1]byte }
-var hdrExitOnDisplayOff atomic.Bool
+var hdrDisplayPaused atomic.Bool
 
-func hdrShouldExitOnDisplayOff() bool {
- return hdrExitOnDisplayOff.Load()
+func hdrShouldPausePresentation() bool {
+ return hdrDisplayPaused.Load()
 }
 
 var hdrConsoleDisplay = hdrGUID{0x6fe69556,0x704a,0x47a0,[8]byte{0x8f,0x24,0xc2,0x8d,0x93,0x6f,0xda,0x47}}
@@ -77,7 +77,6 @@ var (
 )
 
 func hdrWindowsEventsStart() {
- if hdrTraceEnabled != "1" { return }
  go hdrWindowsEventsLoop()
 }
 func hdrWindowsEventsLoop() {
@@ -97,8 +96,12 @@ func hdrWindowsEventsLoop() {
      hdrTrace("windows.power.setting guid=%08x value=%d",setting.setting.a,value)
      if setting.setting.a == hdrConsoleDisplay.a {
       // GUID_CONSOLE_DISPLAY_STATE: 0=off, 1=on, 2=dimmed.
-      if value == 0 && hdrExitOnDisplayOff.CompareAndSwap(false, true) {
-       hdrTrace("windows.display.off.exit.requested power_value=%d", value)
+      if value <= 2 {
+       paused := value != 1
+       old := hdrDisplayPaused.Swap(paused)
+       if old != paused {
+        hdrTrace("windows.presentation.pause changed=%v power_value=%d", paused, value)
+       }
       }
      }
     } else {
