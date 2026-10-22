@@ -15,6 +15,11 @@ const (
  hdrWMQueryEndSession = 0x0011
  hdrWMEndSession = 0x0016
  hdrWMDisplayChange = 0x007E
+ hdrWMDeviceChange = 0x0219
+ hdrWMSettingChange = 0x001A
+ hdrWMDPIChanged = 0x02E0
+ hdrWMActivateApp = 0x001C
+ hdrWMSize = 0x0005
  hdrWMPowerBroadcast = 0x0218
  hdrWMWTSSessionChange = 0x02B1
  hdrWTSLock = 0x7
@@ -88,6 +93,16 @@ func hdrWindowsEventsLoop() {
   switch msg {
   case hdrWMDisplayChange:
    hdrTrace("windows.display.change bits=%d size=%dx%d", wp, uint16(lp), uint16(lp>>16))
+  case hdrWMDeviceChange:
+   hdrTrace("windows.device.change event=0x%x", wp)
+  case hdrWMSettingChange:
+   hdrTrace("windows.setting.change action=0x%x", wp)
+  case hdrWMDPIChanged:
+   hdrTrace("windows.dpi.change dpi_x=%d dpi_y=%d", uint16(wp), uint16(wp>>16))
+  case hdrWMActivateApp:
+   hdrTrace("windows.activate.app active=%v", wp != 0)
+  case hdrWMSize:
+   hdrTrace("windows.observer.size kind=%d size=%dx%d", wp, uint16(lp), uint16(lp>>16))
   case hdrWMPowerBroadcast:
    if wp == hdrPBTSettingChange && lp != 0 {
     setting := (*hdrPowerSetting)(unsafe.Pointer(lp))
