@@ -111,8 +111,9 @@ func hdrWindowsEventsLoop() {
      hdrTrace("windows.power.setting guid=%08x value=%d",setting.setting.a,value)
      if setting.setting.a == hdrConsoleDisplay.a {
       // GUID_CONSOLE_DISPLAY_STATE: 0=off, 1=on, 2=dimmed.
-      if value == 0 && hdrDisplayExitRequested.CompareAndSwap(false, true) {
-       hdrTrace("windows.display.off.exit.requested power_value=%d", value)
+      // Experiment: request normal screensaver shutdown at dim (2), before off (0).
+      if (value == 0 || value == 2) && hdrDisplayExitRequested.CompareAndSwap(false, true) {
+       hdrTrace("windows.display.transition.exit.requested power_value=%d", value)
       }
      }
     } else {
