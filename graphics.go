@@ -1139,6 +1139,11 @@ func grUpdateDisplay(
 
 	start := rl.GetTime()
 	for {
+		if isScreensaverMode && hdrShouldExitOnDisplayOff() {
+			hdrTrace("windows.display.off.exit.handled")
+			shouldExitApp = true
+			break
+		}
 		draw()
 		if shouldExitApp {
 			break
