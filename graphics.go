@@ -680,9 +680,10 @@ func grUpdateDisplay(
 	ttmHolidayThread *TTtmThread,
 	ttmCloudsThread *TTtmThread,
 ) {
-	// Experimental HDR mitigation: stop submitting frames while Windows reports dimmed/off.
-	if isScreensaverMode && hdrShouldPausePresentation() {
-		time.Sleep(33 * time.Millisecond)
+	// Request normal teardown on display-off; never freeze the animation.
+	if isScreensaverMode && hdrShouldExitOnDisplayOff() {
+		hdrTrace("windows.display.off.exit.handled")
+		shouldExitApp = true
 		return
 	}
 	// r.c. - compute one letterboxed (4:3) destination rect per connected
