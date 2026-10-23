@@ -581,6 +581,9 @@ func main() {
 	if isRun || (!isSettings && !isPreview && !isBench && !isTest) {
 		isScreensaverMode = true
 	}
+	if isScreensaverMode {
+		watchDisplayPowerTransitions()
+	}
 	runStory()
 }
 
