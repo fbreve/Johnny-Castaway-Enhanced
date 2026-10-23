@@ -17,7 +17,9 @@ type displayGUID struct { A uint32; B, C uint16; D [8]byte }
 type displayPowerSetting struct { GUID displayGUID; Length uint32; Data [1]byte }
 type displayWindowClass struct {
  Size, Style uint32
- Proc, ClassExtra, WindowExtra, Instance, Icon, Cursor, Background, MenuName, ClassName, IconSmall uintptr
+ Proc uintptr
+ ClassExtra, WindowExtra int32
+ Instance, Icon, Cursor, Background, MenuName, ClassName, IconSmall uintptr
 }
 type displayMessage struct {
  Hwnd uintptr
