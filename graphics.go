@@ -776,7 +776,12 @@ func grUpdateDisplay(
 			prevEscapeDown = escapeDown
 		}
 
-		if rl.WindowShouldClose() || shouldExitApp {
+		if isScreensaverMode && shouldExitOnDisplayTransition() {
+		shouldExitApp = true
+		return
+	}
+
+	if rl.WindowShouldClose() || shouldExitApp {
 			shouldExitApp = true
 			fmt.Println("exiting...")
 			return
@@ -1130,6 +1135,10 @@ func grUpdateDisplay(
 
 	start := rl.GetTime()
 	for {
+		if isScreensaverMode && shouldExitOnDisplayTransition() {
+			shouldExitApp = true
+			break
+		}
 		draw()
 		if shouldExitApp {
 			break
