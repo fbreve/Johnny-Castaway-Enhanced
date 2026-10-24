@@ -220,3 +220,41 @@ func TestTTMTimerDelayAlwaysMakesProgress(t *testing.T) {
 		}
 	}
 }
+
+func TestTTMTimerDelayFixedValuesCurrentBehavior(t *testing.T) {
+	// Characterization tests: record the behavior currently shipped on main.
+	// These do not assert that the minimum of 4 is faithful to original TTM data.
+	for _, tc := range []struct {
+		input uint16
+		want  uint16
+	}{
+		{0, 4}, {1, 4}, {2, 4}, {3, 4}, {4, 4}, {5, 5}, {10, 10},
+	} {
+		if got := ttmTimerDelay(tc.input, tc.input); got != tc.want {
+			t.Errorf("ttmTimerDelay(%d, %d) = %d; want %d", tc.input, tc.input, got, tc.want)
+		}
+	}
+}
+
+func TestTTMTimerDelayRangeCurrentBehavior(t *testing.T) {
+	// The current minimum is applied after selecting a value from the range.
+	// In particular, 1..3 cannot be observed on main.
+	for _, tc := range []struct {
+		lo, hi uint16
+		min, max uint16
+	}{
+		{0, 3, 4, 4},
+		{1, 3, 4, 4},
+		{2, 5, 4, 5},
+		{4, 8, 4, 8},
+		{7, 7, 7, 7},
+	} {
+		for i := 0; i < 100; i++ {
+			got := ttmTimerDelay(tc.lo, tc.hi)
+			if got < tc.min || got > tc.max {
+				t.Fatalf("ttmTimerDelay(%d, %d) = %d; want in [%d, %d]",
+					tc.lo, tc.hi, got, tc.min, tc.max)
+			}
+		}
+	}
+}
