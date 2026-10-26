@@ -195,7 +195,7 @@ func TestScreenPixelDataRequirements(t *testing.T) {
 	}
 }
 
-func TestTTMTimerDelayAlwaysMakesProgress(t *testing.T) {
+func TestTTMTimerDelayPreservesPositiveValues(t *testing.T) {
 	for _, tt := range []struct {
 		lo, hi uint16
 	}{
@@ -208,14 +208,38 @@ func TestTTMTimerDelayAlwaysMakesProgress(t *testing.T) {
 	} {
 		for i := 0; i < 100; i++ {
 			got := ttmTimerDelay(tt.lo, tt.hi)
-			if got < 4 {
-				t.Fatalf("ttmTimerDelay(%d, %d) = %d, want at least 4", tt.lo, tt.hi, got)
+			if got == 0 {
+				t.Fatalf("ttmTimerDelay(%d, %d) = 0, want progress", tt.lo, tt.hi)
 			}
-			if tt.lo >= 4 && got < tt.lo {
+			if tt.lo > 0 && got < tt.lo {
 				t.Fatalf("ttmTimerDelay(%d, %d) = %d, below lower bound", tt.lo, tt.hi, got)
 			}
-			if tt.hi >= tt.lo && tt.hi >= 4 && got > tt.hi {
+			if tt.hi >= tt.lo && tt.hi > 0 && got > tt.hi {
 				t.Fatalf("ttmTimerDelay(%d, %d) = %d, above upper bound", tt.lo, tt.hi, got)
+			}
+		}
+	}
+}
+
+func TestTTMTimerDelayShortFixedValues(t *testing.T) {
+	for _, tc := range []struct{ input, want uint16 }{
+		{0, 1}, {1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5},
+	} {
+		if got := ttmTimerDelay(tc.input, tc.input); got != tc.want {
+			t.Errorf("ttmTimerDelay(%d, %d) = %d, want %d", tc.input, tc.input, got, tc.want)
+		}
+	}
+}
+
+func TestTTMTimerDelayShortRanges(t *testing.T) {
+	for _, tc := range []struct{ lo, hi, min, max uint16 }{
+		{0, 3, 1, 3}, {1, 3, 1, 3}, {2, 5, 2, 5}, {4, 8, 4, 8},
+	} {
+		for i := 0; i < 100; i++ {
+			got := ttmTimerDelay(tc.lo, tc.hi)
+			if got < tc.min || got > tc.max {
+				t.Fatalf("ttmTimerDelay(%d, %d) = %d, want [%d, %d]",
+					tc.lo, tc.hi, got, tc.min, tc.max)
 			}
 		}
 	}
