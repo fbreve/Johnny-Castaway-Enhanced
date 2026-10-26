@@ -160,3 +160,28 @@ func TestSingleTtmStopsWhenThreadTerminates(t *testing.T) {
 		t.Fatal("TTM would continue past the end of its data")
 	}
 }
+
+func TestAdsCleanupPlaybackResetsThreadStateWithoutGraphics(t *testing.T) {
+	// No graphics context is required: use empty layers and slots.
+	// Preserve global state so this test cannot affect unrelated cases.
+	oldThreads, oldSlots, oldNumThreads := ttmThreads, ttmSlots, numThreads
+	defer func() {
+		ttmThreads, ttmSlots, numThreads = oldThreads, oldSlots, oldNumThreads
+	}()
+	ttmThreads = [MaxTTMThreads]TTtmThread{}
+	ttmSlots = [MaxTTMSlots]TTtmSlot{}
+	ttmThreads[0].isRunning = 1
+	ttmThreads[1].isRunning = 2
+	numThreads = 2
+
+	adsCleanupPlayback()
+	if numThreads != 0 || ttmThreads[0].isRunning != 0 || ttmThreads[1].isRunning != 0 {
+		t.Fatalf("playback state not cleared: threads=%d states=(%d,%d)",
+			numThreads, ttmThreads[0].isRunning, ttmThreads[1].isRunning)
+	}
+	// Repeated cleanup must not revive or decrement the thread count.
+	adsCleanupPlayback()
+	if numThreads != 0 {
+		t.Fatalf("second cleanup changed thread count to %d", numThreads)
+	}
+}

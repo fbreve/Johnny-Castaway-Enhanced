@@ -754,6 +754,25 @@ func adsPlayTriggeredChunks(data []byte, dataSize uint32, ttmSlotNo, ttmTag uint
 	}
 }
 
+// adsCleanupPlayback releases per-playback scene resources on both normal
+// completion and early application exit. Do not use adsStopScene here: it can
+// redraw persistent decorations while the display is shutting down.
+func adsCleanupPlayback() {
+	for i := range ttmThreads {
+		if ttmThreads[i].ttmLayer != nil {
+			grFreeLayer(ttmThreads[i].ttmLayer)
+			ttmThreads[i].ttmLayer = nil
+		}
+		ttmThreads[i].isRunning = 0
+	}
+	numThreads = 0
+	for i := 0; i < MaxTTMSlots; i++ {
+		ttmResetSlot(&ttmSlots[i])
+	}
+	grRestoreZone(nil, 0, 0, 0, 0)
+	adsReleaseAds()
+}
+
 func adsPlay(adsName string, adsTag uint16) {
 	var (
 		offset   uint32 = 0
@@ -776,6 +795,7 @@ func adsPlay(adsName string, adsTag uint16) {
 
 	adsStopRequested = 0
 	grUpdateDelay = 0
+	defer adsCleanupPlayback()
 
 	// Play the first ADS chunk of the sequence
 	adsPlayChunk(data, dataSize, offset)
@@ -898,13 +918,6 @@ func adsPlay(adsName string, adsTag uint16) {
 		}
 	}
 
-	for i := 0; i < MaxTTMSlots; i++ {
-		ttmResetSlot(&ttmSlots[i])
-	}
-
-	grRestoreZone(nil, 0, 0, 0, 0)
-
-	adsReleaseAds()
 }
 
 func adsPlayBench() []string {
