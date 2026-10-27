@@ -321,10 +321,19 @@ type settledSpriteEntry struct {
 	count    int
 }
 
+// grDetachBackgroundLayerAlias clears the island thread's borrowed reference
+// before the global background render texture is released or replaced.
+func grDetachBackgroundLayerAlias(background *rl.RenderTexture2D) {
+	if background != nil && ttmBackgroundThread.ttmLayer == background {
+		ttmBackgroundThread.ttmLayer = nil
+	}
+}
+
 func grReleaseScreen() {
 	if grBackgroundSur == nil {
 		return
 	}
+	grDetachBackgroundLayerAlias(grBackgroundSur)
 	grFreeLayer(grBackgroundSur)
 	grBackgroundSur = nil
 }
