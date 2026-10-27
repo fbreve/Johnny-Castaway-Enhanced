@@ -244,3 +244,28 @@ func TestTTMTimerDelayShortRanges(t *testing.T) {
 		}
 	}
 }
+
+func TestGrDetachBackgroundLayerAlias(t *testing.T) {
+	previous := ttmBackgroundThread.ttmLayer
+	defer func() { ttmBackgroundThread.ttmLayer = previous }()
+
+	background := &rl.RenderTexture2D{}
+	other := &rl.RenderTexture2D{}
+
+	ttmBackgroundThread.ttmLayer = background
+	grDetachBackgroundLayerAlias(other)
+	if ttmBackgroundThread.ttmLayer != background {
+		t.Fatal("unrelated layer detached")
+	}
+
+	grDetachBackgroundLayerAlias(background)
+	if ttmBackgroundThread.ttmLayer != nil {
+		t.Fatal("released background alias was not cleared")
+	}
+
+	ttmBackgroundThread.ttmLayer = other
+	grDetachBackgroundLayerAlias(nil)
+	if ttmBackgroundThread.ttmLayer != other {
+		t.Fatal("nil background detached unrelated layer")
+	}
+}
