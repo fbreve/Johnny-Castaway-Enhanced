@@ -565,3 +565,41 @@ func TestStandADSRunningConditionBoundaries(t *testing.T) {
 		})
 	}
 }
+
+
+// TestBuildingADSRepeatedANDGuard characterizes the IF_NOT_RUNNING(3,38)
+// AND IF_NOT_RUNNING(3,40) guard repeated in BUILDING.ADS tags 5, 9, 7
+// and 8. PLAY_SCENE and END are test-only sentinels, so no scene is drawn.
+func TestBuildingADSRepeatedANDGuard(t *testing.T) {
+	oldThreads, oldStop := ttmThreads, adsStopRequested
+	defer func() { ttmThreads, adsStopRequested = oldThreads, oldStop }()
+	data := []byte{
+		0x60, 0x13, 3, 0, 38, 0, // IF_NOT_RUNNING(3,38)
+		0x20, 0x14, // AND
+		0x60, 0x13, 3, 0, 40, 0, // IF_NOT_RUNNING(3,40)
+		0x10, 0x15, // PLAY_SCENE sentinel
+		0xff, 0xff, // END sentinel
+	}
+	for _, tc := range []struct {
+		name string
+		running []uint16
+		wantStop int
+	}{
+		{"neither running", nil, 0},
+		{"first running", []uint16{38}, 1},
+		{"second running", []uint16{40}, 1},
+		{"both running", []uint16{38, 40}, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ttmThreads = [MaxTTMThreads]TTtmThread{}
+			for i, tag := range tc.running {
+				ttmThreads[i] = TTtmThread{isRunning: 1, sceneSlot: 3, sceneRootTag: tag}
+			}
+			adsStopRequested = 0
+			adsPlayChunk(data, uint32(len(data)), 0)
+			if adsStopRequested != tc.wantStop {
+				t.Fatalf("running=%v: stop=%d, want %d", tc.running, adsStopRequested, tc.wantStop)
+			}
+		})
+	}
+}
