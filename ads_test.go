@@ -603,3 +603,51 @@ func TestBuildingADSRepeatedANDGuard(t *testing.T) {
 		})
 	}
 }
+
+
+// TestBuildingADSDuplicateLastPlayedDispatch characterizes BUILDING.ADS
+// tag 2, which registers IF_LASTPLAYED(1,58) twice (original script offsets
+// 1412 and 1646). Both callbacks must run on a single completion. The
+// first callback uses END and the second PLAY_SCENE as harmless sentinels;
+// the original ADD_SCENE/STOP_SCENE actions are intentionally omitted.
+func TestBuildingADSDuplicateLastPlayedDispatch(t *testing.T) {
+	oldChunks, oldCount := adsChunks, numAdsChunks
+	oldLocal, oldLocalCount := adsChunksLocal, numAdsChunksLocal
+	oldTags, oldTagCount := adsTags, adsNumTags
+	oldStop := adsStopRequested
+	defer func() {
+		adsChunks, numAdsChunks = oldChunks, oldCount
+		adsChunksLocal, numAdsChunksLocal = oldLocal, oldLocalCount
+		adsTags, adsNumTags = oldTags, oldTagCount
+		adsStopRequested = oldStop
+	}()
+	// Two IF_LASTPLAYED(1,58) bookmarks with independent continuation
+	// bodies. The first END marks its execution via adsStopRequested.
+	// The second has a PLAY_SCENE sentinel and does not clear that mark.
+	data := []byte{
+		2, 0, // ADS tag 2
+		0x50, 0x13, 1, 0, 58, 0, // IF_LASTPLAYED(1,58)
+		0xff, 0xff, // END sentinel
+		0x50, 0x13, 1, 0, 58, 0, // IF_LASTPLAYED(1,58)
+		0x10, 0x15, // PLAY_SCENE sentinel
+	}
+	var offset uint32
+	adsLoad(data, uint32(len(data)), 1, 2, &offset)
+	if offset != 2 || numAdsChunks != 2 {
+		t.Fatalf("offset=%d bookmarks=%d, want 2 and 2", offset, numAdsChunks)
+	}
+	if adsChunks[0].offset != 8 || adsChunks[1].offset != 16 {
+		t.Fatalf("continuation offsets = %d,%d; want 8,16",
+			adsChunks[0].offset, adsChunks[1].offset)
+	}
+	adsStopRequested = 0
+	adsPlayTriggeredChunks(data, uint32(len(data)), 1, 58)
+	if adsStopRequested != 1 {
+		t.Fatal("completion (1,58) did not run the first continuation")
+	}
+	adsStopRequested = 0
+	adsPlayTriggeredChunks(data, uint32(len(data)), 1, 99)
+	if adsStopRequested != 0 {
+		t.Fatal("unrelated completion unexpectedly ran a continuation")
+	}
+}
