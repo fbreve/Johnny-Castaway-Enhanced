@@ -185,3 +185,66 @@ func TestAdsCleanupPlaybackResetsThreadStateWithoutGraphics(t *testing.T) {
 		t.Fatalf("second cleanup changed thread count to %d", numThreads)
 	}
 }
+
+
+ // TestAdsLoadConditionalChunkBookmarks characterizes how ADS pre-scanning
+ // records IF_NOT_RUNNING chunks until IF_IS_RUNNING disables bookmarking.
+ // These synthetic instructions never initialize a graphics context.
+func TestAdsLoadConditionalChunkBookmarks(t *testing.T) {
+	oldChunks, oldCount := adsChunks, numAdsChunks
+	oldLocal, oldLocalCount := adsChunksLocal, numAdsChunksLocal
+	oldTags, oldTagCount := adsTags, adsNumTags
+	defer func() {
+		adsChunks, numAdsChunks = oldChunks, oldCount
+		adsChunksLocal, numAdsChunksLocal = oldLocal, oldLocalCount
+		adsTags, adsNumTags = oldTags, oldTagCount
+	}()
+
+	// tag 7; IF_NOT_RUNNING(1,10); IF_IS_RUNNING(1,11);
+	// IF_NOT_RUNNING(1,12); IF_LASTPLAYED(1,13); END.
+	data := []byte{
+		0x07, 0x00,
+		0x60, 0x13, 0x01, 0x00, 0x0a, 0x00,
+		0x70, 0x13, 0x01, 0x00, 0x0b, 0x00,
+		0x60, 0x13, 0x01, 0x00, 0x0c, 0x00,
+		0x50, 0x13, 0x01, 0x00, 0x0d, 0x00,
+		0xff, 0xff,
+	}
+	var offset uint32
+	adsLoad(data, uint32(len(data)), 1, 7, &offset)
+	if offset != 2 {
+		t.Fatalf("tag offset = %d, want 2", offset)
+	}
+	if numAdsChunks != 2 {
+		t.Fatalf("bookmarked chunks = %d, want 2", numAdsChunks)
+	}
+	if got := adsChunks[0]; got.scene.slot != 1 || got.scene.tag != 10 || got.offset != 8 {
+		t.Fatalf("first bookmark = %#v", got)
+	}
+	if got := adsChunks[1]; got.scene.slot != 1 || got.scene.tag != 13 || got.offset != 26 {
+		t.Fatalf("second bookmark = %#v", got)
+	}
+}
+
+func TestAdsRandomBlockCharacterization(t *testing.T) {
+	oldOps, oldCount := adsRandOps, adsNumRandOps
+	defer func() { adsRandOps, adsNumRandOps = oldOps, oldCount }()
+
+	adsRandomStart()
+	adsRandomAddScene(1, 10, 2, 0)
+	adsRandomStopSceneByTtmTag(1, 11, 5)
+	adsRandomNop(0)
+	if adsNumRandOps != 3 {
+		t.Fatalf("queued random operations = %d, want 3", adsNumRandOps)
+	}
+	for i := 0; i < 20; i++ {
+		op := adsRandomPickOp()
+		if op == nil || op.ttype != OP_STOP_SCENE || op.tag != 11 {
+			t.Fatalf("only positive-weight operation was not selected: %#v", op)
+		}
+	}
+	adsRandomStart()
+	if adsNumRandOps != 0 || adsRandomPickOp() != nil {
+		t.Fatal("RANDOM_START did not clear previous random operations")
+	}
+}
