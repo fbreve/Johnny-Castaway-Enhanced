@@ -431,3 +431,47 @@ func TestFishingADSRealORBookmarks(t *testing.T) {
 		}
 	}
 }
+
+
+// TestFishingADSORTriggeredDispatch extends the original FISHING.ADS tag 1
+// OR-chain fixture with a terminal END to observe dispatch without rendering.
+// The END is a test sentinel, not part of the extracted 86-byte prefix.
+func TestFishingADSORTriggeredDispatch(t *testing.T) {
+	oldChunks, oldCount := adsChunks, numAdsChunks
+	oldLocal, oldLocalCount := adsChunksLocal, numAdsChunksLocal
+	oldTags, oldTagCount := adsTags, adsNumTags
+	oldStop := adsStopRequested
+	defer func() {
+		adsChunks, numAdsChunks = oldChunks, oldCount
+		adsChunksLocal, numAdsChunksLocal = oldLocal, oldLocalCount
+		adsTags, adsNumTags = oldTags, oldTagCount
+		adsStopRequested = oldStop
+	}()
+	// Tag 1 and the five real IF_LASTPLAYED / OR pairs from FISHING.ADS.
+	data := []byte{
+		1, 0,
+		0x50, 0x13, 1, 0, 10, 0, 0x30, 0x14,
+		0x50, 0x13, 1, 0, 21, 0, 0x30, 0x14,
+		0x50, 0x13, 1, 0, 22, 0, 0x30, 0x14,
+		0x50, 0x13, 1, 0, 23, 0, 0x30, 0x14,
+		0x50, 0x13, 1, 0, 38, 0,
+		0xff, 0xff, // END sentinel for observing dispatch
+	}
+	var offset uint32
+	adsLoad(data, uint32(len(data)), 1, 1, &offset)
+	if offset != 2 || numAdsChunks != 5 {
+		t.Fatalf("offset=%d bookmarks=%d; want 2 and 5", offset, numAdsChunks)
+	}
+	for _, tag := range []uint16{10, 21, 22, 23, 38} {
+		adsStopRequested = 0
+		adsPlayTriggeredChunks(data, uint32(len(data)), 1, tag)
+		if adsStopRequested != 1 {
+			t.Errorf("completion (1,%d) did not dispatch to END sentinel", tag)
+		}
+	}
+	adsStopRequested = 0
+	adsPlayTriggeredChunks(data, uint32(len(data)), 1, 99)
+	if adsStopRequested != 0 {
+		t.Error("unrelated scene completion unexpectedly dispatched")
+	}
+}
