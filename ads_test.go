@@ -248,3 +248,46 @@ func TestAdsRandomBlockCharacterization(t *testing.T) {
 		t.Fatal("RANDOM_START did not clear previous random operations")
 	}
 }
+
+
+ // TestAdsConditionalPlaySceneCharacterization captures the current
+ // IF_NOT_RUNNING / IF_IS_RUNNING and PLAY_SCENE control-flow behavior.
+ // No ADD_SCENE or graphics initialization is needed.
+func TestAdsConditionalPlaySceneCharacterization(t *testing.T) {
+	oldThreads, oldStop := ttmThreads, adsStopRequested
+	defer func() {
+		ttmThreads, adsStopRequested = oldThreads, oldStop
+	}()
+	tests := []struct {
+		name string
+		condition uint16
+		running bool
+		wantStop int
+	}{
+		{"not-running condition satisfied", 0x1360, false, 0},
+		{"not-running condition skipped", 0x1360, true, 1},
+		{"running condition satisfied", 0x1370, true, 0},
+		{"running condition skipped", 0x1370, false, 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ttmThreads = [MaxTTMThreads]TTtmThread{}
+			if tt.running {
+				ttmThreads[0].isRunning = 1
+				ttmThreads[0].sceneSlot = 1
+				ttmThreads[0].sceneRootTag = 10
+			}
+			adsStopRequested = 0
+			data := []byte{
+				byte(tt.condition), byte(tt.condition >> 8),
+				0x01, 0x00, 0x0a, 0x00, // scene (1,10)
+				0x10, 0x15, // PLAY_SCENE: exits if condition is satisfied
+				0xff, 0xff, // END: reached only when the block was skipped
+			}
+			adsPlayChunk(data, uint32(len(data)), 0)
+			if adsStopRequested != tt.wantStop {
+				t.Fatalf("adsStopRequested = %d, want %d", adsStopRequested, tt.wantStop)
+			}
+		})
+	}
+}
