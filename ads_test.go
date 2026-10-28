@@ -526,7 +526,7 @@ func TestStandADSRealANDChainCharacterization(t *testing.T) {
 // transition from IF_IS_RUNNING(1,53) to a random STOP_SCENE and then
 // IF_NOT_RUNNING(1,53). The zero-weight random STOP is a test-only
 // replacement to avoid graphics; the condition and block ordering is real.
-// This characterizes independent conditional blocks, not an AND chain.
+// This records that a failed IF_IS_RUNNING leaves the skip flag set\n// across the following IF_NOT_RUNNING, even when that predicate succeeds.\n// Whether that is intended for the original script remains unproven.
 func TestStandADSRunningConditionBoundaries(t *testing.T) {
 	oldThreads, oldStop := ttmThreads, adsStopRequested
 	oldOps, oldCount := adsRandOps, adsNumRandOps
@@ -548,8 +548,8 @@ func TestStandADSRunningConditionBoundaries(t *testing.T) {
 		running bool
 		wantStop int
 	}{
-		{"scene absent", false, 0},
-		{"scene present", true, 1},
+		{"scene absent (skip flag persists)", false, 1},
+		{"scene present (not-running condition fails)", true, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ttmThreads = [MaxTTMThreads]TTtmThread{}
