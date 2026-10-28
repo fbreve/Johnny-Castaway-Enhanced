@@ -520,3 +520,48 @@ func TestStandADSRealANDChainCharacterization(t *testing.T) {
 		})
 	}
 }
+
+
+// TestStandADSRunningConditionBoundaries models the actual STAND.ADS tag 1
+// transition from IF_IS_RUNNING(1,53) to a random STOP_SCENE and then
+// IF_NOT_RUNNING(1,53). The zero-weight random STOP is a test-only
+// replacement to avoid graphics; the condition and block ordering is real.
+// This characterizes independent conditional blocks, not an AND chain.
+func TestStandADSRunningConditionBoundaries(t *testing.T) {
+	oldThreads, oldStop := ttmThreads, adsStopRequested
+	oldOps, oldCount := adsRandOps, adsNumRandOps
+	defer func() {
+		ttmThreads, adsStopRequested = oldThreads, oldStop
+		adsRandOps, adsNumRandOps = oldOps, oldCount
+	}()
+	data := []byte{
+		0x70, 0x13, 1, 0, 53, 0, // IF_IS_RUNNING(1,53)
+		0x10, 0x30, // RANDOM_START
+		0x20, 0x30, 0, 0, // zero-weight NOP (test-only)
+		0xff, 0x30, // RANDOM_END
+		0x60, 0x13, 1, 0, 53, 0, // IF_NOT_RUNNING(1,53)
+		0x10, 0x15, // PLAY_SCENE
+		0xff, 0xff, // END sentinel
+	}
+	for _, tc := range []struct {
+		name string
+		running bool
+		wantStop int
+	}{
+		{"scene absent", false, 0},
+		{"scene present", true, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ttmThreads = [MaxTTMThreads]TTtmThread{}
+			if tc.running {
+				ttmThreads[0] = TTtmThread{isRunning: 1, sceneSlot: 1, sceneRootTag: 53}
+			}
+			adsStopRequested = 0
+			adsRandomStart()
+			adsPlayChunk(data, uint32(len(data)), 0)
+			if adsStopRequested != tc.wantStop {
+				t.Fatalf("running=%v: stop=%d, want %d", tc.running, adsStopRequested, tc.wantStop)
+			}
+		})
+	}
+}
