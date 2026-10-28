@@ -333,3 +333,55 @@ func TestAdsConsecutiveConditionsCharacterization(t *testing.T) {
 		})
 	}
 }
+
+// TestAdsRandomConditionalCharacterization records that skipped ADD_SCENE
+// instructions are not queued, while a RANDOM_END with no queued operations
+// leaves playback state unchanged. No scene or graphics resources are created.
+func TestAdsRandomConditionalCharacterization(t *testing.T) {
+	oldThreads, oldStop := ttmThreads, adsStopRequested
+	oldOps, oldCount := adsRandOps, adsNumRandOps
+	defer func() {
+		ttmThreads, adsStopRequested = oldThreads, oldStop
+		adsRandOps, adsNumRandOps = oldOps, oldCount
+	}()
+	for _, tc := range []struct {
+		name string
+		condition uint16
+		running bool
+		wantQueued int
+	}{
+		{"not-running skipped", 0x1360, true, 0},
+		{"running skipped", 0x1370, false, 0},
+		{"not-running satisfied", 0x1360, false, 1},
+		{"running satisfied", 0x1370, true, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ttmThreads = [MaxTTMThreads]TTtmThread{}
+			if tc.running {
+				ttmThreads[0] = TTtmThread{isRunning: 1, sceneSlot: 1, sceneRootTag: 10}
+			}
+			adsStopRequested = 0
+			adsRandomStart()
+			// The queued operation has weight zero, so RANDOM_END cannot
+			// execute it (and thus cannot initialize a render texture).
+			data := []byte{
+				byte(tc.condition), byte(tc.condition >> 8), 1, 0, 10, 0,
+				0x10, 0x30, // RANDOM_START
+				0x05, 0x20, 1, 0, 11, 0, 1, 0, 0, 0, // ADD_SCENE(1,11,1,weight=0)
+				0xff, 0x30, // RANDOM_END
+				0x10, 0x15, // PLAY_SCENE
+				0xff, 0xff, // END
+			}
+			adsPlayChunk(data, uint32(len(data)), 0)
+			if adsNumRandOps != tc.wantQueued {
+				t.Fatalf("queued operations = %d, want %d", adsNumRandOps, tc.wantQueued)
+			}
+			if tc.wantQueued == 0 && adsStopRequested != 1 {
+				t.Fatalf("skipped conditional should reach END, stop=%d", adsStopRequested)
+			}
+			if tc.wantQueued == 1 && adsStopRequested != 0 {
+				t.Fatalf("satisfied conditional should stop at PLAY_SCENE, stop=%d", adsStopRequested)
+			}
+		})
+	}
+}
