@@ -291,3 +291,45 @@ func TestAdsConditionalPlaySceneCharacterization(t *testing.T) {
 		})
 	}
 }
+
+
+ // TestAdsConsecutiveConditionsCharacterization records the current
+ // handling of sequential IF_NOT_RUNNING and IF_IS_RUNNING instructions.
+ // The interpreter uses one skip flag rather than nested condition frames.
+func TestAdsConsecutiveConditionsCharacterization(t *testing.T) {
+	oldThreads, oldStop := ttmThreads, adsStopRequested
+	defer func() { ttmThreads, adsStopRequested = oldThreads, oldStop }()
+	tests := []struct {
+		name string
+		firstRunning bool
+		secondRunning bool
+		wantStop int
+	}{
+		{"both conditions satisfied", false, true, 0},
+		{"first skipped second satisfied", true, true, 0},
+		{"first satisfied second skipped", false, false, 1},
+		{"both skipped", true, false, 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ttmThreads = [MaxTTMThreads]TTtmThread{}
+			if tt.firstRunning {
+				ttmThreads[0] = TTtmThread{isRunning: 1, sceneSlot: 1, sceneRootTag: 10}
+			}
+			if tt.secondRunning {
+				ttmThreads[1] = TTtmThread{isRunning: 1, sceneSlot: 1, sceneRootTag: 11}
+			}
+			adsStopRequested = 0
+			data := []byte{
+				0x60, 0x13, 0x01, 0x00, 0x0a, 0x00, // IF_NOT_RUNNING(1,10)
+				0x70, 0x13, 0x01, 0x00, 0x0b, 0x00, // IF_IS_RUNNING(1,11)
+				0x10, 0x15, // PLAY_SCENE
+				0xff, 0xff, // END
+			}
+			adsPlayChunk(data, uint32(len(data)), 0)
+			if adsStopRequested != tt.wantStop {
+				t.Fatalf("adsStopRequested = %d, want %d", adsStopRequested, tt.wantStop)
+			}
+		})
+	}
+}
