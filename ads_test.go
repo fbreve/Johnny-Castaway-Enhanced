@@ -385,3 +385,49 @@ func TestAdsRandomConditionalCharacterization(t *testing.T) {
 		})
 	}
 }
+
+// TestFishingADSRealORBookmarks uses the opening 86 bytes of tag 1 from
+// the original FISHING.ADS SCR stream (RESOURCE.001 / RESOURCE.MAP).
+// This is a small extracted instruction fixture, not a synthetic opcode
+// sequence. It checks the loader's dispatch bookmarks without rendering.
+func TestFishingADSRealORBookmarks(t *testing.T) {
+	oldChunks, oldCount := adsChunks, numAdsChunks
+	oldLocal, oldLocalCount := adsChunksLocal, numAdsChunksLocal
+	oldTags, oldTagCount := adsTags, adsNumTags
+	defer func() {
+		adsChunks, numAdsChunks = oldChunks, oldCount
+		adsChunksLocal, numAdsChunksLocal = oldLocal, oldLocalCount
+		adsTags, adsNumTags = oldTags, oldTagCount
+	}()
+	data := []byte{
+		0x01, 0x00, 0x30, 0x13, 0x01, 0x00, 0x01, 0x00,
+		0x05, 0x20, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00,
+		0x01, 0x00, 0x05, 0x20, 0x01, 0x00, 0x12, 0x00,
+		0x00, 0x00, 0x01, 0x00, 0x10, 0x15, 0x50, 0x13,
+		0x01, 0x00, 0x12, 0x00, 0x05, 0x20, 0x01, 0x00,
+		0x0a, 0x00, 0x00, 0x00, 0x01, 0x00, 0x10, 0x15,
+		0x50, 0x13, 0x01, 0x00, 0x0a, 0x00, 0x30, 0x14,
+		0x50, 0x13, 0x01, 0x00, 0x15, 0x00, 0x30, 0x14,
+		0x50, 0x13, 0x01, 0x00, 0x16, 0x00, 0x30, 0x14,
+		0x50, 0x13, 0x01, 0x00, 0x17, 0x00, 0x30, 0x14,
+		0x50, 0x13, 0x01, 0x00, 0x26, 0x00,
+	}
+	var offset uint32
+	adsLoad(data, uint32(len(data)), 1, 1, &offset)
+	if offset != 2 {
+		t.Fatalf("tag 1 offset = %d, want 2", offset)
+	}
+	want := []struct{ tag uint16; offset uint32 }{
+		{18, 36}, {10, 54}, {21, 62}, {22, 70}, {23, 78}, {38, 86},
+	}
+	if numAdsChunks != len(want) {
+		t.Fatalf("bookmarks = %d, want %d", numAdsChunks, len(want))
+	}
+	for i, w := range want {
+		got := adsChunks[i]
+		if got.scene.slot != 1 || got.scene.tag != w.tag || got.offset != w.offset {
+			t.Errorf("bookmark %d = (%d,%d) at %d, want (1,%d) at %d",
+				i, got.scene.slot, got.scene.tag, got.offset, w.tag, w.offset)
+		}
+	}
+}
