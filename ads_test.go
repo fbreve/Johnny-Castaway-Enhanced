@@ -475,3 +475,48 @@ func TestFishingADSORTriggeredDispatch(t *testing.T) {
 		t.Error("unrelated scene completion unexpectedly dispatched")
 	}
 }
+
+
+// TestStandADSRealANDChainCharacterization mirrors the four consecutive
+// IF_NOT_RUNNING predicates in STAND.ADS tag 1: (1,1), (1,2), (1,3),
+// (1,53). The trailing PLAY_SCENE / END are test-only sentinels.
+// A failure of any AND operand must remain sticky through later operands.
+func TestStandADSRealANDChainCharacterization(t *testing.T) {
+	oldThreads, oldStop := ttmThreads, adsStopRequested
+	defer func() { ttmThreads, adsStopRequested = oldThreads, oldStop }()
+	data := []byte{
+		0x60, 0x13, 1, 0, 1, 0,
+		0x20, 0x14,
+		0x60, 0x13, 1, 0, 2, 0,
+		0x20, 0x14,
+		0x60, 0x13, 1, 0, 3, 0,
+		0x20, 0x14,
+		0x60, 0x13, 1, 0, 53, 0,
+		0x10, 0x15, // PLAY_SCENE: terminates if all conditions pass
+		0xff, 0xff, // END: reached if any condition fails
+	}
+	for _, tc := range []struct {
+		name string
+		running []uint16
+		wantStop int
+	}{
+		{"all absent", nil, 0},
+		{"first running", []uint16{1}, 1},
+		{"second running", []uint16{2}, 1},
+		{"third running", []uint16{3}, 1},
+		{"fourth running", []uint16{53}, 1},
+		{"multiple running", []uint16{1, 53}, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ttmThreads = [MaxTTMThreads]TTtmThread{}
+			for i, tag := range tc.running {
+				ttmThreads[i] = TTtmThread{isRunning: 1, sceneSlot: 1, sceneRootTag: tag}
+			}
+			adsStopRequested = 0
+			adsPlayChunk(data, uint32(len(data)), 0)
+			if adsStopRequested != tc.wantStop {
+				t.Fatalf("running=%v: stop=%d, want %d", tc.running, adsStopRequested, tc.wantStop)
+			}
+		})
+	}
+}
