@@ -695,7 +695,7 @@ func adsPlayChunk(data []byte, dataSize, offset uint32) {
 			adsRandomEnd()
 			inRandBlock = 0
 		case 0x4000:
-			debugPrintln("UNKNOWN_6") // only in BUILDING.ADS tag 7
+			debugPrintln("UNKNOWN_6") // BUILDING.ADS tags 7 and 8, twice each; args (3,44,1)
 		case 0xf010:
 			debugPrintln("FADE_OUT")
 		case 0xf200:
