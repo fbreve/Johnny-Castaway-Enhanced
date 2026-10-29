@@ -579,8 +579,11 @@ func traceADSOpcode(offset uint32, opcode uint16, args [10]uint16, skip int, pha
 	if opcode != 0x1360 && opcode != 0x1370 && opcode != 0x2005 && opcode != 0x2010 && opcode != 0x4000 && opcode != 0x1510 && opcode != 0xfff0 {
 		return
 	}
-	if opcode != 0x4000 && (opcode != 0x1360 || args[0] != 3 || (args[1] != 43 && args[1] != 44)) &&
-		(opcode != 0x2005 || args[0] != 3 || (args[1] != 43 && args[1] != 44)) {
+	if opcode != 0x4000 && opcode != 0x1510 && opcode != 0xfff0 &&
+		(opcode != 0x1360 || args[0] != 3 || (args[1] != 43 && args[1] != 44)) &&
+		(opcode != 0x1370 || args[0] != 3 || (args[1] != 43 && args[1] != 44)) &&
+		(opcode != 0x2005 || args[0] != 3 || (args[1] != 43 && args[1] != 44)) &&
+		(opcode != 0x2010 || args[0] != 3 || (args[1] != 43 && args[1] != 44)) {
 		return
 	}
 	if debugLog() != nil {
