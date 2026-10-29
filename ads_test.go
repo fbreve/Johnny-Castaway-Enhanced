@@ -704,3 +704,62 @@ func TestBuildingADSORBookmarkChain(t *testing.T) {
 		})
 	}
 }
+
+
+// TestBuildingADSOpcode4000Framing records the current three-word
+// encoding of opcode 0x4000 (observed in BUILDING.ADS tag 7).
+// Its semantics remain unknown; this only protects instruction alignment.
+func TestBuildingADSOpcode4000Framing(t *testing.T) {
+	data := []byte{
+		0x00, 0x40, // 0x4000
+		0x34, 0x12, 0x78, 0x56, 0xbc, 0x9a, // three arguments
+		0x10, 0x15, // PLAY_SCENE sentinel
+	}
+	var offset uint32
+	var args [10]uint16
+	op, err := decodeADSInstruction(data, uint32(len(data)), &offset, &args)
+	if err != nil || op != 0x4000 || offset != 8 {
+		t.Fatalf("decode 0x4000: op=%#04x offset=%d err=%v", op, offset, err)
+	}
+	if args[0] != 0x1234 || args[1] != 0x5678 || args[2] != 0x9abc {
+		t.Fatalf("decode 0x4000 arguments = %#v", args[:3])
+	}
+	op, err = decodeADSInstruction(data, uint32(len(data)), &offset, &args)
+	if err != nil || op != 0x1510 || offset != uint32(len(data)) {
+		t.Fatalf("next opcode misaligned: op=%#04x offset=%d err=%v", op, offset, err)
+	}
+	for _, n := range []int{2, 4, 6} {
+		offset = 0
+		if _, err := decodeADSInstruction(data[:n], uint32(n), &offset, &args); err == nil {
+			t.Fatalf("accepted truncated 0x4000 at length %d", n)
+		}
+	}
+}
+
+// TestBuildingADSOpcode4000LoadAlignment checks that the ADS bookmark
+// scanner does not misinterpret 0x4000's operands as tags or triggers.
+func TestBuildingADSOpcode4000LoadAlignment(t *testing.T) {
+	oldChunks, oldCount := adsChunks, numAdsChunks
+	oldLocal, oldLocalCount := adsChunksLocal, numAdsChunksLocal
+	oldTags, oldTagCount := adsTags, adsNumTags
+	defer func() {
+		adsChunks, numAdsChunks = oldChunks, oldCount
+		adsChunksLocal, numAdsChunksLocal = oldLocal, oldLocalCount
+		adsTags, adsNumTags = oldTags, oldTagCount
+	}()
+	data := []byte{
+		7, 0, // ADS tag 7
+		0x00, 0x40, 0x50, 0x13, 1, 0, 2, 0, // 0x4000 with operand 0x1350
+		0x50, 0x13, 3, 0, 144, 0, // actual IF_LASTPLAYED
+		0x10, 0x15, // PLAY_SCENE
+	}
+	var offset uint32
+	adsLoad(data, uint32(len(data)), 1, 7, &offset)
+	if offset != 2 || numAdsChunks != 1 {
+		t.Fatalf("tag offset=%d bookmarks=%d; want 2,1", offset, numAdsChunks)
+	}
+	if adsChunks[0].scene.slot != 3 || adsChunks[0].scene.tag != 144 ||
+		adsChunks[0].offset != 16 {
+		t.Fatalf("incorrect bookmark after 0x4000: %#v", adsChunks[0])
+	}
+}
