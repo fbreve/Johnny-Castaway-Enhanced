@@ -10,6 +10,14 @@ Status: experiment design only; no production behavior changed.
 - `0x4000` currently logs `UNKNOWN_6` without applying `inSkipBlock` or changing scenes.
 - `0x1510` (`PLAY_SCENE`) clears a pending skip or terminates the chunk otherwise.
 
+## Interpreting trace records
+
+- `phase=before` means the instruction was decoded and is about to enter its switch case; it does **not** mean the operation was applied.
+- `phase=after` captures the state after the switch case, but it does not report the return value of scene operations. A changed `running43`/`running44` value is evidence of a state change, not proof of a visible animation difference.
+- `0x1510` may clear `inSkipBlock` or terminate the current chunk. `0xfff0` is logged as a boundary, not as an effect on its own.
+- `0x4000` is currently a no-op in the interpreter. Matching before/after states therefore describe the **current implementation**, not the original program’s intended semantics.
+- The diagnostic is enabled only by targeted test mode for `BUILDING.ADS`; regular screensaver playback is not traced.
+
 ## Controlled comparison protocol
 
 1. Capture the original screensaver and Enhanced while playing BUILDING.ADS tags 7/8, including transitions involving internal scenes 43 and 44.
