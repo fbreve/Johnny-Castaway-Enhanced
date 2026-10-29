@@ -569,8 +569,9 @@ func decodeADSInstruction(data []byte, dataSize uint32, offset *uint32, args *[1
 }
 
 // adsOpcodeTrace is a read-only BUILDING.ADS diagnostic.
-// It writes to debug.log without requiring the interactive debug overlay.
-var adsOpcodeTrace = true
+// Disabled by default to avoid continuous disk writes during normal playback.
+// Enable explicitly when investigating opcode 0x4000.
+var adsOpcodeTrace = false
 
 func traceADSOpcode(offset uint32, opcode uint16, args [10]uint16, skip int, phase string) {
 	if !adsOpcodeTrace || currentAdsName != "BUILDING.ADS" {
