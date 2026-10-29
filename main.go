@@ -821,6 +821,8 @@ func runBenchMode() {
 
 func runTestMode(testAdsName string, testTagNo int) {
 	if strings.EqualFold(testAdsName, "BUILDING.ADS") || strings.EqualFold(testAdsName, "BUILDING") {
+		adsOpcodeTrace = true
+		defer func() { adsOpcodeTrace = false }()
 		if f := debugLog(); f != nil {
 			debugMarker(fmt.Sprintf("ADS_4000_TRACE test-mode-start ads=%s tag=%d", testAdsName, testTagNo))
 		} else {
