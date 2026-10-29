@@ -651,3 +651,56 @@ func TestBuildingADSDuplicateLastPlayedDispatch(t *testing.T) {
 		t.Fatal("unrelated completion unexpectedly ran a continuation")
 	}
 }
+
+
+// TestBuildingADSORBookmarkChain characterizes the two IF_LASTPLAYED
+// alternatives (3,144) and (3,78) observed in BUILDING.ADS tags 7/8.
+// The fixture uses only control-flow instructions and END sentinels;
+// it does not attempt to reproduce the original scene side effects.
+func TestBuildingADSORBookmarkChain(t *testing.T) {
+	oldChunks, oldCount := adsChunks, numAdsChunks
+	oldLocal, oldLocalCount := adsChunksLocal, numAdsChunksLocal
+	oldTags, oldTagCount := adsTags, adsNumTags
+	oldStop := adsStopRequested
+	defer func() {
+		adsChunks, numAdsChunks = oldChunks, oldCount
+		adsChunksLocal, numAdsChunksLocal = oldLocal, oldLocalCount
+		adsTags, adsNumTags = oldTags, oldTagCount
+		adsStopRequested = oldStop
+	}()
+	data := []byte{
+		7, 0, // tag
+		0x50, 0x13, 3, 0, 144, 0, // IF_LASTPLAYED(3,144)
+		0x30, 0x14, // OR
+		0x50, 0x13, 3, 0, 78, 0, // IF_LASTPLAYED(3,78)
+		0xff, 0xff, // END sentinel
+	}
+	var offset uint32
+	adsLoad(data, uint32(len(data)), 1, 7, &offset)
+	if offset != 2 || numAdsChunks != 2 {
+		t.Fatalf("tag offset=%d, bookmarks=%d; want 2,2", offset, numAdsChunks)
+	}
+	if adsChunks[0].scene.slot != 3 || adsChunks[0].scene.tag != 144 ||
+		adsChunks[1].scene.slot != 3 || adsChunks[1].scene.tag != 78 {
+		t.Fatal("OR alternatives did not register both scene bookmarks")
+	}
+	for _, tc := range []struct {
+		name string
+		slot, tag uint16
+		wantStop int
+	}{
+		{"first alternative", 3, 144, 1},
+		{"second alternative", 3, 78, 1},
+		{"unrelated scene", 3, 79, 0},
+		{"wrong slot", 2, 144, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			adsStopRequested = 0
+			adsPlayTriggeredChunks(data, uint32(len(data)), tc.slot, tc.tag)
+			if adsStopRequested != tc.wantStop {
+				t.Fatalf("completion (%d,%d): stop=%d, want %d",
+					tc.slot, tc.tag, adsStopRequested, tc.wantStop)
+			}
+		})
+	}
+}
