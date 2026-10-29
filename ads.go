@@ -568,6 +568,31 @@ func decodeADSInstruction(data []byte, dataSize uint32, offset *uint32, args *[1
 	return op[0], nil
 }
 
+// adsOpcodeTrace is a read-only BUILDING.ADS diagnostic.
+// Disabled by default to avoid continuous disk writes during normal playback.
+// Enable explicitly when investigating opcode 0x4000.
+var adsOpcodeTrace = false
+
+func traceADSOpcode(offset uint32, opcode uint16, args [10]uint16, skip int, phase string) {
+	if !adsOpcodeTrace || currentAdsName != "BUILDING.ADS" {
+		return
+	}
+	if opcode != 0x1360 && opcode != 0x1370 && opcode != 0x2005 && opcode != 0x2010 && opcode != 0x4000 && opcode != 0x1510 && opcode != 0xfff0 {
+		return
+	}
+	if opcode != 0x4000 && opcode != 0x1510 && opcode != 0xfff0 &&
+		(opcode != 0x1360 || args[0] != 3 || (args[1] != 43 && args[1] != 44)) &&
+		(opcode != 0x1370 || args[0] != 3 || (args[1] != 43 && args[1] != 44)) &&
+		(opcode != 0x2005 || args[0] != 3 || (args[1] != 43 && args[1] != 44)) &&
+		(opcode != 0x2010 || args[0] != 3 || (args[1] != 43 && args[1] != 44)) {
+		return
+	}
+	if debugLog() != nil {
+		debugMarker(fmt.Sprintf("ADS_4000_TRACE phase=%s offset=%d opcode=%04x args=%v skip=%d running43=%d running44=%d",
+			phase, offset, opcode, args[:4], skip, isSceneRunning(3, 43), isSceneRunning(3, 44)))
+	}
+}
+
 func adsPlayChunk(data []byte, dataSize, offset uint32) {
 	var (
 		opcode              uint16 = 0
@@ -581,12 +606,14 @@ func adsPlayChunk(data []byte, dataSize, offset uint32) {
 
 	for continueLoop != 0 && offset < dataSize {
 		var err error
+		instructionOffset := offset
 		opcode, err = decodeADSInstruction(data, dataSize, &offset, &args)
 		if err != nil {
 			debugPrintf("WARN: malformed ADS instruction: %v\n", err)
 			break
 		}
 
+		traceADSOpcode(instructionOffset, opcode, args, inSkipBlock, "before")
 		switch opcode {
 
 		case 0x1070:
@@ -719,6 +746,7 @@ func adsPlayChunk(data []byte, dataSize, offset uint32) {
 		default:
 			debugPrintf(":TAG %d\n", opcode)
 		}
+		traceADSOpcode(instructionOffset, opcode, args, inSkipBlock, "after")
 	}
 }
 
