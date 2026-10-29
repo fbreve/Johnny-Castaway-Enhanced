@@ -107,14 +107,23 @@ func setupMonitors() {
 			targetW := rl.GetMonitorWidth(monitor)
 			targetH := rl.GetMonitorHeight(monitor)
 			rl.SetWindowSize(targetW, targetH)
+			converged := false
 			for i := 0; i < 100; i++ {
 				pumpFrame()
 				if rl.GetRenderWidth() >= targetW-8 && rl.GetRenderHeight() >= targetH-8 {
+					converged = true
 					break
 				}
 			}
-			monitorRects = nil
-			return
+
+			// A compositor without wlr-layer-shell support (e.g. GNOME/
+			// Mutter) makes the patched GLFW fall back to a regular xdg
+			// toplevel, and no fullscreen request has been sent yet: run
+			// the standard fullscreen path below in that case.
+			if converged {
+				monitorRects = nil
+				return
+			}
 		}
 
 		// Under Wayland the xdg_toplevel fullscreen request only works
