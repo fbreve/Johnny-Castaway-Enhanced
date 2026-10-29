@@ -29,6 +29,10 @@ var (
 	isChildProcess    bool
 	buildTime         = "Developer Build"
 	isRun             = false
+	// exitCmd is run (and waited for) when the screensaver exits, BEFORE its
+	// window is torn down, so e.g. a session lock can cover the screen
+	// before the desktop shows through (--exit-cmd).
+	exitCmd string
 )
 
 func formatStartTime(val int) string {
@@ -519,6 +523,9 @@ func printUsage() {
 	fmt.Println("                        propagated to per-monitor child instances")
 	fmt.Println("  -d, --day             force daytime island/sky rendering")
 	fmt.Println("  -n, --night           force nighttime island/sky rendering")
+	fmt.Println("  --exit-cmd <cmd>      run <cmd> (via sh, waited for) when the screensaver")
+	fmt.Println("                        exits, before its window closes; e.g. lock the session")
+	fmt.Println("                        so the desktop never shows through")
 	fmt.Println()
 	fmt.Println("  -h, --help, -?        show this help")
 }
@@ -545,6 +552,7 @@ func main() {
 	isChildProcess = opts.child
 	hasMonitorIndex = opts.hasMonitor
 	runOnMonitorIndex = opts.monitor
+	exitCmd = opts.exitCmd
 	forcedHolidayArg = opts.holidayArg
 	forcedHoliday = opts.holiday
 	if opts.dayNightArg != "" {
@@ -592,6 +600,8 @@ func setupApp() {
 	startHDRWatchdog()
 
 	// Enable 4x MSAA, undecorated, and resizable window flags before initialization to ensure window focus
+	// On Wayland this also arms the layer-shell overlay mode for the screensaver window
+	enableLayerShellMode()
 	rl.SetConfigFlags(rl.FlagMsaa4xHint | rl.FlagWindowUndecorated | rl.FlagWindowResizable)
 	rl.InitWindow(screenWidth, screenHeight, "Johnny Castaway")
 
@@ -670,6 +680,14 @@ func runStory() {
 				if isRun {
 					args = append(args, "-s")
 				}
+				// Propagate the exit command: the child whose window the user
+				// dismissed runs it (deferred, while its window is still
+				// mapped), so the session locks before that window closes.
+				// Without it the parent only notices the child's exit after
+				// the fact, briefly exposing the desktop on that monitor.
+				if exitCmd != "" {
+					args = append(args, "--exit-cmd", exitCmd)
+				}
 				if hotKeysEnabled {
 					args = append(args, "-k")
 				}
@@ -715,6 +733,8 @@ func runStory() {
 
 			// Wait for any child process to exit
 			<-shouldExitChan
+			// The other instances still cover their monitors at this point.
+			runExitCmd()
 
 			// Clean exit: signal all other child processes to terminate gracefully
 			// by closing their stdin pipes. This causes their stdin reader loop to unblock
@@ -745,8 +765,23 @@ func runStory() {
 	defer rl.CloseAudioDevice()
 	defer graphicsEnd()
 	defer unloadSfx()
+	// Deferred last so it runs first, while the window is still mapped.
+	defer runExitCmd()
 
 	storyPlay()
+}
+
+// runExitCmd runs the --exit-cmd command through sh and waits for it.
+func runExitCmd() {
+	if exitCmd == "" {
+		return
+	}
+	cmd := exec.Command("sh", "-c", exitCmd)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		fmt.Printf("exit command failed: %v\n", err)
+	}
 }
 
 func singleTTM() {

@@ -96,6 +96,36 @@ func setupMonitors() {
 			rl.EndDrawing()
 		}
 
+		if layerShellMode() {
+			// The window is an overlay layer surface anchored to its whole
+			// output: no fullscreen request to send. Its size was fixed by
+			// the compositor's first configure, which arrived during window
+			// creation - before raylib registered its size callbacks - so
+			// raylib's GL viewport still reflects the initial window size.
+			// SetWindowSize is echoed back by the patched GLFW, which
+			// resets the viewport; pump frames until that has converged.
+			targetW := rl.GetMonitorWidth(monitor)
+			targetH := rl.GetMonitorHeight(monitor)
+			rl.SetWindowSize(targetW, targetH)
+			converged := false
+			for i := 0; i < 100; i++ {
+				pumpFrame()
+				if rl.GetRenderWidth() >= targetW-8 && rl.GetRenderHeight() >= targetH-8 {
+					converged = true
+					break
+				}
+			}
+
+			// A compositor without wlr-layer-shell support (e.g. GNOME/
+			// Mutter) makes the patched GLFW fall back to a regular xdg
+			// toplevel, and no fullscreen request has been sent yet: run
+			// the standard fullscreen path below in that case.
+			if converged {
+				monitorRects = nil
+				return
+			}
+		}
+
 		// Under Wayland the xdg_toplevel fullscreen request only works
 		// once the surface has been mapped: sending it before the first
 		// buffer swap results in a configure event the compositor never
