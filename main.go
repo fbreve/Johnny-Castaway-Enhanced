@@ -600,6 +600,8 @@ func setupApp() {
 	startHDRWatchdog()
 
 	// Enable 4x MSAA, undecorated, and resizable window flags before initialization to ensure window focus
+	// On Wayland this also arms the layer-shell overlay mode for the screensaver window
+	enableLayerShellMode()
 	rl.SetConfigFlags(rl.FlagMsaa4xHint | rl.FlagWindowUndecorated | rl.FlagWindowResizable)
 	rl.InitWindow(screenWidth, screenHeight, "Johnny Castaway")
 

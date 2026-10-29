@@ -12,3 +12,4 @@ tools
 *.exe
 *.scr
 .vscode
+vendor/
