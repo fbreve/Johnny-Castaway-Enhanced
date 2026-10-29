@@ -568,12 +568,12 @@ func decodeADSInstruction(data []byte, dataSize uint32, offset *uint32, args *[1
 	return op[0], nil
 }
 
-// fireStageTrace is a read-only BUILDING.ADS diagnostic.
+// adsOpcodeTrace is a read-only BUILDING.ADS diagnostic.
 // It writes to debug.log without requiring the interactive debug overlay.
-var fireStageTrace = true
+var adsOpcodeTrace = true
 
-func traceFireStage(offset uint32, opcode uint16, args [10]uint16, skip int, phase string) {
-	if !fireStageTrace || currentAdsName != "BUILDING.ADS" {
+func traceADSOpcode(offset uint32, opcode uint16, args [10]uint16, skip int, phase string) {
+	if !adsOpcodeTrace || currentAdsName != "BUILDING.ADS" {
 		return
 	}
 	if opcode != 0x1360 && opcode != 0x1370 && opcode != 0x2005 && opcode != 0x2010 && opcode != 0x4000 && opcode != 0x1510 && opcode != 0xfff0 {
@@ -609,7 +609,7 @@ func adsPlayChunk(data []byte, dataSize, offset uint32) {
 			break
 		}
 
-		traceFireStage(instructionOffset, opcode, args, inSkipBlock, "before")
+		traceADSOpcode(instructionOffset, opcode, args, inSkipBlock, "before")
 		switch opcode {
 
 		case 0x1070:
@@ -742,7 +742,7 @@ func adsPlayChunk(data []byte, dataSize, offset uint32) {
 		default:
 			debugPrintf(":TAG %d\n", opcode)
 		}
-		traceFireStage(instructionOffset, opcode, args, inSkipBlock, "after")
+		traceADSOpcode(instructionOffset, opcode, args, inSkipBlock, "after")
 	}
 }
 
