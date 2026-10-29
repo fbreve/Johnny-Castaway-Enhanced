@@ -587,7 +587,7 @@ func traceADSOpcode(offset uint32, opcode uint16, args [10]uint16, skip int, pha
 		return
 	}
 	if debugLog() != nil {
-		debugMarker(fmt.Sprintf("ADS_4000_TRACE %s offset=%d opcode=%04x args=%v skip=%d running43=%d running44=%d",
+		debugMarker(fmt.Sprintf("ADS_4000_TRACE phase=%s offset=%d opcode=%04x args=%v skip=%d running43=%d running44=%d",
 			phase, offset, opcode, args[:4], skip, isSceneRunning(3, 43), isSceneRunning(3, 44)))
 	}
 }
