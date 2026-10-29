@@ -52,6 +52,10 @@ def main():
         args.log.read_text(encoding="utf-8", errors="replace").splitlines()
     )
     print(f"Test-mode start markers: {starts}")
+    if starts > 1:
+        print("WARNING: log contains multiple test sessions; counts are aggregated.")
+    elif starts == 0:
+        print("WARNING: no test-mode start marker found; session identity is unverified.")
     print("Decoded instructions (before records):")
     for opcode, count in sorted(counts.items()):
         print(f"  0x{opcode}: {count}")
@@ -60,6 +64,8 @@ def main():
         print(f"  lines {first}-{last} opcode=0x{opcode}: {before} -> {after}")
     print(f"Unpaired before records: {len(missing_after)} at lines {missing_after}")
     print(f"Unpaired after records: {len(missing_before)} at lines {missing_before}")
+    if missing_after or missing_before:
+        print("WARNING: incomplete before/after pairs; do not infer opcode behavior from this trace alone.")
     if not counts:
         print("No parseable instruction traces found; check build, mode and log location.")
 
