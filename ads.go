@@ -568,8 +568,8 @@ func decodeADSInstruction(data []byte, dataSize uint32, offset *uint32, args *[1
 	return op[0], nil
 }
 
-// fireStageTrace is opt-in diagnostic output. It does not change ADS execution.
-// Enable only while reproducing the BUILDING.ADS fire transition.
+// fireStageTrace is a read-only BUILDING.ADS diagnostic.
+// It writes to debug.log without requiring the interactive debug overlay.
 var fireStageTrace = true
 
 func traceFireStage(offset uint32, opcode uint16, args [10]uint16, skip int, phase string) {
@@ -579,8 +579,14 @@ func traceFireStage(offset uint32, opcode uint16, args [10]uint16, skip int, pha
 	if opcode != 0x1360 && opcode != 0x1370 && opcode != 0x2005 && opcode != 0x2010 && opcode != 0x4000 && opcode != 0x1510 && opcode != 0xfff0 {
 		return
 	}
-	debugPrintf("FIRE_TRACE %s offset=%d opcode=%04x args=%v skip=%d running43=%d running44=%d\n",
-		phase, offset, opcode, args[:4], skip, isSceneRunning(3, 43), isSceneRunning(3, 44))
+	if opcode != 0x4000 && (opcode != 0x1360 || args[0] != 3 || (args[1] != 43 && args[1] != 44)) &&
+		(opcode != 0x2005 || args[0] != 3 || (args[1] != 43 && args[1] != 44)) {
+		return
+	}
+	if debugLog() != nil {
+		debugMarker(fmt.Sprintf("ADS_4000_TRACE %s offset=%d opcode=%04x args=%v skip=%d running43=%d running44=%d",
+			phase, offset, opcode, args[:4], skip, isSceneRunning(3, 43), isSceneRunning(3, 44)))
+	}
 }
 
 func adsPlayChunk(data []byte, dataSize, offset uint32) {
