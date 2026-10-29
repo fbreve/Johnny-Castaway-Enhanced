@@ -6,6 +6,20 @@ The ultimate goal of this fork is to add key enhancements, resolve bugs, and mak
 
 ---
 
+## ✨ What's New Since the Previous Release
+
+Recent updates focus on visual fidelity, stability, and compatibility while preserving the behavior of the original screensaver:
+
+- **More faithful animations:** Fixed scene transitions, sprite layering, persistent background decorations, and positioning in several story sequences, including planes, boats, and island interactions.
+- **Improved widescreen rendering:** Refined how moving vehicles, characters, lines, and clipping regions scale together, reducing gaps, jitter, and misplaced graphics.
+- **More reliable screensaver lifecycle:** Improved cleanup and display power-transition handling on Windows, including HDR-related recovery behavior when monitors sleep or wake.
+- **Multi-monitor and Linux improvements:** Refined monitor selection and independent instances, with platform-specific behavior for Windows, X11, and Wayland.
+- **Engine reliability:** Improved ADS/TTM scene and thread handling, resource cleanup, and automated regression coverage.
+
+For the complete list of features and technical details, see the sections below. Experimental changes in unmerged pull requests are not included in this release summary.
+
+---
+
 ## 🚀 Improvements & Fixes in this Fork
 
 Here are the enhancements and fixes implemented in this version:
