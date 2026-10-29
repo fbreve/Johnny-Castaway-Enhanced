@@ -568,6 +568,21 @@ func decodeADSInstruction(data []byte, dataSize uint32, offset *uint32, args *[1
 	return op[0], nil
 }
 
+// fireStageTrace is opt-in diagnostic output. It does not change ADS execution.
+// Enable only while reproducing the BUILDING.ADS fire transition.
+var fireStageTrace = false
+
+func traceFireStage(offset uint32, opcode uint16, args [10]uint16, skip int, phase string) {
+	if !fireStageTrace || currentAdsName != "BUILDING.ADS" {
+		return
+	}
+	if opcode != 0x1360 && opcode != 0x2005 && opcode != 0x2010 && opcode != 0x4000 && opcode != 0x1510 {
+		return
+	}
+	debugPrintf("FIRE_TRACE %s offset=%d opcode=%04x args=%v skip=%d running43=%d running44=%d\\n",
+		phase, offset, opcode, args[:4], skip, isSceneRunning(3, 43), isSceneRunning(3, 44))
+}
+
 func adsPlayChunk(data []byte, dataSize, offset uint32) {
 	var (
 		opcode              uint16 = 0
@@ -581,12 +596,14 @@ func adsPlayChunk(data []byte, dataSize, offset uint32) {
 
 	for continueLoop != 0 && offset < dataSize {
 		var err error
+		instructionOffset := offset
 		opcode, err = decodeADSInstruction(data, dataSize, &offset, &args)
 		if err != nil {
 			debugPrintf("WARN: malformed ADS instruction: %v\n", err)
 			break
 		}
 
+		traceFireStage(instructionOffset, opcode, args, inSkipBlock, "before")
 		switch opcode {
 
 		case 0x1070:
@@ -719,6 +736,7 @@ func adsPlayChunk(data []byte, dataSize, offset uint32) {
 		default:
 			debugPrintf(":TAG %d\n", opcode)
 		}
+		traceFireStage(instructionOffset, opcode, args, inSkipBlock, "after")
 	}
 }
 
