@@ -36,4 +36,4 @@ No assumptions about the unknown opcode's semantics are made here.
 
 ## Capturing the targeted trace (experimental branch)
 
-Build and launch the experimental branch with `/t BUILDING.ADS 7`. The diagnostic records `ADS_4000_TRACE` entries in `debug.log` in the process working directory without requiring `-k` or the Shift hotkey. No visual event identity is assumed. Preserve the full log and report what the animation actually depicts. The trace records execution state but does not implement opcode `0x4000`.
+Build and launch the experimental branch with `/t BUILDING.ADS 7`. The diagnostic only emits `ADS_4000_TRACE` entries if matching instructions are actually executed; absence of the file or entries is not evidence that the opcode is absent. The diagnostic records `ADS_4000_TRACE` entries in `debug.log` in the process working directory (not necessarily beside the executable) without requiring `-k` or the Shift hotkey. No visual event identity is assumed. Preserve the full log and report what the animation actually depicts. The trace records execution state but does not implement opcode `0x4000`.
