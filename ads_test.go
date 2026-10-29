@@ -763,3 +763,33 @@ func TestBuildingADSOpcode4000LoadAlignment(t *testing.T) {
 		t.Fatalf("incorrect bookmark after 0x4000: %#v", adsChunks[0])
 	}
 }
+
+
+// TestBuildingADSOpcode4000OriginalSequence records the repeated sequence
+// observed in original BUILDING.ADS tags 7 and 8: 0x4000(3,44,1)
+// immediately followed by ADD_SCENE(3,44,0,1), twice in each tag.
+// The unknown opcode's semantics are deliberately not inferred.
+func TestBuildingADSOpcode4000OriginalSequence(t *testing.T) {
+	data := []byte{
+		0x00, 0x40, 3, 0, 44, 0, 1, 0,
+		0x05, 0x20, 3, 0, 44, 0, 0, 0, 1, 0,
+		0x00, 0x40, 3, 0, 44, 0, 1, 0,
+		0x05, 0x20, 3, 0, 44, 0, 0, 0, 1, 0,
+	}
+	var offset uint32
+	var args [10]uint16
+	for repeat := 0; repeat < 2; repeat++ {
+		op, err := decodeADSInstruction(data, uint32(len(data)), &offset, &args)
+		if err != nil || op != 0x4000 || args[0] != 3 || args[1] != 44 || args[2] != 1 {
+			t.Fatalf("repeat %d: 0x4000 op=%#x args=%v err=%v", repeat, op, args[:3], err)
+		}
+		op, err = decodeADSInstruction(data, uint32(len(data)), &offset, &args)
+		if err != nil || op != 0x2005 || args[0] != 3 || args[1] != 44 ||
+			args[2] != 0 || args[3] != 1 {
+			t.Fatalf("repeat %d: ADD_SCENE op=%#x args=%v err=%v", repeat, op, args[:4], err)
+		}
+	}
+	if offset != uint32(len(data)) {
+		t.Fatalf("decoded %d of %d bytes", offset, len(data))
+	}
+}
