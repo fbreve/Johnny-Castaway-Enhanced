@@ -6,7 +6,7 @@ The ultimate goal of this fork is to add key enhancements, resolve bugs, and mak
 
 ---
 
-## ✨ What's New Since the Previous Release
+## ✨ Recent Improvements
 
 Recent updates focus on visual fidelity, stability, and compatibility while preserving the behavior of the original screensaver:
 
@@ -16,7 +16,7 @@ Recent updates focus on visual fidelity, stability, and compatibility while pres
 - **Multi-monitor and Linux improvements:** Refined monitor selection and independent instances, with platform-specific behavior for Windows, X11, and Wayland.
 - **Engine reliability:** Improved ADS/TTM scene and thread handling, resource cleanup, and automated regression coverage.
 
-For the complete list of features and technical details, see the sections below. Experimental changes in unmerged pull requests are not included in this release summary.
+For the complete list of features and technical details, see the sections below. Experimental changes in unmerged pull requests are not included in this overview.
 
 ---
 
