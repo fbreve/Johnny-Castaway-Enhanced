@@ -33,3 +33,7 @@ No assumptions about the unknown opcode's semantics are made here.
 - Tags 5 and 9 are likewise marked identical in the source table.
 - Internal TTM scenes `(3,43)` and `(3,44)` are **not** story selector entries. Their visual meaning has not been verified; do not call this a fire scene or request a fire reproduction based on these IDs.
 - The experiment must first identify the actual visible animation for tags 7/8 and establish whether `0x4000` has a measurable effect. A missing visible fire is not itself a regression.
+
+## Capturing the targeted trace (experimental branch)
+
+Build and launch the experimental branch with `/t BUILDING.ADS 7`. The diagnostic records `ADS_4000_TRACE` entries in `debug.log` in the process working directory without requiring `-k` or the Shift hotkey. It does not prove that the visual sequence is a fire. Preserve the full log and report what the animation actually depicts. The trace records execution state but does not implement opcode `0x4000`.
