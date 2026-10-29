@@ -45,3 +45,15 @@ No assumptions about the unknown opcode's semantics are made here.
 ## Capturing the targeted trace (experimental branch)
 
 Build and launch the experimental branch with `/t BUILDING.ADS 7`. The diagnostic only emits `ADS_4000_TRACE` entries if matching instructions are actually executed; absence of the file or entries is not evidence that the opcode is absent. The diagnostic records `ADS_4000_TRACE` entries in `debug.log` in the process working directory (not necessarily beside the executable) without requiring `-k` or the Shift hotkey. No visual event identity is assumed. Preserve the full log and report what the animation actually depicts. The trace records execution state but does not implement opcode `0x4000`.
+
+## Reproducible collection checklist
+
+Run the experimental executable with the original proprietary assets available locally; do not commit or upload those assets to GitHub. Use a **separate, empty working directory** for each capture so that `debug.log` contains one session only.
+
+1. Run `/t BUILDING.ADS 7`; record the visible animation, whether the process finished, and the full `debug.log`.
+2. Run `/t BUILDING.ADS 8` in a different working directory; record the same information.
+3. Run `python tools/analyze_ads_4000_trace.py <path-to-debug.log>` on each capture. Keep the raw log alongside the summary; summaries cannot reconstruct missing details.
+4. Check for the `test-mode-start` marker, the number of `0x4000` before records, and any unpaired records. If the trace is missing or incomplete, **do not** interpret unchanged scene state as evidence of a no-op in the original.
+5. Report the observed visual sequence separately from internal scene IDs. If comparing against the original program, capture equivalent visible conditions and describe differences without guessing their cause.
+
+**Stop condition:** If tags 7/8 execute without a reproducible discrepancy against the original, leave `0x4000` unimplemented and keep this PR as an investigation. Any implementation proposal needs a concrete failing scenario and a regression test. This trace is an Enhanced-only instrument and cannot itself reveal the original program's internal opcode semantics.
