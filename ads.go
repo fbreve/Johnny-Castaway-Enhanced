@@ -570,7 +570,7 @@ func decodeADSInstruction(data []byte, dataSize uint32, offset *uint32, args *[1
 
 // fireStageTrace is opt-in diagnostic output. It does not change ADS execution.
 // Enable only while reproducing the BUILDING.ADS fire transition.
-var fireStageTrace = false
+var fireStageTrace = true
 
 func traceFireStage(offset uint32, opcode uint16, args [10]uint16, skip int, phase string) {
 	if !fireStageTrace || currentAdsName != "BUILDING.ADS" {
