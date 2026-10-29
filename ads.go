@@ -579,7 +579,7 @@ func traceFireStage(offset uint32, opcode uint16, args [10]uint16, skip int, pha
 	if opcode != 0x1360 && opcode != 0x1370 && opcode != 0x2005 && opcode != 0x2010 && opcode != 0x4000 && opcode != 0x1510 && opcode != 0xfff0 {
 		return
 	}
-	debugPrintf("FIRE_TRACE %s offset=%d opcode=%04x args=%v skip=%d running43=%d running44=%d\\n",
+	debugPrintf("FIRE_TRACE %s offset=%d opcode=%04x args=%v skip=%d running43=%d running44=%d\n",
 		phase, offset, opcode, args[:4], skip, isSceneRunning(3, 43), isSceneRunning(3, 44))
 }
 
