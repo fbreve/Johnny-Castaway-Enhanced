@@ -820,6 +820,13 @@ func runBenchMode() {
 }
 
 func runTestMode(testAdsName string, testTagNo int) {
+	if strings.EqualFold(testAdsName, "BUILDING.ADS") || strings.EqualFold(testAdsName, "BUILDING") {
+		if f := debugLog(); f != nil {
+			debugMarker(fmt.Sprintf("ADS_4000_TRACE test-mode-start ads=%s tag=%d", testAdsName, testTagNo))
+		} else {
+			fmt.Fprintln(os.Stderr, "ADS trace: cannot create debug.log in the current working directory")
+		}
+	}
 	setupApp()
 	defer rl.CloseWindow()
 	defer rl.CloseAudioDevice()
