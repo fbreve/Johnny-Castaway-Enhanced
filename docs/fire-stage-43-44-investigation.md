@@ -25,3 +25,11 @@ Status: experiment design only; no production behavior changed.
 - Which fire-stage transitions can be reached deterministically in the original screensaver?
 
 No assumptions about the unknown opcode's semantics are made here.
+
+## Story selector mapping (verified in `story_data.go`)
+
+- `BUILDING.ADS` tag 7 is a non-final island activity with `ISLAND | VARPOS_OK | LOWTIDE_OK`, and no fixed story day.
+- Tag 8 is deliberately omitted from `storyScenes` because its content is identical to tag 7.
+- Tags 5 and 9 are likewise marked identical in the source table.
+- Internal TTM scenes `(3,43)` and `(3,44)` are **not** story selector entries. Their visual meaning has not been verified; do not call this a fire scene or request a fire reproduction based on these IDs.
+- The experiment must first identify the actual visible animation for tags 7/8 and establish whether `0x4000` has a measurable effect. A missing visible fire is not itself a regression.
